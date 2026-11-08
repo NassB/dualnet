@@ -25,6 +25,8 @@ type Server struct {
 	// Sticky keeps a destination host on the same link for this long, so sites
 	// that dislike IP changes (logins, banks) keep seeing one IP.
 	Sticky time.Duration
+	// BusyWindow: connections idle longer than this do not count as load (default 10 s).
+	BusyWindow time.Duration
 
 	initOnce   sync.Once
 	mu         sync.Mutex
@@ -313,8 +315,8 @@ func (s *Server) stats() {
 			cur := l.BytesIn.Load() + l.BytesOut.Load()
 			r := links.Mbps(cur-prev[l], time.Second)
 			prev[l] = cur
-			s.rate[l] = maxf(r, s.rate[l]*0.98)
-			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacité ~%.0f), %d conn", l.Name, r, s.rate[l], l.Active.Load()))
+			s.rate[l] = maxf(r, s.rate[l]*0.995) // half-life ~2 min
+			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacité ~%.0f), %d conn dont %d actives", l.Name, r, s.rate[l], l.Active.Load(), l.Busy(10*time.Second)))
 		}
 		for h, e := range s.sticky {
 			if time.Since(e.seen) > s.Sticky {
@@ -333,7 +335,15 @@ func (s *Server) stats() {
 // they still receive connections and get measured.
 func (s *Server) score(l *links.Link) float64 {
 	capacity := maxf(s.rate[l], 10)
-	return capacity / float64(l.Active.Load()+1)
+	return capacity / float64(l.Busy(s.busyWindow())+1)
+}
+
+// busyWindow: a connection without traffic for this long counts as idle.
+func (s *Server) busyWindow() time.Duration {
+	if s.BusyWindow > 0 {
+		return s.BusyWindow
+	}
+	return 10 * time.Second
 }
 
 func maxf(a, b float64) float64 {

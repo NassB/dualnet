@@ -27,7 +27,10 @@ type Link struct {
 	fails     atomic.Int32 // consecutive failed checks
 	latency   atomic.Int64 // ms
 	limitMbps atomic.Int64
-	lim       limiter
+
+	connsMu sync.Mutex
+	conns   map[*countingConn]struct{} // open connections, to tell busy from idle
+	lim     limiter
 
 	BytesIn  atomic.Int64
 	BytesOut atomic.Int64
@@ -73,7 +76,15 @@ func (l *Link) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	if err != nil {
 		return nil, err
 	}
-	return &countingConn{Conn: c, link: l}, nil
+	cc := &countingConn{Conn: c, link: l}
+	cc.lastIO.Store(time.Now().UnixNano())
+	l.connsMu.Lock()
+	if l.conns == nil {
+		l.conns = map[*countingConn]struct{}{}
+	}
+	l.conns[cc] = struct{}{}
+	l.connsMu.Unlock()
+	return cc, nil
 }
 
 // New returns a link bound to ip (used by tests; Discover builds real ones).
@@ -154,11 +165,15 @@ type countingConn struct {
 	net.Conn
 	link   *Link
 	closed atomic.Bool
+	lastIO atomic.Int64 // unix nanoseconds of the last byte read or written
 }
 
 func (c *countingConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	c.link.BytesIn.Add(int64(n))
+	if n > 0 {
+		c.lastIO.Store(time.Now().UnixNano())
+	}
 	c.link.Throttle(n)
 	return n, err
 }
@@ -166,6 +181,9 @@ func (c *countingConn) Read(p []byte) (int, error) {
 func (c *countingConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	c.link.BytesOut.Add(int64(n))
+	if n > 0 {
+		c.lastIO.Store(time.Now().UnixNano())
+	}
 	return n, err
 }
 
@@ -178,7 +196,11 @@ func (c *countingConn) CloseWrite() error {
 }
 
 func (c *countingConn) Close() error {
-	c.closed.Store(true)
+	if !c.closed.Swap(true) {
+		c.link.connsMu.Lock()
+		delete(c.link.conns, c)
+		c.link.connsMu.Unlock()
+	}
 	return c.Conn.Close()
 }
 
@@ -209,3 +231,19 @@ func (l *Link) Usable() bool { return l.Up() && l.Healthy() }
 
 // LatencyMs is the last measured TCP connect time to the internet (0 = unknown).
 func (l *Link) LatencyMs() int64 { return l.latency.Load() }
+
+// Busy counts the open connections that moved data within the last `within`
+// (new connections count as busy). Idle ones (apps keeping a socket open) do
+// not make a link look loaded.
+func (l *Link) Busy(within time.Duration) int {
+	cut := time.Now().Add(-within).UnixNano()
+	l.connsMu.Lock()
+	defer l.connsMu.Unlock()
+	n := 0
+	for c := range l.conns {
+		if c.lastIO.Load() >= cut {
+			n++
+		}
+	}
+	return n
+}

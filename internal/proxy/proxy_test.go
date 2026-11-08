@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -68,8 +69,26 @@ func TestPickFollowsLinkState(t *testing.T) {
 	_ = time.Second
 }
 
+// sink accepts TCP connections and keeps them open.
+func sink(t *testing.T) net.Listener {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for {
+			if _, err := ln.Accept(); err != nil {
+				return
+			}
+		}
+	}()
+	return ln
+}
+
 // Connections are spread in proportion to the links' measured capacity.
 func TestPickWeightsByCapacity(t *testing.T) {
+	ln := sink(t)
+	defer ln.Close()
 	fast := links.New("fast", net.IPv4(127, 0, 0, 1))
 	slow := links.New("slow", net.IPv4(127, 0, 0, 2))
 	s := &Server{Pool: links.PoolOf(fast, slow)}
@@ -79,13 +98,47 @@ func TestPickWeightsByCapacity(t *testing.T) {
 	s.mu.Unlock()
 	got := map[string]int{}
 	for i := 0; i < 24; i++ {
-		l := s.pick("h")[0]
-		l.Active.Add(1)
+		c, l, err := s.dial(ln.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
 		got[l.Name]++
 	}
 	// 400:80 = 5:1 -> 20 / 4
 	if got["fast"] < 19 || got["fast"] > 21 {
 		t.Fatalf("want ~20/4 split, got %v", got)
+	}
+}
+
+// Idle connections (apps keeping sockets open) must not make a link look busy.
+func TestIdleConnectionsDoNotCount(t *testing.T) {
+	ln := sink(t)
+	defer ln.Close()
+	a := links.New("a", net.IPv4(127, 0, 0, 1))
+	b := links.New("b", net.IPv4(127, 0, 0, 2))
+	for i := 0; i < 10; i++ {
+		c, err := a.DialContext(context.Background(), "tcp", ln.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+	}
+	if a.Busy(time.Hour) != 10 {
+		t.Fatalf("fresh connections should count as busy, got %d", a.Busy(time.Hour))
+	}
+	time.Sleep(60 * time.Millisecond)
+	if n := a.Busy(50 * time.Millisecond); n != 0 {
+		t.Fatalf("idle connections counted as busy: %d", n)
+	}
+	s := &Server{Pool: links.PoolOf(a, b), BusyWindow: 50 * time.Millisecond}
+	s.init()
+	s.mu.Lock()
+	s.rate[a], s.rate[b] = 400, 80
+	s.mu.Unlock()
+	// a has 10 idle sockets but 5x the capacity: it must still be chosen.
+	if l := s.pick("h")[0]; l != a {
+		t.Fatalf("picked %s, want a (idle sockets ignored)", l.Name)
 	}
 }
 

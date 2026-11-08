@@ -42,7 +42,9 @@ func runTray(ctx context.Context) {
 	app, err := startUI(ctx, cfg)
 	if err != nil {
 		if strings.Contains(err.Error(), "bind") {
-			ui.OpenBrowser(trayURL) // already running: just show it
+			messageBox("dualnet", "dualnet est déjà lancé (port 8090 occupé) : son interface va s'ouvrir.\n\n"+
+				"Si c'est une ancienne version lancée depuis PowerShell, fermez-la (Ctrl+C) puis relancez dualnet.exe.")
+			ui.OpenBrowser(trayURL)
 			return
 		}
 		messageBox("dualnet", "Démarrage impossible :\n"+err.Error())
