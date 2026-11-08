@@ -15,6 +15,7 @@ import (
 
 	"github.com/NassB/dualnet/internal/doctor"
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/proxy"
 	"github.com/NassB/dualnet/internal/store"
 )
 
@@ -249,5 +250,77 @@ func TestDoctorEndpointAndOnboarding(t *testing.T) {
 	}
 	if post("/api/onboarding?done=0", true) != 204 || st.OnboardingDone() {
 		t.Fatal("the checklist could not be shown again")
+	}
+}
+
+func TestSpeedTestEndpoint(t *testing.T) {
+	chunk := make([]byte, 64<<10)
+	bulk := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for r.Context().Err() == nil {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+		}
+	}))
+	defer bulk.Close()
+
+	st := store.Open(t.TempDir())
+	wifi := links.New("Wi-Fi", net.IPv4(127, 0, 0, 1))
+	px := &proxy.Server{Pool: links.PoolOf(wifi)}
+	srv := &Server{Store: st, Pool: links.PoolOf(wifi), Tun: &TunControl{Proxy: px}, SpeedTestURL: bulk.URL, SpeedWindow: 1500 * time.Millisecond}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	post := func(path string, header bool) (int, string) {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		if header {
+			req.Header.Set(CSRFHeader, "1")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, _ := post("/api/speedtest?link=Wi-Fi", false); code != 403 {
+		t.Fatalf("without the header: HTTP %d, want 403", code)
+	}
+	if code, _ := post("/api/speedtest?link=Nope", true); code != 404 {
+		t.Fatalf("unknown link: HTTP %d, want 404", code)
+	}
+	wifi.SetUp(false)
+	if code, body := post("/api/speedtest?link=Wi-Fi", true); code != 409 || !strings.Contains(body, "not usable") {
+		t.Fatalf("unusable link: HTTP %d %q, want 409", code, body)
+	}
+	wifi.SetUp(true)
+
+	// two tests at once: one runs, the other is refused
+	done := make(chan int)
+	go func() { code, _ := post("/api/speedtest?link=Wi-Fi", true); done <- code }()
+	time.Sleep(400 * time.Millisecond)
+	if code, body := post("/api/speedtest?link=Wi-Fi", true); code != 409 || !strings.Contains(body, "already running") {
+		t.Fatalf("second test: HTTP %d %q, want 409 already running", code, body)
+	}
+	if code := <-done; code != 200 {
+		t.Fatalf("first test: HTTP %d, want 200", code)
+	}
+
+	// the result is saved and used at once by the picker
+	r, ok := st.SpeedTest("Wi-Fi")
+	if !ok || r.Mbps < 10 || time.Since(r.At) > time.Minute {
+		t.Fatalf("saved result: %+v (ok=%v)", r, ok)
+	}
+	if got := px.Capacity(wifi); got < r.Mbps*0.99 {
+		t.Fatalf("picker capacity %.0f, want at least the measured %.0f", got, r.Mbps)
+	}
+	if mbps, at := srv.speedOf(wifi); mbps != r.Mbps || at == 0 {
+		t.Fatalf("speedOf = %v, %v", mbps, at)
+	}
+	// a failing server is reported, not saved
+	srv.SpeedTestURL = "http://127.0.0.1:1/none"
+	if code, body := post("/api/speedtest?link=Wi-Fi", true); code != 502 || !strings.Contains(body, "speed test failed") {
+		t.Fatalf("failing server: HTTP %d %q, want 502", code, body)
 	}
 }

@@ -337,6 +337,13 @@ td.r, th.r { text-align: right; }
       </div>
 
       <div class="card mt">
+        <h2 data-i18n="linksTitle"></h2>
+        <div class="howto" data-i18n="linksSub"></div>
+        <div id="linksCfg"></div>
+        <div class="howto" style="margin-top:8px" data-i18n="speedNote"></div>
+      </div>
+
+      <div class="card mt">
         <h2 data-i18n="winSettings"></h2>
         <div class="setting">
           <div class="txt"><div class="title" data-i18n="simTitle"></div><div class="sub" id="simText"></div></div>
@@ -786,6 +793,36 @@ $('logToggle').addEventListener('click', async () => {
 });
 setInterval(() => { if (!$('logView').hidden && $('page-settings').classList.contains('active')) loadLog(); }, 5000);
 
+// ---------- links: speed test ----------
+let linksCfgKey = '';
+function renderLinksCfg(snap) {
+  const box = $('linksCfg');
+  const key = LANG + snap.links.map(l => l.name + l.ip).join('|');
+  if (key !== linksCfgKey) { // the set of links changed: rebuild the rows
+    linksCfgKey = key;
+    box.innerHTML = snap.links.map(l => `<div class="setting">
+      <div class="txt"><div class="title">${esc(l.name)} <span class="link-ip">${esc(l.ip)}</span></div><div class="sub" data-f="last"></div></div>
+      <button class="btn ghost small" data-link="${esc(l.name)}" onclick="runSpeed(this)">${esc(t('speedTest'))}</button>
+    </div>`).join('');
+  }
+  snap.links.forEach((l, i) => {
+    const row = box.children[i];
+    if (!row) return;
+    const when = l.speedAt ? new Date(l.speedAt).toLocaleString(LANG, { dateStyle: 'short', timeStyle: 'short' }) : '';
+    setF(row, 'last', l.speedAt ? t('speedLast', { s: Math.round(l.speedMbps), d: when }) : t('speedNever'));
+  });
+}
+async function runSpeed(btn) {
+  const name = btn.dataset.link;
+  btn.disabled = true; btn.textContent = t('speedTesting');
+  try {
+    const r = await fetch('/api/speedtest?link=' + encodeURIComponent(name), { method: 'POST', headers: { 'X-Dualnet': '1' } });
+    if (r.ok) toast(t('speedDone', { n: name, s: Math.round((await r.json()).mbps) }), true);
+    else toast(srv(await r.text()));
+  } catch (e) { toast(String(e)); }
+  btn.disabled = false; btn.textContent = t('speedTest');
+}
+
 // ---------- applications and rules ----------
 let appsKey = '', rulesKey = '';
 function routeOptions(snap, current) {
@@ -913,7 +950,7 @@ function connect() {
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
     $('ver').textContent = snap.version || '';
-    renderHome(snap); renderApps(snap); renderJobs(snap); renderSettings(snap); renderRules(snap); renderUpdate(snap);
+    renderHome(snap); renderApps(snap); renderJobs(snap); renderSettings(snap); renderLinksCfg(snap); renderRules(snap); renderUpdate(snap);
     if ($('page-home').classList.contains('active')) draw();
   };
 }

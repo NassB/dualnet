@@ -39,6 +39,7 @@ type Server struct {
 	sticky     map[string]stickyEntry
 	rate       map[*links.Link]float64         // recent Mb/s per link, used for weighting
 	transports map[*links.Link]*http.Transport // keep-alive HTTP pools per link
+	seed       map[*links.Link]seed            // measured capacities (speed tests)
 }
 
 type stickyEntry struct {
@@ -50,6 +51,7 @@ func (s *Server) init() {
 	s.initOnce.Do(func() {
 		s.sticky = map[string]stickyEntry{}
 		s.rate = map[*links.Link]float64{}
+		s.seed = map[*links.Link]seed{}
 		if s.Apps == nil {
 			s.Apps = NewAppRegistry()
 		}
@@ -390,7 +392,7 @@ func (s *Server) stats() {
 // capacity divided among its open connections. Unmeasured links get a floor so
 // they still receive connections and get measured.
 func (s *Server) score(l *links.Link) float64 {
-	capacity := maxf(s.rate[l], 10)
+	capacity := maxf(s.capacityOf(l), 10)
 	return capacity / float64(l.Busy(s.busyWindow())+1)
 }
 

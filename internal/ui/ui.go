@@ -40,6 +40,10 @@ type Server struct {
 	Notify    *notify.Notifier
 	// DoctorEnv replaces the real system probes of the installation check (tests).
 	DoctorEnv func() doctor.Env
+	// SpeedTestURL and SpeedWindow replace the speed test's server and length (tests).
+	SpeedTestURL string
+	SpeedWindow  time.Duration
+	speedMu      sync.Mutex
 	// Native is true when the page is shown in dualnet's own window.
 	Native bool
 	// OnSettings is called after a setting changed in the UI (to save it).
@@ -78,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/budget", s.setBudget)
 	mux.HandleFunc("POST /api/rule", s.setRule)
 	mux.HandleFunc("GET /api/doctor", s.getDoctor)
+	mux.HandleFunc("POST /api/speedtest", s.speedTest)
 	mux.HandleFunc("POST /api/onboarding", s.setOnboarding)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
@@ -97,20 +102,22 @@ func (s *Server) Handler() http.Handler {
 }
 
 type linkView struct {
-	Name    string  `json:"name"`
-	IP      string  `json:"ip"`
-	Up      bool    `json:"up"`
-	Healthy bool    `json:"healthy"`
-	Ping    int64   `json:"ping"`
-	Limit   int64   `json:"limit"`
-	Budget  float64 `json:"budget"`  // monthly data budget in GB (0 = none)
-	MonthGB float64 `json:"monthGB"` // data used this month, GB
-	Over    bool    `json:"overBudget"`
-	RxMbps  float64 `json:"rxMbps"`
-	TxMbps  float64 `json:"txMbps"`
-	Active  int64   `json:"active"`
-	TotalRx int64   `json:"totalRx"`
-	TotalTx int64   `json:"totalTx"`
+	Name      string  `json:"name"`
+	IP        string  `json:"ip"`
+	Up        bool    `json:"up"`
+	Healthy   bool    `json:"healthy"`
+	Ping      int64   `json:"ping"`
+	Limit     int64   `json:"limit"`
+	Budget    float64 `json:"budget"`  // monthly data budget in GB (0 = none)
+	MonthGB   float64 `json:"monthGB"` // data used this month, GB
+	Over      bool    `json:"overBudget"`
+	SpeedMbps float64 `json:"speedMbps"` // last speed test
+	SpeedAt   int64   `json:"speedAt"`   // when, unix milliseconds
+	RxMbps    float64 `json:"rxMbps"`
+	TxMbps    float64 `json:"txMbps"`
+	Active    int64   `json:"active"`
+	TotalRx   int64   `json:"totalRx"`
+	TotalTx   int64   `json:"totalTx"`
 }
 
 type jobView struct {
@@ -230,6 +237,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				})
 				if n := len(snap.Links); n > 0 {
 					snap.Links[n-1].Budget, snap.Links[n-1].MonthGB = s.budgetOf(l, now)
+					snap.Links[n-1].SpeedMbps, snap.Links[n-1].SpeedAt = s.speedOf(l)
 				}
 				prevRx[l], prevTx[l] = rx, tx
 			}

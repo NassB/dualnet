@@ -27,6 +27,8 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// SpeedTests: the last speed test of each link.
+	SpeedTests map[string]SpeedTest `json:"speedTests,omitempty"`
 	// OnboardingDone: the first-run checklist was dismissed.
 	OnboardingDone *bool `json:"onboardingDone,omitempty"`
 	// Rules: applications restricted to one link (transparent mode).
@@ -255,6 +257,31 @@ func (s *Store) OnboardingDone() bool {
 func (s *Store) SetOnboardingDone(done bool) {
 	s.mu.Lock()
 	s.settings.OnboardingDone = &done
+	s.mu.Unlock()
+	s.Save()
+}
+
+// SpeedTest is the result of a link's last speed test.
+type SpeedTest struct {
+	Mbps float64   `json:"mbps"`
+	At   time.Time `json:"at"`
+}
+
+// SpeedTest returns a link's last speed test.
+func (s *Store) SpeedTest(name string) (SpeedTest, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, ok := s.settings.SpeedTests[name]
+	return r, ok
+}
+
+// SetSpeedTest saves a link's speed test.
+func (s *Store) SetSpeedTest(name string, mbps float64, at time.Time) {
+	s.mu.Lock()
+	if s.settings.SpeedTests == nil {
+		s.settings.SpeedTests = map[string]SpeedTest{}
+	}
+	s.settings.SpeedTests[name] = SpeedTest{Mbps: mbps, At: at}
 	s.mu.Unlock()
 	s.Save()
 }

@@ -169,6 +169,14 @@
   "chk.webview.no": "WebView2 is not installed: the interface opens in your browser.",
   "chk.autostart.on": "dualnet starts with Windows.",
   "chk.autostart.off": "dualnet does not start with Windows.",
+  "linksTitle": "Links",
+  "linksSub": "Measure the real speed of each link. dualnet uses the result at once to decide how many connections each link gets.",
+  "speedTest": "Test speed",
+  "speedTesting": "Testing…",
+  "speedNever": "Not tested yet",
+  "speedLast": "Last test: {s} Mb/s, {d}",
+  "speedDone": "{n}: {s} Mb/s",
+  "speedNote": "A test downloads for about 7 seconds from Cloudflare (up to a few hundred MB on a fast link). It goes through the link, so it counts toward the monthly budget and respects the speed cap.",
   "_server": {
     "Steam is not installed": "Steam is not installed",
     "dualnet proxy is disabled": "dualnet proxy is disabled",
@@ -179,6 +187,9 @@
     "no update": "no update",
     "not available": "not available",
     "transparent mode requires administrator rights": "transparent mode requires administrator rights",
-    "unknown action": "unknown action"
+    "unknown action": "unknown action",
+    "link is not usable": "link is not usable",
+    "speed test already running": "speed test already running",
+    "speed test failed": "speed test failed"
   }
 }

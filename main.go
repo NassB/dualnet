@@ -189,11 +189,20 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 	for _, l := range pool.All() {
 		st.ApplyLimit(l)
 	}
+	seedSpeed := func(l *links.Link) {
+		if r, ok := st.SpeedTest(l.Name); ok {
+			p.SetSpeedTest(l, r.Mbps, r.At)
+		}
+	}
+	for _, l := range pool.All() {
+		seedSpeed(l)
+	}
 	prevChange := pool.OnChange
 	notifier := &notify.Notifier{Enabled: st.NotifyEnabled, French: windowsFrench}
 	pool.OnChange = func(l *links.Link, ev string) {
 		if ev == links.EventAdded {
 			st.ApplyLimit(l)
+			seedSpeed(l)
 		}
 		prevChange(l, ev)
 		notifier.LinkEvent(l.Name, ev, len(pool.Up()))

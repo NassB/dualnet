@@ -169,6 +169,14 @@
   "chk.webview.no": "WebView2 ist nicht installiert: Die Oberfläche öffnet sich im Browser.",
   "chk.autostart.on": "dualnet startet mit Windows.",
   "chk.autostart.off": "dualnet startet nicht mit Windows.",
+  "linksTitle": "Verbindungen",
+  "linksSub": "Misst die echte Geschwindigkeit jeder Verbindung. dualnet nutzt das Ergebnis sofort, um zu entscheiden, wie viele Sitzungen jede Verbindung bekommt.",
+  "speedTest": "Tempo testen",
+  "speedTesting": "Teste…",
+  "speedNever": "Noch nicht getestet",
+  "speedLast": "Letzter Test: {s} Mb/s, {d}",
+  "speedDone": "{n}: {s} Mb/s",
+  "speedNote": "Ein Test lädt etwa 7 Sekunden lang von Cloudflare herunter (bei schnellen Verbindungen bis zu einigen hundert MB). Er läuft über die Verbindung, zählt also zum Monatsbudget und beachtet das Geschwindigkeitslimit.",
   "_server": {
     "transparent mode requires administrator rights": "Der transparente Modus benötigt Administratorrechte",
     "no connected link": "keine Verbindung aktiv",
@@ -179,6 +187,9 @@
     "Steam is not installed": "Steam ist nicht installiert",
     "unknown action": "unbekannte Aktion",
     "not available": "nicht verfügbar",
-    "no update": "kein Update"
+    "no update": "kein Update",
+    "link is not usable": "Verbindung nicht nutzbar",
+    "speed test already running": "ein Geschwindigkeitstest läuft bereits",
+    "speed test failed": "Geschwindigkeitstest fehlgeschlagen"
   }
 }
