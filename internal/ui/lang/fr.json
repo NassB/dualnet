@@ -177,6 +177,10 @@
   "speedLast": "Dernier test : {s} Mb/s, {d}",
   "speedDone": "{n} : {s} Mb/s",
   "speedNote": "Un test télécharge pendant environ 7 secondes depuis Cloudflare (jusqu’à quelques centaines de Mo sur un lien rapide). Il passe par le lien : il compte donc dans le budget mensuel et respecte le plafond de débit.",
+  "roleNormal": "Utilisé normalement",
+  "roleOverflow": "Seulement si les autres sont chargés",
+  "roleHelp": "« Seulement si les autres sont chargés » garde un lien au repos, par exemple les données mobiles de votre téléphone, jusqu’à ce que les autres liens soient presque pleins. dualnet l’ajoute alors, et le libère quand la charge retombe. Un programme limité à ce lien par une règle l’utilise quand même.",
+  "tagStandby": "En veille",
   "_server": {
     "transparent mode requires administrator rights": "le mode transparent doit être lancé en administrateur",
     "no connected link": "aucun lien connecté",

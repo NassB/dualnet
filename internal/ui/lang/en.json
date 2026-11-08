@@ -177,6 +177,10 @@
   "speedLast": "Last test: {s} Mb/s, {d}",
   "speedDone": "{n}: {s} Mb/s",
   "speedNote": "A test downloads for about 7 seconds from Cloudflare (up to a few hundred MB on a fast link). It goes through the link, so it counts toward the monthly budget and respects the speed cap.",
+  "roleNormal": "Used normally",
+  "roleOverflow": "Only when the others are busy",
+  "roleHelp": "“Only when the others are busy” keeps a link idle, for example your phone’s mobile data, until the other links are nearly full. Then dualnet adds it, and lets it go again when the load falls. A program restricted to it by a rule still uses it.",
+  "tagStandby": "Standby",
   "_server": {
     "Steam is not installed": "Steam is not installed",
     "dualnet proxy is disabled": "dualnet proxy is disabled",

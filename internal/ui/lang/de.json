@@ -177,6 +177,10 @@
   "speedLast": "Letzter Test: {s} Mb/s, {d}",
   "speedDone": "{n}: {s} Mb/s",
   "speedNote": "Ein Test lädt etwa 7 Sekunden lang von Cloudflare herunter (bei schnellen Verbindungen bis zu einigen hundert MB). Er läuft über die Verbindung, zählt also zum Monatsbudget und beachtet das Geschwindigkeitslimit.",
+  "roleNormal": "Normal genutzt",
+  "roleOverflow": "Nur wenn die anderen ausgelastet sind",
+  "roleHelp": "„Nur wenn die anderen ausgelastet sind“ hält eine Verbindung im Ruhezustand, zum Beispiel die mobilen Daten deines Handys, bis die anderen Verbindungen fast voll sind. Dann schaltet dualnet sie zu und gibt sie wieder frei, wenn die Last sinkt. Ein per Regel darauf beschränktes Programm nutzt sie trotzdem.",
+  "tagStandby": "Bereit",
   "_server": {
     "transparent mode requires administrator rights": "Der transparente Modus benötigt Administratorrechte",
     "no connected link": "keine Verbindung aktiv",

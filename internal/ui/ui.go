@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/rule", s.setRule)
 	mux.HandleFunc("GET /api/doctor", s.getDoctor)
 	mux.HandleFunc("POST /api/speedtest", s.speedTest)
+	mux.HandleFunc("POST /api/role", s.setRole)
 	mux.HandleFunc("POST /api/onboarding", s.setOnboarding)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
@@ -111,6 +112,8 @@ type linkView struct {
 	Budget    float64 `json:"budget"`  // monthly data budget in GB (0 = none)
 	MonthGB   float64 `json:"monthGB"` // data used this month, GB
 	Over      bool    `json:"overBudget"`
+	Overflow  bool    `json:"overflow"`  // the link only serves when the others are busy
+	Standby   bool    `json:"standby"`   // ...and is idle right now
 	SpeedMbps float64 `json:"speedMbps"` // last speed test
 	SpeedAt   int64   `json:"speedAt"`   // when, unix milliseconds
 	RxMbps    float64 `json:"rxMbps"`
@@ -238,6 +241,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				if n := len(snap.Links); n > 0 {
 					snap.Links[n-1].Budget, snap.Links[n-1].MonthGB = s.budgetOf(l, now)
 					snap.Links[n-1].SpeedMbps, snap.Links[n-1].SpeedAt = s.speedOf(l)
+					snap.Links[n-1].Overflow, snap.Links[n-1].Standby = s.overflowOf(l)
 				}
 				prevRx[l], prevTx[l] = rx, tx
 			}

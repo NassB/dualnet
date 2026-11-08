@@ -324,3 +324,40 @@ func TestSpeedTestEndpoint(t *testing.T) {
 		t.Fatalf("failing server: HTTP %d %q, want 502", code, body)
 	}
 }
+
+func TestRoleEndpoint(t *testing.T) {
+	st := store.Open(t.TempDir())
+	srv := &Server{Store: st, Pool: links.PoolOf(links.New("Phone", net.IPv4(10, 0, 0, 2)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path string, header bool) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		if header {
+			req.Header.Set(CSRFHeader, "1")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if post("/api/role?link=Phone&mode=overflow", false) != 403 || st.IsOverflow("Phone") {
+		t.Fatal("role changed without the header")
+	}
+	if post("/api/role?link=Phone&mode=overflow", true) != 204 || !st.IsOverflow("Phone") {
+		t.Fatal("overflow not set")
+	}
+	if ov, standby := srv.overflowOf(srv.Pool.All()[0]); !ov || standby { // no proxy running: never reported on standby
+		t.Fatalf("overflowOf = %v, %v", ov, standby)
+	}
+	if post("/api/role?link=Phone&mode=weird", true) != 400 || post("/api/role?link=Phone&mode=", true) != 400 {
+		t.Fatal("an unknown mode must be refused")
+	}
+	if post("/api/role?link=Nope&mode=normal", true) != 404 {
+		t.Fatal("an unknown link must be a 404")
+	}
+	if post("/api/role?link=Phone&mode=normal", true) != 204 || st.IsOverflow("Phone") {
+		t.Fatal("back to normal not applied")
+	}
+}

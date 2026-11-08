@@ -177,6 +177,10 @@
   "speedLast": "Última prueba: {s} Mb/s, {d}",
   "speedDone": "{n}: {s} Mb/s",
   "speedNote": "Una prueba descarga durante unos 7 segundos desde Cloudflare (hasta unos cientos de MB en un enlace rápido). Pasa por el enlace, así que cuenta en el presupuesto mensual y respeta el límite de velocidad.",
+  "roleNormal": "Uso normal",
+  "roleOverflow": "Solo si los demás están ocupados",
+  "roleHelp": "«Solo si los demás están ocupados» mantiene un enlace en reposo, por ejemplo los datos móviles del teléfono, hasta que los demás enlaces estén casi llenos. Entonces dualnet lo añade y lo suelta cuando baja la carga. Un programa limitado a él por una regla lo sigue usando.",
+  "tagStandby": "En espera",
   "_server": {
     "transparent mode requires administrator rights": "el modo transparente requiere derechos de administrador",
     "no connected link": "ningún enlace conectado",

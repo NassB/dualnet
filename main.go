@@ -182,7 +182,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 	pool := watchPool(ctx, cfg.ifs)
 	proxyAddrInUse = cfg.proxyAddr
 	st := store.Open(store.DefaultDir())
-	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky, Rules: st.RuleLinks}
+	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky, Rules: st.RuleLinks, Overflow: st.IsOverflow}
 	if cfg.proxyAddr != "" {
 		go func() { check(p.ListenAndServe(cfg.proxyAddr)) }()
 	}

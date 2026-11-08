@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
@@ -33,13 +34,17 @@ type Server struct {
 	Rules func(app string) []string
 	// Apps counts the traffic per application (transparent mode).
 	Apps *AppRegistry
+	// Overflow reports whether a link only serves when the others are busy.
+	Overflow func(linkName string) bool
 
-	initOnce   sync.Once
-	mu         sync.Mutex
-	sticky     map[string]stickyEntry
-	rate       map[*links.Link]float64         // recent Mb/s per link, used for weighting
-	transports map[*links.Link]*http.Transport // keep-alive HTTP pools per link
-	seed       map[*links.Link]seed            // measured capacities (speed tests)
+	initOnce     sync.Once
+	mu           sync.Mutex
+	sticky       map[string]stickyEntry
+	rate         map[*links.Link]float64         // recent Mb/s per link, used for weighting
+	transports   map[*links.Link]*http.Transport // keep-alive HTTP pools per link
+	seed         map[*links.Link]seed            // measured capacities (speed tests)
+	overflowOpen atomic.Bool                     // overflow links are in play
+	overflowLow  int                             // seconds the load stayed low while open
 }
 
 type stickyEntry struct {
@@ -89,10 +94,11 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-// pick returns the usable links in the order to try: the sticky one for this
-// host if it is still usable, otherwise the one with the most spare capacity
-// (measured rate / busy connections) first. Links whose score is within 10 % of
-// the best are considered equal: among them the lowest ping wins.
+// pick returns the usable links in the order to try. Overflow links stay out
+// (but come last, for failover) until the other links are busy. First comes the
+// sticky link for this host if it is still allowed, otherwise the one with the
+// most spare capacity (estimated capacity / busy connections). Links whose score
+// is within 10 % of the best are considered equal: among them the lowest ping wins.
 func (s *Server) pick(host string) []*links.Link {
 	s.init()
 	up := s.Pool.Up()
@@ -101,18 +107,24 @@ func (s *Server) pick(host string) []*links.Link {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	use := s.allowedNow(up)
 	var first *links.Link
-	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky && e.link.Usable() {
+	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky && e.link.Usable() && contains(use, e.link) {
 		first = e.link
 	} else {
-		first = s.bestLink(up)
+		first = s.bestLink(use)
 	}
 	if s.Sticky > 0 {
 		s.sticky[host] = stickyEntry{first, time.Now()}
 	}
 	order := []*links.Link{first}
-	for _, l := range up {
+	for _, l := range use {
 		if l != first {
+			order = append(order, l)
+		}
+	}
+	for _, l := range up { // links kept in reserve, only for failover or a rule
+		if !contains(use, l) {
 			order = append(order, l)
 		}
 	}
@@ -151,12 +163,25 @@ func lowerPing(a, b *links.Link) bool {
 	return pb == 0 || pa < pb
 }
 
-// pickLowestLatency returns the usable links, lowest ping first. DNS lookups use
-// it: they are tiny, and their delay is added to every new connection.
+// pickLowestLatency returns the usable links, lowest ping first (links kept in
+// reserve last). DNS lookups use it: they are tiny, and their delay is added to
+// every new connection.
 func (s *Server) pickLowestLatency() []*links.Link {
 	up := s.Pool.Up()
-	sort.SliceStable(up, func(i, j int) bool { return lowerPing(up[i], up[j]) })
-	return up
+	use := s.allowedNow(up)
+	var rest []*links.Link
+	for _, l := range up {
+		if !contains(use, l) {
+			rest = append(rest, l)
+		}
+	}
+	use = append([]*links.Link(nil), use...)
+	byPing := func(ls []*links.Link) {
+		sort.SliceStable(ls, func(i, j int) bool { return lowerPing(ls[i], ls[j]) })
+	}
+	byPing(use)
+	byPing(rest)
+	return append(use, rest...)
 }
 
 // isDNSPort: DNS (53) and DNS over TLS (853).
@@ -367,15 +392,18 @@ func (s *Server) stats() {
 	prev := map[*links.Link]int64{}
 	for tick := 1; ; tick++ {
 		<-t.C
+		curRates := map[*links.Link]float64{}
 		var parts []string
 		s.mu.Lock()
 		for _, l := range s.Pool.Up() {
 			cur := l.BytesIn.Load() + l.BytesOut.Load()
 			r := links.Mbps(cur-prev[l], time.Second)
 			prev[l] = cur
+			curRates[l] = r
 			s.rate[l] = maxf(r, s.rate[l]*0.995) // half-life ~2 min
 			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacity ~%.0f), %d conn, %d active", l.Name, r, s.rate[l], l.Active.Load(), l.Busy(10*time.Second)))
 		}
+		s.evalOverflow(curRates)
 		for h, e := range s.sticky {
 			if time.Since(e.seen) > s.Sticky {
 				delete(s.sticky, h)

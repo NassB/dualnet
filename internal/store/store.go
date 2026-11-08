@@ -27,6 +27,8 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// Overflow: links that only serve when the others are busy.
+	Overflow map[string]bool `json:"overflow,omitempty"`
 	// SpeedTests: the last speed test of each link.
 	SpeedTests map[string]SpeedTest `json:"speedTests,omitempty"`
 	// OnboardingDone: the first-run checklist was dismissed.
@@ -282,6 +284,28 @@ func (s *Store) SetSpeedTest(name string, mbps float64, at time.Time) {
 		s.settings.SpeedTests = map[string]SpeedTest{}
 	}
 	s.settings.SpeedTests[name] = SpeedTest{Mbps: mbps, At: at}
+	s.mu.Unlock()
+	s.Save()
+}
+
+// IsOverflow reports whether a link only serves when the others are busy.
+func (s *Store) IsOverflow(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.Overflow[name]
+}
+
+// SetOverflow sets whether a link only serves when the others are busy.
+func (s *Store) SetOverflow(name string, on bool) {
+	s.mu.Lock()
+	if s.settings.Overflow == nil {
+		s.settings.Overflow = map[string]bool{}
+	}
+	if on {
+		s.settings.Overflow[name] = true
+	} else {
+		delete(s.settings.Overflow, name)
+	}
 	s.mu.Unlock()
 	s.Save()
 }

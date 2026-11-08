@@ -93,8 +93,10 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: v
 .stats b { color: var(--text); font-weight: 600; }
 .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: auto; }
 .badge.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.badge.idle { color: var(--muted); background: var(--grid); }
 .badge.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
 .link { padding-bottom: 54px; }
+select.role { padding: 4px 6px; font-size: 12px; max-width: 230px; }
 .card-actions { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 6px; }
 
 /* chart */
@@ -340,6 +342,7 @@ td.r, th.r { text-align: right; }
         <h2 data-i18n="linksTitle"></h2>
         <div class="howto" data-i18n="linksSub"></div>
         <div id="linksCfg"></div>
+        <div class="howto" style="margin-top:8px" data-i18n="roleHelp"></div>
         <div class="howto" style="margin-top:8px" data-i18n="speedNote"></div>
       </div>
 
@@ -535,18 +538,19 @@ function renderHome(snap) {
 
   const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
   const box = $('links');
-  const key = LANG + color(0) + snap.links.map(l => [l.name, l.ip, l.up, l.healthy, l.limit, l.budget, l.overBudget].join(',')).join('|');
+  const key = LANG + color(0) + snap.links.map(l => [l.name, l.ip, l.up, l.healthy, l.limit, l.budget, l.overBudget, l.standby].join(',')).join('|');
   if (key !== linksKey) { // links, their state or the theme changed: rebuild the cards
     linksKey = key;
     box.innerHTML = snap.links.map((l, i) => {
       const ok = l.up && l.healthy && !l.overBudget;
-      const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : l.overBudget ? t('tagOver') : t('tagUp');
+      const idle = ok && l.standby;
+      const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : l.overBudget ? t('tagOver') : idle ? t('tagStandby') : t('tagUp');
       const c = color(i);
       return `<div class="card link${ok ? '' : ' down'}">
         <div class="link-head">
           <div class="link-icon" style="background:color-mix(in srgb, ${c} 15%, transparent);color:${c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${linkIcon(l.name)}</svg></div>
           <div><div class="link-name">${esc(l.name)}</div><div class="link-ip">${esc(l.ip)}</div></div>
-          <span class="badge ${ok ? 'ok' : 'bad'}">${tag}</span>
+          <span class="badge ${!ok ? 'bad' : idle ? 'idle' : 'ok'}">${tag}</span>
         </div>
         <div class="link-val"><span data-f="val"></span><small>Mb/s</small></div>
         <div class="stats">
@@ -802,6 +806,9 @@ function renderLinksCfg(snap) {
     linksCfgKey = key;
     box.innerHTML = snap.links.map(l => `<div class="setting">
       <div class="txt"><div class="title">${esc(l.name)} <span class="link-ip">${esc(l.ip)}</span></div><div class="sub" data-f="last"></div></div>
+      <select class="role" data-link="${esc(l.name)}" onchange="setRole(this)">
+        <option value="normal">${esc(t('roleNormal'))}</option><option value="overflow">${esc(t('roleOverflow'))}</option>
+      </select>
       <button class="btn ghost small" data-link="${esc(l.name)}" onclick="runSpeed(this)">${esc(t('speedTest'))}</button>
     </div>`).join('');
   }
@@ -810,8 +817,11 @@ function renderLinksCfg(snap) {
     if (!row) return;
     const when = l.speedAt ? new Date(l.speedAt).toLocaleString(LANG, { dateStyle: 'short', timeStyle: 'short' }) : '';
     setF(row, 'last', l.speedAt ? t('speedLast', { s: Math.round(l.speedMbps), d: when }) : t('speedNever'));
+    const sel = row.querySelector('select.role');
+    if (sel && document.activeElement !== sel) sel.value = l.overflow ? 'overflow' : 'normal';
   });
 }
+function setRole(sel) { post('/api/role?link=' + encodeURIComponent(sel.dataset.link) + '&mode=' + sel.value); }
 async function runSpeed(btn) {
   const name = btn.dataset.link;
   btn.disabled = true; btn.textContent = t('speedTesting');
