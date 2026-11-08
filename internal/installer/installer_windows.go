@@ -203,7 +203,10 @@ func Uninstall(o Options) (*Result, error) {
 	if dir != "" {
 		if self != "" && inside(self, dir) {
 			// we are running from the folder: a helper deletes it after we exit
-			winexec.Command("cmd", "/c", selfDeleteCommand(dir)).Start()
+			// the command line is passed as is: Go would escape the quotes cmd needs
+			helper := winexec.Command("cmd")
+			helper.SysProcAttr.CmdLine = `cmd /c "` + selfDeleteCommand(dir) + `"`
+			helper.Start()
 			res.add("the program folder will be deleted in a few seconds: " + dir)
 		} else if err := os.RemoveAll(dir); err != nil {
 			return res, err
