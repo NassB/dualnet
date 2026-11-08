@@ -12,6 +12,8 @@ import (
 // transparent mode starts without a UAC prompt.
 const taskName = "dualnet"
 
+const autostartSupported = true
+
 func schtasks(args ...string) ([]byte, error) {
 	cmd := exec.Command("schtasks", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}

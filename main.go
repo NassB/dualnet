@@ -140,11 +140,14 @@ type uiConfig struct {
 	ifs, listen, proxyAddr, dir string
 	sticky                      time.Duration
 	systemProxy, transparent    bool
+	// app mode (double-click): follow the saved main switch instead of the flags
+	app bool
 }
 
 type uiApp struct {
 	url   string
 	tun   *ui.TunControl
+	srv   *ui.Server
 	serve func() error
 }
 
@@ -179,7 +182,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		st.Record(pool.All(), time.Now())
 		st.Save()
 	}
-	if cfg.transparent {
+	if cfg.transparent && (!cfg.app || st.Enabled()) {
 		if err := tun.Set(true); err != nil {
 			return nil, err
 		}
@@ -190,11 +193,12 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version,
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Autostart: autostartHooks(),
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),
 		tun:   tun,
+		srv:   srv,
 		serve: func() error { return http.Serve(ln, srv.Handler()) },
 	}, nil
 }

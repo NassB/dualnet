@@ -23,7 +23,23 @@ type Usage struct {
 
 // Settings are the user's choices that survive a restart.
 type Settings struct {
-	Limits map[string]float64 `json:"limits"` // link name -> Mb/s cap
+	Limits  map[string]float64 `json:"limits"`            // link name -> Mb/s cap
+	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
+}
+
+// Enabled reports the saved main-switch position (on by default).
+func (s *Store) Enabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.Enabled == nil || *s.settings.Enabled
+}
+
+// SetEnabled saves the main-switch position.
+func (s *Store) SetEnabled(on bool) {
+	s.mu.Lock()
+	s.settings.Enabled = &on
+	s.mu.Unlock()
+	s.Save()
 }
 
 type Store struct {

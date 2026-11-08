@@ -6,197 +6,330 @@
 <title>dualnet</title>
 <style>
 :root {
-  --bg: #f5f6f8; --panel: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #667080;
-  --grid: #eceef2; --accent: #2f6fed; --ok: #1f9d55; --err: #d64545; --warn: #c27c0e;
+  --bg: #f4f5f8; --side: #eceef3; --panel: #ffffff; --panel2: #f7f8fa; --border: #e2e5eb; --text: #161a20;
+  --muted: #69727f; --grid: #eceef2; --accent: #2f6fed; --accent-2: #5b8ef5; --ok: #1f9d55; --err: #d64545; --warn: #c27c0e;
   --l0: #2f6fed; --l1: #ef7d22; --l2: #1f9d55; --l3: #9b51e0;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+  --radius: 14px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1216; --panel: #171b21; --border: #262c35; --text: #e7eaee; --muted: #8b95a5;
-    --grid: #222831; --accent: #5b8ef5; --ok: #3cc47c; --err: #f06a6a; --warn: #e3a33a;
+    --bg: #0e1116; --side: #0b0d11; --panel: #161a21; --panel2: #1b2029; --border: #252b35; --text: #e8ebef;
+    --muted: #8b95a5; --grid: #222831; --accent: #5b8ef5; --accent-2: #7aa5ff; --ok: #3cc47c; --err: #f06a6a; --warn: #e3a33a;
     --l0: #5b8ef5; --l1: #f39a4c; --l2: #3cc47c; --l3: #b67cf0;
+    --shadow: none;
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
-h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
-.ver { font-size: 12px; font-weight: 500; color: var(--muted); }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 12px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+.app { display: grid; grid-template-columns: 228px 1fr; height: 100vh; }
+
+/* ---------- sidebar ---------- */
+nav { background: var(--side); border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; }
+.brand svg { width: 30px; height: 30px; flex: none; }
+.brand b { font-size: 17px; letter-spacing: -.01em; }
+.brand small { display: block; color: var(--muted); font-size: 11px; }
+.nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 9px; color: var(--muted);
+  cursor: pointer; border: 0; background: none; text-align: left; width: 100%; font-weight: 500; }
+.nav-item svg { width: 18px; height: 18px; flex: none; }
+.nav-item:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.nav-item.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.nav-item.active svg { color: var(--accent); }
+.nav-spacer { flex: 1; }
+.conn { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+
+/* ---------- main ---------- */
+main { overflow-y: auto; padding: 26px 30px 40px; }
+.page { display: none; max-width: 1120px; margin: 0 auto; animation: fade .18s ease; }
+.page.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.02em; font-weight: 650; }
+.lead { color: var(--muted); margin: 0 0 22px; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
 .grid { display: grid; gap: 14px; }
-.kpis { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 14px; }
-.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-.kpi .label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 8px; }
-.kpi .value { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; margin: 4px 0 2px; letter-spacing: -.02em; }
-.kpi .value small { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 4px; }
-.kpi .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.warn { display: none; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
-.sysgrid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.sysgrid .sys { margin-bottom: 0; align-items: flex-start; }
-button.ghost.chosen { color: var(--accent); border-color: var(--accent); }
-.hist td { text-align: left; } .hist td:last-child { text-align: right; } .hist tr:first-child td { color: var(--muted); border-top: 0; }
-.limit { margin-top: 6px; } .limit button { margin-left: 4px; }
-.kpi.down { opacity: .55; }
-.tag { font-size: 10px; font-weight: 600; color: var(--warn); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
-.kpi.total { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
-.bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: flex; margin-top: 10px; }
-.bar > span { display: block; height: 100%; }
-.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.mt { margin-top: 14px; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 22px 24px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), var(--panel) 60%); }
+.hero.off { background: var(--panel); }
+.power { width: 74px; height: 74px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center;
+  background: var(--accent); color: #fff; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: transform .15s, background .2s, box-shadow .2s; }
+.power:hover { transform: scale(1.04); }
+.power:active { transform: scale(.97); }
+.power svg { width: 32px; height: 32px; }
+.power.off { background: var(--panel2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.power:disabled { opacity: .6; cursor: progress; }
+.hero-title { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+.hero-sub { color: var(--muted); margin-top: 2px; }
+.speed { text-align: right; }
+.speed .num { font-size: 40px; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.speed .unit { color: var(--muted); font-size: 14px; margin-left: 4px; }
+.speed .peak { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.sharebar { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; display: flex; }
+.sharebar span { display: block; height: 100%; transition: width .4s ease; }
+
+/* link cards */
+.links { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 14px; }
+.link { position: relative; }
+.link.down { opacity: .55; }
+.link-head { display: flex; align-items: center; gap: 9px; }
+.link-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.link-icon svg { width: 18px; height: 18px; }
+.link-name { font-weight: 600; }
+.link-ip { color: var(--muted); font-size: 12px; }
+.link-val { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 14px 0 2px; font-variant-numeric: tabular-nums; }
+.link-val small { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+.stats { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--text); font-weight: 600; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: auto; }
+.badge.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.badge.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
+.cap-btn { position: absolute; right: 14px; bottom: 14px; }
+
+/* chart */
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.chart-box { position: relative; height: 280px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.chart-box { position: relative; height: 250px; }
 canvas { width: 100%; height: 100%; display: block; }
-.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px; font-size: 12px; display: none; white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0,0,0,.15); font-variant-numeric: tabular-nums; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--border); border-radius: 9px;
+  padding: 8px 10px; font-size: 12px; display: none; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.18); font-variant-numeric: tabular-nums; }
 .tip b { display: block; margin-bottom: 3px; }
 .tip div { display: flex; align-items: center; gap: 6px; }
-.cols { grid-template-columns: 1.6fr 1fr; margin-top: 14px; }
-@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-input[type=url] { flex: 1 1 260px; min-width: 0; }
-input, select, button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px; }
-input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 0; }
-button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; padding: 8px 14px; }
-button.ghost { background: transparent; color: var(--muted); border-color: var(--border); font-weight: 500; padding: 4px 10px; font-size: 12px; }
-button.ghost:hover { color: var(--text); }
-.jobs { display: grid; gap: 10px; }
-.job { border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-.job .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
-.job .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.job .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-.job .actions { display: flex; gap: 6px; flex: none; }
-.state { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
-.state.running { color: var(--accent); } .state.done { color: var(--ok); }
-.state.error { color: var(--err); } .state.cancelled { color: var(--muted); }
-.empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
-.err { color: var(--err); font-size: 12px; margin-top: 6px; word-break: break-word; }
-code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; background: var(--bg);
-  border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+
+/* controls */
+.btn { border: 1px solid transparent; background: var(--accent); color: #fff; border-radius: 9px; padding: 8px 15px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--border); font-weight: 500; }
+.btn.ghost:hover { background: var(--panel2); filter: none; }
+.btn.small { padding: 4px 10px; font-size: 12px; }
+.btn.chosen { color: var(--accent); border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+input[type=url], select { background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; }
+
+.switch { position: relative; width: 42px; height: 24px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: color-mix(in srgb, var(--muted) 35%, var(--panel2)); transition: background .2s; cursor: pointer; }
+.switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:disabled + span { opacity: .45; cursor: not-allowed; }
+
+.setting { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid var(--border); }
+.setting:first-of-type { border-top: 0; padding-top: 2px; }
+.setting .txt { flex: 1; min-width: 0; }
+.setting .title { font-weight: 600; }
+.setting .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.setting .sub.warn { color: var(--warn); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 .howto { color: var(--muted); font-size: 13px; }
-.howto ol { padding-left: 18px; margin: 8px 0 0; }
-.howto li { margin-bottom: 6px; }
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 12px; }
-td { padding: 6px 0; border-top: 1px solid var(--border); }
-td:last-child { text-align: right; }
-.sys { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
-.sys.on { border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
-.sys-title { font-weight: 600; }
-.sys-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.sys.on .sys-sub { color: var(--ok); }
-.sys.other .sys-sub { color: var(--warn); }
-button:disabled { opacity: .45; cursor: not-allowed; }
-button.off { background: transparent; color: var(--text); border-color: var(--border); }
+.howto ol { padding-left: 18px; margin: 8px 0; } .howto li { margin-bottom: 6px; }
+
+.warn-banner { display: none; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 12px; padding: 11px 14px; margin-bottom: 14px; font-size: 13px; }
+.warn-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+
+/* downloads */
+form.dl { display: flex; gap: 8px; flex-wrap: wrap; }
+form.dl input { flex: 1 1 280px; min-width: 0; }
+.jobs { display: grid; gap: 10px; margin-top: 14px; }
+.job { border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--panel2); }
+.job .top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.job .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.job .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 7px; }
+.job .actions { display: flex; gap: 6px; align-items: center; flex: none; }
+.bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: flex; margin-top: 10px; }
+.bar span { display: block; height: 100%; }
+.state { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.state.running { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.state.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.state.error { color: var(--err); background: color-mix(in srgb, var(--err) 13%, transparent); }
+.state.cancelled { color: var(--muted); background: var(--grid); }
+.empty { color: var(--muted); font-size: 13px; padding: 18px 0 6px; text-align: center; }
+.err { color: var(--err); font-size: 12px; margin-top: 6px; word-break: break-word; }
+
+/* history */
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 0 8px 8px 0; }
+td { padding: 9px 8px 9px 0; border-top: 1px solid var(--border); }
+td.r, th.r { text-align: right; }
+
+/* toast */
+.toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+  border-left: 4px solid var(--err); border-radius: 10px; padding: 11px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  transform: translateY(20px); opacity: 0; transition: .2s; pointer-events: none; font-size: 13px; z-index: 10; }
+.toast.show { transform: none; opacity: 1; }
+.toast.ok { border-left-color: var(--ok); }
+
+/* modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; place-items: center; z-index: 20; }
+.modal.show { display: grid; }
+.modal .card { width: min(360px, 90vw); }
+.modal input { width: 100%; margin: 10px 0 14px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+.modal .row { justify-content: flex-end; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 64px 1fr; }
+  .brand div, .nav-item span, .conn span:last-child { display: none; }
+  .hero { grid-template-columns: auto 1fr; }
+  .speed { grid-column: 1 / -1; text-align: left; }
+  main { padding: 18px 16px 30px; }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>dualnet <small id="ver" class="ver"></small></h1>
-    <span class="pill"><span class="dot" id="conn"></span><span id="connText" data-i18n="connecting"></span></span>
-    <span class="pill" id="proxyPill">proxy —</span>
-  </header>
-
-  <div class="warn" id="linksWarn" data-i18n="oneLinkWarn"></div>
-  <section class="grid kpis" id="kpis"></section>
-
-  <section class="panel">
-    <div class="chart-head">
-      <h2 data-i18n="chartTitle"></h2>
-      <div class="legend" id="legend"></div>
+<div class="app">
+  <nav>
+    <div class="brand">
+      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#141a24"/><path d="M5 10c5 0 8 3 12 6" stroke="#4c8dff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M5 22c5 0 8-3 12-6" stroke="#ff9a3c" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M16 16h6" stroke="#f2f5fa" stroke-width="3.4"/><path d="M21 10l7 6-7 6z" fill="#f2f5fa"/></svg>
+      <div><b>dualnet</b><small id="ver"></small></div>
     </div>
-    <div class="chart-box">
-      <canvas id="chart"></canvas>
-      <div class="tip" id="tip"></div>
-    </div>
-  </section>
+    <button class="nav-item active" data-page="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span data-i18n="navHome"></span></button>
+    <button class="nav-item" data-page="downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span data-i18n="navDownloads"></span></button>
+    <button class="nav-item" data-page="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10m6 10V4m6 16v-7m6 7H2"/></svg><span data-i18n="navHistory"></span></button>
+    <button class="nav-item" data-page="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg><span data-i18n="navSettings"></span></button>
+    <div class="nav-spacer"></div>
+    <div class="conn"><span class="dot" id="conn"></span><span id="connText" data-i18n="connecting"></span></div>
+  </nav>
 
-  <section class="grid cols">
-    <div class="panel">
-      <h2 data-i18n="downloads"></h2>
-      <form id="dl">
-        <input type="url" id="url" data-i18n-ph="urlPlaceholder" required>
-        <select id="workers" data-i18n-title="connPerLink">
-          <option value="2" data-i18n="conn2"></option>
-          <option value="4" selected data-i18n="conn4"></option>
-          <option value="8" data-i18n="conn8"></option>
-        </select>
-        <button type="submit" data-i18n="download"></button>
-      </form>
-      <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
-      <div class="howto" id="dir"></div>
-    </div>
+  <main>
+    <!-- ================= HOME ================= -->
+    <section class="page active" id="page-home">
+      <div class="warn-banner" id="linksWarn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg><span data-i18n="oneLinkWarn"></span></div>
 
-    <div class="panel">
-      <h2 data-i18n="proxyTitle"></h2>
-      <div class="sys" id="tunBox">
+      <div class="card hero" id="hero">
+        <button class="power" id="powerBtn" title=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1011.4 0"/></svg></button>
         <div>
-          <div class="sys-title" data-i18n="tunTitle"></div>
-          <div class="sys-sub" id="tunText">—</div>
+          <div class="hero-title" id="heroTitle">—</div>
+          <div class="hero-sub" id="heroSub"></div>
         </div>
-        <button id="tunBtn" type="button" data-i18n="enable"></button>
-      </div>
-      <div class="sys" id="sysBox">
-        <div>
-          <div class="sys-title" data-i18n="sysTitle"></div>
-          <div class="sys-sub" id="sysText">—</div>
+        <div class="speed">
+          <div><span class="num" id="totalNum">0</span><span class="unit">Mb/s</span></div>
+          <div class="peak" id="peakTxt"></div>
         </div>
-        <button id="sysBtn" type="button" data-i18n="enable"></button>
+        <div class="sharebar" id="shareBar"></div>
       </div>
-      <div class="howto">
-        <div class="row"><span data-i18n="address"></span> <code id="proxyAddr">—</code></div>
-        <ol>
-          <li data-i18n-html="howBrowser"></li>
-          <li data-i18n-html="howTorrent"></li>
-          <li data-i18n-html="howWindows"></li>
-        </ol>
-        <span data-i18n="howSpread"></span>
-      </div>
-      <table id="totals"></table>
-    </div>
-  </section>
 
-  <section class="panel" style="margin-top:14px">
-    <h2 data-i18n="winSettings"></h2>
-    <div class="sysgrid">
-      <div class="sys" id="simBox">
-        <div><div class="sys-title" data-i18n="simTitle"></div>
-        <div class="sys-sub" id="simText">—</div></div>
-        <button id="simBtn" type="button" data-i18n="allow"></button>
-      </div>
-      <div class="sys">
-        <div><div class="sys-title" data-i18n="preferTitle"></div>
-        <div class="sys-sub" data-i18n="preferSub"></div>
-        <div class="row" id="prefer" style="margin-top:8px"></div></div>
-      </div>
-      <div class="sys">
-        <div><div class="sys-title" data-i18n="steamTitle"></div>
-        <div class="sys-sub" data-i18n="steamSub"></div></div>
-        <button id="steamBtn" type="button" data-i18n="restart"></button>
-      </div>
-    </div>
-  </section>
+      <div class="grid links" id="links"></div>
 
-  <section class="panel" style="margin-top:14px">
-    <h2 data-i18n="historyTitle"></h2>
-    <div id="history" class="empty" data-i18n="loading"></div>
-  </section>
+      <div class="card mt">
+        <div class="chart-head">
+          <h2 data-i18n="chartTitle"></h2>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="chart-box"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= DOWNLOADS ================= -->
+    <section class="page" id="page-downloads">
+      <h1 data-i18n="navDownloads"></h1>
+      <p class="lead" data-i18n="dlLead"></p>
+      <div class="card">
+        <form class="dl" id="dl">
+          <input type="url" id="url" data-i18n-ph="urlPlaceholder" required>
+          <select id="workers" data-i18n-title="connPerLink">
+            <option value="2" data-i18n="conn2"></option>
+            <option value="4" selected data-i18n="conn4"></option>
+            <option value="8" data-i18n="conn8"></option>
+          </select>
+          <button class="btn" type="submit" data-i18n="download"></button>
+        </form>
+        <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
+        <div class="howto mt" id="dir"></div>
+      </div>
+    </section>
+
+    <!-- ================= HISTORY ================= -->
+    <section class="page" id="page-history">
+      <h1 data-i18n="navHistory"></h1>
+      <p class="lead" data-i18n="historyLead"></p>
+      <div class="card"><div id="history" class="empty" data-i18n="loading"></div></div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="page" id="page-settings">
+      <h1 data-i18n="navSettings"></h1>
+      <p class="lead" data-i18n="settingsLead"></p>
+
+      <div class="card">
+        <h2 data-i18n="captureTitle"></h2>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="tunTitle"></div><div class="sub" id="tunText"></div></div>
+          <label class="switch"><input type="checkbox" id="tunSw"><span></span></label>
+        </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="sysTitle"></div><div class="sub" id="sysText"></div></div>
+          <label class="switch"><input type="checkbox" id="sysSw"><span></span></label>
+        </div>
+        <div class="setting">
+          <div class="txt">
+            <div class="title" data-i18n="proxyManual"></div>
+            <div class="howto">
+              <ol>
+                <li data-i18n-html="howBrowser"></li>
+                <li data-i18n-html="howTorrent"></li>
+              </ol>
+            </div>
+          </div>
+          <code id="proxyAddr">—</code>
+        </div>
+      </div>
+
+      <div class="card mt">
+        <h2 data-i18n="winSettings"></h2>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="simTitle"></div><div class="sub" id="simText"></div></div>
+          <label class="switch"><input type="checkbox" id="simSw"><span></span></label>
+        </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="preferTitle"></div><div class="sub" data-i18n="preferSub"></div></div>
+          <div class="row" id="prefer"></div>
+        </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="steamTitle"></div><div class="sub" data-i18n="steamSub"></div></div>
+          <button class="btn ghost" id="steamBtn" data-i18n="restart"></button>
+        </div>
+      </div>
+
+      <div class="card mt" id="appCard">
+        <h2 data-i18n="appTitle"></h2>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="autoTitle"></div><div class="sub" data-i18n="autoSub"></div></div>
+          <label class="switch"><input type="checkbox" id="autoSw"><span></span></label>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="capModal">
+  <div class="card">
+    <div class="title" id="capTitle" style="font-weight:600"></div>
+    <input type="number" min="0" step="1" id="capInput">
+    <div class="row">
+      <button class="btn ghost" id="capCancel" data-i18n="cancel"></button>
+      <button class="btn" id="capOk" data-i18n="save"></button>
+    </div>
+  </div>
 </div>
 
 <script>
-// ---------- language: French if the browser prefers French, English otherwise ----------
-// ?lang=en or ?lang=fr in the address forces a language.
+// ---------- language: French if the browser/Windows prefers French, English otherwise (?lang=en|fr forces it) ----------
 const LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
   if (q === 'en' || q === 'fr') return q;
@@ -205,75 +338,87 @@ const LANG = (() => {
 document.documentElement.lang = LANG;
 const I18N = {
   en: {
-    connecting: 'connecting…', live: 'live', disconnected: 'disconnected — is dualnet running?',
-    oneLinkWarn: 'Only one link connected: nothing to combine. If Wi‑Fi drops when the phone is plugged in over USB, Windows is limiting simultaneous connections (see “Keep Wi‑Fi with USB tethering” below). dualnet picks the link up again automatically as soon as it is back.',
-    chartTitle: 'Download speed — last 2 minutes', now: 'now', agoS: '{n} s ago',
-    downloads: 'Downloads', urlPlaceholder: 'https://… (file to download)', connPerLink: 'Connections per link',
+    navHome: 'Dashboard', navDownloads: 'Downloads', navHistory: 'History', navSettings: 'Settings',
+    connecting: 'connecting…', live: 'Live', disconnected: 'Disconnected',
+    heroOn: 'dualnet is on', heroOff: 'dualnet is off',
+    heroOnTransparent: 'Combining {n} links for the whole PC (transparent mode)',
+    heroOnProxy: 'Combining {n} links for apps using the Windows proxy',
+    heroOffSub: 'Windows uses its normal connection. Press the button to combine your links.',
+    powerOn: 'Turn dualnet off', powerOff: 'Turn dualnet on',
+    oneLinkWarn: 'Only one link is connected, so there is nothing to combine. If Wi‑Fi drops when the phone is plugged in over USB, turn on “Keep Wi‑Fi with USB tethering” in Settings.',
+    chartTitle: 'Download speed — last 2 minutes', now: 'now', agoS: '{n} s ago', peak: 'peak {s} Mb/s', today: '{b} today',
+    received: 'received', share: 'share', ping: 'ping', conns: 'connections', cap: 'Cap', capNone: 'No cap',
+    tagUp: 'Online', tagDown: 'Disconnected', tagNoAnswer: 'Not answering',
+    capPrompt: 'Download speed cap for {n} (Mb/s, 0 = none)', save: 'Save', cancel: 'Cancel',
+    dlLead: 'Downloads one file over all links at once: their speeds add up.',
+    urlPlaceholder: 'https://… (file to download)', connPerLink: 'Connections per link',
     conn2: '2 conn./link', conn4: '4 conn./link', conn8: '8 conn./link', download: 'Download',
-    noDownloads: 'No downloads yet.', destFolder: 'Destination folder: {d}',
-    proxyTitle: 'Proxy (browsing, torrents…)',
-    tunTitle: 'Transparent mode (Steam, games, whole PC)', sysTitle: 'Windows proxy',
-    enable: 'Enable', disable: 'Disable', address: 'Address:',
-    howBrowser: '<b>Browser</b>: Firefox → Settings → Network → Manual proxy → SOCKS v5 <code class="paddr"></code>, tick “Proxy DNS when using SOCKS”.',
-    howTorrent: '<b>qBittorrent</b>: Options → Connection → SOCKS5 proxy, same address.',
-    howWindows: '<b>All of Windows (Steam, Edge, Chrome…)</b>: button above. Restart Steam after enabling. Your original settings are restored when dualnet closes.',
-    howSpread: 'Each connection goes to the least loaded link; a given site stays on the same link for 10 min.',
-    winSettings: 'Windows settings', simTitle: 'Keep Wi‑Fi with USB tethering', allow: 'Allow', revert: 'Restore default',
-    simOn: 'Allowed: Windows no longer drops Wi‑Fi when the phone is plugged in',
-    simOff: 'By default, Windows drops Wi‑Fi as soon as a wired connection (USB tethering) is present',
-    needAdmin: 'Run dualnet as administrator to change this setting',
-    preferTitle: 'Link preferred by Windows', preferSub: 'For traffic that does not go through dualnet.', automatic: 'Automatic',
-    steamTitle: 'Restart Steam', steamSub: 'After enabling transparent mode, so Steam reopens its connections.',
-    restart: 'Restart', restarting: 'Restarting…',
-    historyTitle: 'History (last 30 days)', loading: 'Loading…', noHistory: 'No data yet (recorded every 10 s).',
-    day: 'Day', total: 'Total', share: 'Share',
-    combined: 'Combined total', peak: 'peak', received: 'received', conn: 'conn.', cap: 'cap', none: 'none',
-    tagDown: 'disconnected', tagNoAnswer: 'not answering',
-    capPrompt: 'Download speed cap for {n} in Mb/s (0 = none):',
+    noDownloads: 'No downloads yet.', destFolder: 'Saved to {d}',
     stRunning: 'running', stDone: 'done', stError: 'error', stCancelled: 'cancelled',
-    cancel: 'Cancel', openFolder: 'Open folder', left: '{t} left', avgIn: 'average {s} Mb/s in {t}',
-    sysOurs: 'On: all of Windows goes through dualnet',
-    sysOther: 'Another proxy is set ({s}) — Enable replaces it; it is restored on exit',
-    sysOff: 'Off: only apps configured by hand use dualnet',
-    tunOn: 'On: all the PC’s IPv4 traffic is spread, no app settings needed',
-    tunNeedAdmin: 'Requires running dualnet as administrator', off: 'Off',
-    proxyOff: 'proxy disabled',
+    openFolder: 'Show in folder', left: '{t} left', avgIn: 'average {s} Mb/s in {t}',
+    historyLead: 'Data received through each link, per day.', loading: 'Loading…', noHistory: 'No data yet (recorded every 10 s).',
+    day: 'Day', total: 'Total', split: 'Split',
+    settingsLead: 'How dualnet captures traffic, and the Windows settings that help it.',
+    captureTitle: 'Traffic capture',
+    tunTitle: 'Transparent mode', tunOn: 'Captures all the PC’s IPv4 traffic (Steam, games, browser…) with a virtual network adapter.',
+    tunOff: 'Off. Captures all the PC’s traffic with a virtual network adapter, no app settings needed.',
+    tunNeedAdmin: 'Needs dualnet to run as administrator.',
+    sysTitle: 'Windows proxy', sysOurs: 'On: apps that follow the Windows proxy (Edge, Chrome…) go through dualnet.',
+    sysOther: 'Another proxy is set ({s}); turning this on replaces it until dualnet closes.',
+    sysOff: 'Off. Points the Windows proxy to dualnet; restored when dualnet closes.',
+    proxyManual: 'Proxy address for other apps',
+    howBrowser: '<b>Firefox</b>: Settings → Network → Manual proxy → SOCKS v5, tick “Proxy DNS when using SOCKS”.',
+    howTorrent: '<b>qBittorrent</b>: Options → Connection → SOCKS5 proxy.',
+    winSettings: 'Windows', simTitle: 'Keep Wi‑Fi with USB tethering',
+    simOn: 'Windows keeps Wi‑Fi connected when the phone is plugged in.',
+    simOff: 'By default Windows drops Wi‑Fi as soon as a wired connection (USB tethering) appears.',
+    needAdmin: 'Needs dualnet to run as administrator.',
+    preferTitle: 'Link Windows prefers', preferSub: 'For traffic that does not go through dualnet.', automatic: 'Automatic',
+    steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
+    appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
+    proxyOff: 'proxy disabled', done: 'Done',
     units: ['B', 'KB', 'MB', 'GB', 'TB'],
   },
   fr: {
-    connecting: 'connexion…', live: 'en direct', disconnected: 'déconnecté — dualnet est-il lancé ?',
-    oneLinkWarn: 'Un seul lien connecté : pas de combinaison. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, Windows limite les connexions simultanées (voir « Garder le Wi‑Fi avec le partage USB » plus bas). dualnet reprendra le lien automatiquement dès qu’il revient.',
-    chartTitle: 'Débit descendant — 2 dernières minutes', now: 'maintenant', agoS: 'il y a {n} s',
-    downloads: 'Téléchargements', urlPlaceholder: 'https://… (fichier à télécharger)', connPerLink: 'Connexions par lien',
+    navHome: 'Tableau de bord', navDownloads: 'Téléchargements', navHistory: 'Historique', navSettings: 'Réglages',
+    connecting: 'connexion…', live: 'En direct', disconnected: 'Déconnecté',
+    heroOn: 'dualnet est activé', heroOff: 'dualnet est désactivé',
+    heroOnTransparent: '{n} liens combinés pour tout le PC (mode transparent)',
+    heroOnProxy: '{n} liens combinés pour les applis qui suivent le proxy Windows',
+    heroOffSub: 'Windows utilise sa connexion habituelle. Appuyez sur le bouton pour combiner vos liens.',
+    powerOn: 'Désactiver dualnet', powerOff: 'Activer dualnet',
+    oneLinkWarn: 'Un seul lien est connecté : rien à combiner. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, activez « Garder le Wi‑Fi avec le partage USB » dans les Réglages.',
+    chartTitle: 'Débit descendant — 2 dernières minutes', now: 'maintenant', agoS: 'il y a {n} s', peak: 'pic {s} Mb/s', today: '{b} aujourd’hui',
+    received: 'reçus', share: 'part', ping: 'ping', conns: 'connexions', cap: 'Plafond', capNone: 'Sans plafond',
+    tagUp: 'En ligne', tagDown: 'Déconnecté', tagNoAnswer: 'Ne répond pas',
+    capPrompt: 'Plafond de débit pour {n} (Mb/s, 0 = aucun)', save: 'Enregistrer', cancel: 'Annuler',
+    dlLead: 'Télécharge un fichier par tous les liens à la fois : leurs débits s’additionnent.',
+    urlPlaceholder: 'https://… (fichier à télécharger)', connPerLink: 'Connexions par lien',
     conn2: '2 conn./lien', conn4: '4 conn./lien', conn8: '8 conn./lien', download: 'Télécharger',
-    noDownloads: 'Aucun téléchargement pour l’instant.', destFolder: 'Dossier de destination : {d}',
-    proxyTitle: 'Proxy (navigation, torrents…)',
-    tunTitle: 'Mode transparent (Steam, jeux, tout le PC)', sysTitle: 'Proxy Windows',
-    enable: 'Activer', disable: 'Désactiver', address: 'Adresse :',
-    howBrowser: '<b>Navigateur</b> : Firefox → Paramètres → Réseau → Proxy manuel → SOCKS v5 <code class="paddr"></code>, cocher « DNS via SOCKS ».',
-    howTorrent: '<b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5, même adresse.',
-    howWindows: '<b>Tout Windows (Steam, Edge, Chrome…)</b> : bouton ci-dessus. Relancez Steam après l’activation. Vos réglages d’origine sont remis à la fermeture de dualnet.',
-    howSpread: 'Chaque connexion part sur le lien le moins chargé ; un même site reste sur le même lien 10 min.',
-    winSettings: 'Réglages Windows', simTitle: 'Garder le Wi‑Fi avec le partage USB', allow: 'Autoriser', revert: 'Rétablir',
-    simOn: 'Autorisé : Windows ne coupe plus le Wi‑Fi quand le téléphone est branché',
-    simOff: 'Par défaut, Windows coupe le Wi‑Fi dès qu’une connexion filaire (partage USB) est présente',
-    needAdmin: 'Lancez dualnet en administrateur pour modifier ce réglage',
-    preferTitle: 'Lien préféré par Windows', preferSub: 'Pour le trafic qui ne passe pas par dualnet.', automatic: 'Automatique',
-    steamTitle: 'Relancer Steam', steamSub: 'Après avoir activé le mode transparent, pour que Steam rouvre ses connexions.',
-    restart: 'Relancer', restarting: 'Relance…',
-    historyTitle: 'Historique (30 derniers jours)', loading: 'Chargement…', noHistory: 'Pas encore de données (enregistrées toutes les 10 s).',
-    day: 'Jour', total: 'Total', share: 'Part',
-    combined: 'Total combiné', peak: 'pic', received: 'reçus', conn: 'conn.', cap: 'plafond', none: 'aucun',
-    tagDown: 'déconnecté', tagNoAnswer: 'ne répond pas',
-    capPrompt: 'Plafond de débit pour {n} en Mb/s (0 = aucun) :',
+    noDownloads: 'Aucun téléchargement pour l’instant.', destFolder: 'Enregistré dans {d}',
     stRunning: 'en cours', stDone: 'terminé', stError: 'erreur', stCancelled: 'annulé',
-    cancel: 'Annuler', openFolder: 'Ouvrir le dossier', left: 'reste {t}', avgIn: 'moyenne {s} Mb/s en {t}',
-    sysOurs: 'Activé : tout Windows passe par dualnet',
-    sysOther: 'Un autre proxy est réglé ({s}) — Activer le remplacera, il sera remis à la fermeture',
-    sysOff: 'Désactivé : seules les applis réglées à la main utilisent dualnet',
-    tunOn: 'Activé : tout le trafic IPv4 du PC est réparti, sans réglage dans les applis',
-    tunNeedAdmin: 'Nécessite de lancer dualnet en administrateur', off: 'Désactivé',
-    proxyOff: 'proxy désactivé',
+    openFolder: 'Afficher dans le dossier', left: 'reste {t}', avgIn: 'moyenne {s} Mb/s en {t}',
+    historyLead: 'Données reçues par chaque lien, par jour.', loading: 'Chargement…', noHistory: 'Pas encore de données (enregistrées toutes les 10 s).',
+    day: 'Jour', total: 'Total', split: 'Répartition',
+    settingsLead: 'Comment dualnet capte le trafic, et les réglages Windows qui l’aident.',
+    captureTitle: 'Capture du trafic',
+    tunTitle: 'Mode transparent', tunOn: 'Capte tout le trafic IPv4 du PC (Steam, jeux, navigateur…) via une carte réseau virtuelle.',
+    tunOff: 'Désactivé. Capte tout le trafic du PC via une carte réseau virtuelle, sans réglage dans les applis.',
+    tunNeedAdmin: 'Nécessite de lancer dualnet en administrateur.',
+    sysTitle: 'Proxy Windows', sysOurs: 'Activé : les applis qui suivent le proxy Windows (Edge, Chrome…) passent par dualnet.',
+    sysOther: 'Un autre proxy est réglé ({s}) ; l’activer le remplace jusqu’à la fermeture de dualnet.',
+    sysOff: 'Désactivé. Règle le proxy Windows sur dualnet ; rétabli à la fermeture de dualnet.',
+    proxyManual: 'Adresse du proxy pour les autres applis',
+    howBrowser: '<b>Firefox</b> : Paramètres → Réseau → Proxy manuel → SOCKS v5, cocher « DNS via SOCKS ».',
+    howTorrent: '<b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5.',
+    winSettings: 'Windows', simTitle: 'Garder le Wi‑Fi avec le partage USB',
+    simOn: 'Windows garde le Wi‑Fi connecté quand le téléphone est branché.',
+    simOff: 'Par défaut, Windows coupe le Wi‑Fi dès qu’une connexion filaire (partage USB) apparaît.',
+    needAdmin: 'Nécessite de lancer dualnet en administrateur.',
+    preferTitle: 'Lien préféré par Windows', preferSub: 'Pour le trafic qui ne passe pas par dualnet.', automatic: 'Automatique',
+    steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
+    appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
+    proxyOff: 'proxy désactivé', done: 'Fait',
     units: ['o', 'Ko', 'Mo', 'Go', 'To'],
   },
 };
@@ -282,7 +427,7 @@ const SERVER_FR = {
   'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
   'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid value': 'valeur invalide',
   'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
-  'unknown action': 'action inconnue',
+  'unknown action': 'action inconnue', 'not available': 'non disponible',
 };
 const t = (k, vars) => {
   let s = (I18N[LANG][k] ?? I18N.en[k] ?? k);
@@ -295,20 +440,13 @@ const srv = msg => {
   for (const [en, fr] of Object.entries(SERVER_FR)) if (msg.startsWith(en)) return fr + msg.slice(en.length);
   return msg;
 };
-function applyI18n() {
-  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
-  document.querySelectorAll('[data-i18n-html]').forEach(e => e.innerHTML = t(e.dataset.i18nHtml));
-  document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
-  document.querySelectorAll('[data-i18n-title]').forEach(e => e.title = t(e.dataset.i18nTitle));
-}
-applyI18n();
+document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
+document.querySelectorAll('[data-i18n-html]').forEach(e => e.innerHTML = t(e.dataset.i18nHtml));
+document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
+document.querySelectorAll('[data-i18n-title]').forEach(e => e.title = t(e.dataset.i18nTitle));
 
-const WINDOW = 120;            // seconds of history
-const STEP = 0.5;              // seconds between points
-const MAXPTS = WINDOW / STEP;
-const hist = [];               // {t, v:[rx per link]}
-let links = [], peaks = [], peakTotal = 0;
-
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const color = i => css('--l' + (i % 4));
 const fmtMbps = v => v >= 100 ? v.toFixed(0) : v.toFixed(1);
@@ -323,40 +461,103 @@ function fmtDur(s) {
   return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function failAlert(r) { if (!r.ok) alert(srv(await r.text())); }
+let toastTimer;
+function toast(msg, ok) {
+  const el = $('toast'); el.textContent = msg; el.className = 'toast show' + (ok ? ' ok' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = 'toast', 4000);
+}
+async function post(url) {
+  const r = await fetch(url, { method: 'POST' });
+  if (!r.ok) toast(srv(await r.text()));
+  return r.ok;
+}
+const linkIcon = name => /wi-?fi|wlan|wireless/i.test(name)
+  ? '<path d="M2 8.5a15 15 0 0120 0M5 12a10 10 0 0114 0M8.5 15.5a5 5 0 017 0"/><circle cx="12" cy="19" r="1"/>'
+  : /ethernet|usb|rndis|ncm|phone|mobile/i.test(name)
+  ? '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'
+  : '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>';
 
-// ---------- KPIs ----------
-function renderKpis(snap) {
+// ---------- navigation ----------
+function show(page) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  try { localStorage.setItem('page', page); } catch (e) {}
+  if (page === 'history') loadHistory();
+  if (page === 'home') requestAnimationFrame(resize);
+}
+document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => show(b.dataset.page)));
+try { const p = localStorage.getItem('page'); if (p && $('page-' + p)) show(p); } catch (e) {}
+
+// ---------- state ----------
+const WINDOW = 120, STEP = 0.5, MAXPTS = WINDOW / STEP;
+const hist = [];
+let links = [], peakTotal = 0, snapLast = null, busy = false;
+
+// ---------- home ----------
+function renderHome(snap) {
+  const p = snap.power || {};
+  const up = snap.links.filter(l => l.up && l.healthy);
   const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
   peakTotal = Math.max(peakTotal, total);
-  const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
-  let html = `<div class="panel kpi total">
-      <div class="label">${t('combined')}</div>
-      <div class="value">${fmtMbps(total)}<small>Mb/s</small></div>
-      <div class="sub">${t('peak')} ${fmtMbps(peakTotal)} Mb/s · ${fmtBytes(allRx)} ${t('received')}</div>
-      <div class="bar">${snap.links.map((l, i) =>
-        `<span style="width:${(100 * l.rxMbps / (total || 1)).toFixed(1)}%;background:${color(i)}"></span>`).join('')}</div>
-    </div>`;
-  snap.links.forEach((l, i) => {
-    peaks[i] = Math.max(peaks[i] || 0, l.rxMbps);
-    const share = 100 * l.totalRx / allRx;
-    const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : '';
-    html += `<div class="panel kpi${tag ? ' down' : ''}">
-      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}${tag ? ` <span class="tag">${tag}</span>` : ''}</div>
-      <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
-      <div class="sub">${t('peak')} ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} ${t('conn')} · ping ${l.ping ? l.ping + ' ms' : '—'}</div>
-      <div class="sub">${fmtBytes(l.totalRx)} ${t('received')} (${share.toFixed(0)} %)</div>
-      <div class="sub limit">${t('cap')} <button class="ghost" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="setLimit(this.dataset.link, +this.dataset.limit)">${l.limit ? l.limit + ' Mb/s' : t('none')}</button></div>
-    </div>`;
-  });
-  document.getElementById('kpis').innerHTML = html;
-}
+  $('hero').classList.toggle('off', !p.on);
+  const pb = $('powerBtn');
+  pb.classList.toggle('off', !p.on); pb.title = p.on ? t('powerOn') : t('powerOff'); pb.disabled = busy;
+  $('heroTitle').textContent = p.on ? t('heroOn') : t('heroOff');
+  $('heroSub').textContent = !p.on ? t('heroOffSub') : t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length });
+  $('totalNum').textContent = fmtMbps(total);
+  $('peakTxt').textContent = t('peak', { s: fmtMbps(peakTotal) });
+  $('shareBar').innerHTML = snap.links.map((l, i) =>
+    `<span style="width:${(100 * l.rxMbps / (total || 1)).toFixed(1)}%;background:${color(i)}"></span>`).join('');
+  $('linksWarn').style.display = up.length < 2 ? 'flex' : 'none';
 
-// ---------- chart (stacked areas, one per link) ----------
-const cv = document.getElementById('chart'), ctx = cv.getContext('2d'), tip = document.getElementById('tip');
+  const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
+  $('links').innerHTML = snap.links.map((l, i) => {
+    const ok = l.up && l.healthy;
+    const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : t('tagUp');
+    const c = color(i);
+    return `<div class="card link${ok ? '' : ' down'}">
+      <div class="link-head">
+        <div class="link-icon" style="background:color-mix(in srgb, ${c} 15%, transparent);color:${c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${linkIcon(l.name)}</svg></div>
+        <div><div class="link-name">${esc(l.name)}</div><div class="link-ip">${esc(l.ip)}</div></div>
+        <span class="badge ${ok ? 'ok' : 'bad'}">${tag}</span>
+      </div>
+      <div class="link-val">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
+      <div class="stats">
+        <span>${t('ping')} <b>${l.ping ? l.ping + ' ms' : '—'}</b></span>
+        <span>${t('conns')} <b>${l.active}</b></span>
+        <span>${t('share')} <b>${(100 * l.totalRx / allRx).toFixed(0)} %</b></span>
+      </div>
+      <div class="stats" style="margin-top:4px"><span>${fmtBytes(l.totalRx)} ${t('received')}</span></div>
+      <button class="btn ghost small cap-btn" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="askCap(this.dataset.link, +this.dataset.limit)">${l.limit ? t('cap') + ' ' + l.limit + ' Mb/s' : t('capNone')}</button>
+    </div>`;
+  }).join('');
+}
+$('powerBtn').addEventListener('click', async () => {
+  if (!snapLast) return;
+  busy = true; $('powerBtn').disabled = true;
+  await post('/api/power?on=' + (snapLast.power && snapLast.power.on ? 0 : 1));
+  busy = false;
+});
+
+// cap modal
+let capLink = '';
+function askCap(name, cur) {
+  capLink = name; $('capTitle').textContent = t('capPrompt', { n: name });
+  $('capInput').value = cur || 0; $('capModal').classList.add('show'); $('capInput').focus(); $('capInput').select();
+}
+$('capCancel').onclick = () => $('capModal').classList.remove('show');
+$('capOk').onclick = async () => {
+  $('capModal').classList.remove('show');
+  await post(`/api/limit?link=${encodeURIComponent(capLink)}&mbps=${encodeURIComponent($('capInput').value || 0)}`);
+};
+$('capInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('capOk').click(); if (e.key === 'Escape') $('capCancel').click(); });
+
+// ---------- chart (stacked areas) ----------
+const cv = $('chart'), ctx = cv.getContext('2d'), tip = $('tip');
 let hoverX = null;
 function resize() {
   const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  if (!r.width) return;
   cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); draw();
 }
 new ResizeObserver(resize).observe(cv);
@@ -365,67 +566,52 @@ function niceMax(v) {
   const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
   return (n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
 }
-function geom() {
-  const W = cv.clientWidth, H = cv.clientHeight, L = 44, R = 8, T = 10, B = 22;
-  return { W, H, L, R, T, B, w: W - L - R, h: H - T - B };
-}
 function draw() {
-  const g = geom();
-  ctx.clearRect(0, 0, g.W, g.H);
-  const maxTotal = hist.reduce((m, p) => Math.max(m, p.v.reduce((a, b) => a + b, 0)), 0);
+  const W = cv.clientWidth, H = cv.clientHeight, L = 40, R = 6, T = 8, B = 22, w = W - L - R, h = H - T - B;
+  if (!W) return;
+  ctx.clearRect(0, 0, W, H);
+  const maxTotal = hist.reduce((m, p) => Math.max(m, p.v.reduce((a, b) => a + (b || 0), 0)), 0);
   const ymax = niceMax(maxTotal * 1.1);
-  const x = k => g.L + g.w * (k + MAXPTS - hist.length) / (MAXPTS - 1);
-  const y = v => g.T + g.h * (1 - v / ymax);
-  // grid + labels
-  ctx.font = '11px Segoe UI, system-ui, sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+  const x = k => L + w * (k + MAXPTS - hist.length) / (MAXPTS - 1);
+  const y = v => T + h * (1 - v / ymax);
+  ctx.font = '11px "Segoe UI", system-ui, sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   for (let i = 0; i <= 4; i++) {
     const v = ymax * i / 4, yy = Math.round(y(v)) + .5;
-    ctx.beginPath(); ctx.moveTo(g.L, yy); ctx.lineTo(g.W - g.R, yy); ctx.stroke();
-    ctx.fillText(v.toFixed(0), g.L - 6, yy);
+    ctx.beginPath(); ctx.moveTo(L, yy); ctx.lineTo(W - R, yy); ctx.stroke();
+    ctx.fillText(v.toFixed(0), L - 6, yy);
   }
   ctx.textBaseline = 'top';
   for (let s = 0; s <= WINDOW; s += 30) {
-    const xx = g.L + g.w * (1 - s / WINDOW);
+    const xx = L + w * (1 - s / WINDOW);
     ctx.textAlign = s === 0 ? 'right' : s === WINDOW ? 'left' : 'center';
-    ctx.fillText(s ? `-${s}s` : t('now'), xx, g.H - g.B + 6);
+    ctx.fillText(s ? `-${s}s` : t('now'), xx, H - B + 6);
   }
-  ctx.save(); ctx.translate(10, g.T + g.h / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
-  ctx.fillText('Mb/s', 0, 0); ctx.restore();
   if (hist.length < 2) return;
-  // stacked areas, bottom link first
-  const n = links.length;
-  for (let li = n - 1; li >= 0; li--) {
-    ctx.beginPath();
-    hist.forEach((p, k) => {
+  for (let li = links.length - 1; li >= 0; li--) {
+    const path = () => hist.forEach((p, k) => {
       const top = p.v.slice(0, li + 1).reduce((a, b) => a + (b || 0), 0);
       k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
     });
-    ctx.lineTo(x(hist.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
     const c = color(li);
-    ctx.fillStyle = c + '55'; ctx.fill();
-    ctx.beginPath();
-    hist.forEach((p, k) => {
-      const top = p.v.slice(0, li + 1).reduce((a, b) => a + (b || 0), 0);
-      k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
-    });
-    ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.beginPath(); path(); ctx.lineTo(x(hist.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
+    const grad = ctx.createLinearGradient(0, T, 0, T + h);
+    grad.addColorStop(0, c + '70'); grad.addColorStop(1, c + '18');
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); path(); ctx.strokeStyle = c; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.stroke();
   }
-  // hover
   if (hoverX !== null) {
-    const k = Math.round((hoverX - g.L) / g.w * (MAXPTS - 1)) - (MAXPTS - hist.length);
+    const k = Math.round((hoverX - L) / w * (MAXPTS - 1)) - (MAXPTS - hist.length);
     if (k >= 0 && k < hist.length) {
       const xx = x(k), p = hist[k];
-      ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(xx, g.T); ctx.lineTo(xx, g.T + g.h); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = css('--muted'); ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(xx, T); ctx.lineTo(xx, T + h); ctx.stroke(); ctx.setLineDash([]);
       const total = p.v.reduce((a, b) => a + (b || 0), 0);
       const ago = ((hist[hist.length - 1].t - p.t) / 1000).toFixed(0);
       tip.innerHTML = `<b>${fmtMbps(total)} Mb/s · ${t('agoS', { n: ago })}</b>` + links.map((l, i) =>
         `<div><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}: ${fmtMbps(p.v[i] || 0)} Mb/s</div>`).join('');
       tip.style.display = 'block';
-      const tw = tip.offsetWidth;
-      tip.style.left = Math.min(xx + 12, g.W - tw - 4) + 'px';
-      tip.style.top = (g.T + 6) + 'px';
+      tip.style.left = Math.min(xx + 12, W - tip.offsetWidth - 4) + 'px'; tip.style.top = (T + 6) + 'px';
       return;
     }
   }
@@ -434,32 +620,30 @@ function draw() {
 cv.addEventListener('mousemove', e => { hoverX = e.offsetX; draw(); });
 cv.addEventListener('mouseleave', () => { hoverX = null; draw(); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
-
 function renderLegend() {
-  document.getElementById('legend').innerHTML = links.map((l, i) =>
-    `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
+  $('legend').innerHTML = links.map((l, i) => `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
 }
 
-// ---------- jobs ----------
+// ---------- downloads ----------
 function renderJobs(snap) {
-  const el = document.getElementById('jobs');
+  if (snap.dir) $('dir').textContent = t('destFolder', { d: snap.dir });
   if (!snap.jobs.length) return;
-  el.innerHTML = snap.jobs.slice().reverse().map(j => {
+  $('jobs').innerHTML = snap.jobs.slice().reverse().map(j => {
     const pct = j.size ? 100 * j.done / j.size : 0;
     const avg = j.elapsed ? j.done * 8 / j.elapsed / 1e6 : 0;
     const eta = j.state === 'running' && j.mbps > 0 ? (j.size - j.done) * 8 / (j.mbps * 1e6) : NaN;
-    const stateTxt = { running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
+    const st = { running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
     const segs = (j.perLink || []).map((b, i) =>
-      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}" title="${esc(links[i] ? links[i].name : '')}: ${fmtBytes(b)}"></span>`).join('');
+      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}"></span>`).join('');
     const split = (j.perLink || []).map((b, i) =>
       `<span><span class="swatch" style="background:${color(i)}"></span> ${j.done ? (100 * b / j.done).toFixed(0) : 0} %</span>`).join(' ');
     return `<div class="job">
       <div class="top">
         <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
         <div class="actions">
-          <span class="state ${j.state}">${stateTxt}</span>
-          ${j.state === 'running' ? `<button class="ghost" onclick="act('cancel',${j.id})">${t('cancel')}</button>` : ''}
-          ${j.state === 'done' ? `<button class="ghost" onclick="act('reveal',${j.id})">${t('openFolder')}</button>` : ''}
+          <span class="state ${j.state}">${st}</span>
+          ${j.state === 'running' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+          ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
         </div>
       </div>
       <div class="bar">${segs}</div>
@@ -472,124 +656,81 @@ function renderJobs(snap) {
     </div>`;
   }).join('');
 }
-async function setLimit(name, cur) {
-  const v = prompt(t('capPrompt', { n: name }), cur || 0);
-  if (v === null) return;
-  failAlert(await fetch(`/api/limit?link=${encodeURIComponent(name)}&mbps=${encodeURIComponent(v)}`, { method: 'POST' }));
-}
-function act(what, id) { fetch(`/api/${what}?id=${id}`, { method: 'POST' }); }
-document.getElementById('dl').addEventListener('submit', async e => {
+$('dl').addEventListener('submit', async e => {
   e.preventDefault();
-  const url = document.getElementById('url').value.trim();
-  const workers = +document.getElementById('workers').value;
-  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, workers }) });
-  if (r.ok) document.getElementById('url').value = ''; else failAlert(r);
+  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: $('url').value.trim(), workers: +$('workers').value }) });
+  if (r.ok) $('url').value = ''; else toast(srv(await r.text()));
 });
 
-let sysOn = false;
-function renderSys(snap) {
-  const v = snap.sys || {}, box = document.getElementById('sysBox'), btn = document.getElementById('sysBtn'), el = document.getElementById('sysText');
-  sysOn = v.ours;
-  box.classList.toggle('on', !!v.ours);
-  box.classList.toggle('other', v.on && !v.ours);
-  if (v.err) el.textContent = srv(v.err);
-  else if (v.ours) el.textContent = t('sysOurs');
-  else if (v.on) el.textContent = t('sysOther', { s: v.server });
-  else el.textContent = t('sysOff');
-  btn.textContent = v.ours ? t('disable') : t('enable');
-  btn.classList.toggle('off', !!v.ours);
-  btn.disabled = !snap.proxy;
-}
-let tunOn = false;
-function renderTun(snap) {
-  const v = snap.tun || {}, box = document.getElementById('tunBox'), btn = document.getElementById('tunBtn'), el = document.getElementById('tunText');
-  tunOn = !!v.on;
-  box.classList.toggle('on', tunOn);
-  box.classList.toggle('other', !v.on && (!v.admin || !!v.err));
-  if (v.on) el.textContent = t('tunOn');
-  else if (v.err) el.textContent = srv(v.err);
-  else if (!v.admin) el.textContent = t('tunNeedAdmin');
-  else el.textContent = t('off');
-  btn.textContent = v.on ? t('disable') : t('enable');
-  btn.classList.toggle('off', tunOn);
-  btn.disabled = !v.on && !v.admin;
-}
-document.getElementById('tunBtn').addEventListener('click', async () =>
-  failAlert(await fetch('/api/transparent?on=' + (tunOn ? 0 : 1), { method: 'POST' })));
-document.getElementById('sysBtn').addEventListener('click', async () =>
-  failAlert(await fetch('/api/sysproxy?on=' + (sysOn ? 0 : 1), { method: 'POST' })));
-
-function renderTotals(snap) {
-  document.getElementById('totals').innerHTML = snap.links.map((l, i) =>
-    `<tr><td><span class="swatch" style="background:${color(i)}"></span> ${esc(l.name)}</td><td>↓ ${fmtBytes(l.totalRx)} · ↑ ${fmtBytes(l.totalTx)}</td></tr>`).join('');
-}
-
-// ---------- Windows settings ----------
-let simOn = false;
-function renderSystem(snap) {
-  const v = snap.system || {};
-  simOn = !!v.simultaneous;
-  document.getElementById('simBox').classList.toggle('on', simOn);
-  document.getElementById('simText').textContent = simOn ? t('simOn') : (v.admin ? t('simOff') : t('needAdmin'));
-  const sb = document.getElementById('simBtn');
-  sb.textContent = simOn ? t('revert') : t('allow'); sb.classList.toggle('off', simOn); sb.disabled = !v.admin;
-  const m = v.metrics || {};
+// ---------- settings ----------
+function setSwitch(id, on, disabled) { const s = $(id); if (document.activeElement !== s) s.checked = !!on; s.disabled = !!disabled; }
+function renderSettings(snap) {
+  const tun = snap.tun || {}, sys = snap.sys || {}, sy = snap.system || {};
+  setSwitch('tunSw', tun.on, !tun.on && !tun.admin);
+  $('tunText').textContent = tun.on ? t('tunOn') : tun.err ? srv(tun.err) : !tun.admin ? t('tunNeedAdmin') : t('tunOff');
+  $('tunText').classList.toggle('warn', !tun.on && (!!tun.err || !tun.admin));
+  setSwitch('sysSw', sys.ours, !snap.proxy);
+  $('sysText').textContent = sys.err ? srv(sys.err) : sys.ours ? t('sysOurs') : sys.on ? t('sysOther', { s: sys.server }) : t('sysOff');
+  $('sysText').classList.toggle('warn', !sys.ours && sys.on);
+  $('proxyAddr').textContent = snap.proxy || t('proxyOff');
+  setSwitch('simSw', sy.simultaneous, !sy.admin);
+  $('simText').textContent = !sy.admin && !sy.simultaneous ? t('needAdmin') : sy.simultaneous ? t('simOn') : t('simOff');
+  const m = sy.metrics || {};
   const best = Math.min(...snap.links.map(l => m[l.name] ?? 1e9));
-  document.getElementById('prefer').innerHTML = snap.links.map(l =>
-    `<button class="ghost${m[l.name] === best ? ' chosen' : ''}" ${v.admin ? '' : 'disabled'} onclick="sysAct('prefer','link=${encodeURIComponent(l.name)}')">${esc(l.name)}${m[l.name] !== undefined ? ' · ' + m[l.name] : ''}</button>`).join('') +
-    `<button class="ghost" ${v.admin ? '' : 'disabled'} onclick="sysAct('prefer','link=')">${t('automatic')}</button>`;
+  const pref = snap.links.map(l => `<button class="btn ghost small${m[l.name] === best ? ' chosen' : ''}" ${sy.admin ? '' : 'disabled'} onclick="post('/api/system?do=prefer&link=${encodeURIComponent(l.name)}')">${esc(l.name)}</button>`).join('') +
+    `<button class="btn ghost small" ${sy.admin ? '' : 'disabled'} onclick="post('/api/system?do=prefer&link=')">${t('automatic')}</button>`;
+  if ($('prefer').innerHTML !== pref) $('prefer').innerHTML = pref;
+  $('appCard').style.display = snap.autostart === undefined ? 'none' : '';
+  setSwitch('autoSw', snap.autostart, false);
 }
-async function sysAct(what, extra) {
-  failAlert(await fetch(`/api/system?do=${what}&${extra || ''}`, { method: 'POST' }));
-}
-document.getElementById('simBtn').addEventListener('click', () => sysAct('simultaneous', 'on=' + (simOn ? 0 : 1)));
-document.getElementById('steamBtn').addEventListener('click', async e => {
-  e.target.disabled = true; e.target.textContent = t('restarting');
-  await sysAct('steam'); e.target.disabled = false; e.target.textContent = t('restart');
+$('tunSw').addEventListener('change', e => post('/api/transparent?on=' + (e.target.checked ? 1 : 0)));
+$('sysSw').addEventListener('change', e => post('/api/sysproxy?on=' + (e.target.checked ? 1 : 0)));
+$('simSw').addEventListener('change', e => post('/api/system?do=simultaneous&on=' + (e.target.checked ? 1 : 0)));
+$('autoSw').addEventListener('change', e => post('/api/autostart?on=' + (e.target.checked ? 1 : 0)));
+$('steamBtn').addEventListener('click', async e => {
+  const b = e.currentTarget; b.disabled = true; b.textContent = t('restarting');
+  if (await post('/api/system?do=steam')) toast(t('done'), true);
+  b.disabled = false; b.textContent = t('restart');
 });
 
 // ---------- history ----------
 async function loadHistory() {
   try {
     const days = await (await fetch('/api/history')).json();
-    const el = document.getElementById('history');
+    const el = $('history');
     if (!days.length) { el.textContent = t('noHistory'); return; }
     const names = [...new Set(days.flatMap(d => Object.keys(d.links)))];
     const idx = n => { const i = links.findIndex(l => l.name === n); return i < 0 ? names.indexOf(n) : i; };
     el.className = '';
-    el.innerHTML = `<table class="hist"><tr><td>${t('day')}</td>${names.map(n =>
-      `<td><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</td>`).join('')}<td>${t('total')}</td><td>${t('share')}</td></tr>` +
+    el.innerHTML = `<table><tr><th>${t('day')}</th>${names.map(n =>
+      `<th class="r"><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</th>`).join('')}<th class="r">${t('total')}</th><th style="width:28%">${t('split')}</th></tr>` +
       days.map(d => {
         const tot = names.reduce((a, n) => a + ((d.links[n] || {}).rx || 0), 0);
         const bar = names.map(n => `<span style="width:${(100 * ((d.links[n] || {}).rx || 0) / (tot || 1)).toFixed(1)}%;background:${color(idx(n))}"></span>`).join('');
-        return `<tr><td>${d.date}</td>${names.map(n => `<td>${fmtBytes((d.links[n] || {}).rx || 0)}</td>`).join('')}<td>${fmtBytes(tot)}</td><td style="width:30%"><div class="bar" style="margin:0">${bar}</div></td></tr>`;
+        const date = new Date(d.date + 'T12:00:00').toLocaleDateString(LANG, { weekday: 'short', day: 'numeric', month: 'short' });
+        return `<tr><td>${date}</td>${names.map(n => `<td class="r">${fmtBytes((d.links[n] || {}).rx || 0)}</td>`).join('')}<td class="r"><b>${fmtBytes(tot)}</b></td><td><div class="bar" style="margin:0">${bar}</div></td></tr>`;
       }).join('') + '</table>';
   } catch (e) { /* server not ready */ }
 }
-loadHistory(); setInterval(loadHistory, 30000);
+setInterval(() => { if ($('page-history').classList.contains('active')) loadHistory(); }, 30000);
 
 // ---------- live stream ----------
-let started = false;
 function connect() {
   const es = new EventSource('/api/events');
-  const dot = document.getElementById('conn'), txt = document.getElementById('connText');
-  es.onopen = () => { dot.classList.add('on'); txt.textContent = t('live'); };
-  es.onerror = () => { dot.classList.remove('on'); txt.textContent = t('disconnected'); };
+  es.onopen = () => { $('conn').classList.add('on'); $('connText').textContent = t('live'); };
+  es.onerror = () => { $('conn').classList.remove('on'); $('connText').textContent = t('disconnected'); };
   es.onmessage = ev => {
     const snap = JSON.parse(ev.data);
     snap.links = snap.links || []; snap.jobs = snap.jobs || [];
-    if (!started || snap.links.length !== links.length) { links = snap.links; renderLegend(); started = true; }
-    const up = snap.links.filter(l => l.up && l.healthy).length;
-    document.getElementById('linksWarn').style.display = up < 2 ? 'block' : 'none';
+    snapLast = snap;
+    if (snap.links.length !== links.length) { links = snap.links; renderLegend(); }
     links = snap.links;
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
-    renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); renderTun(snap); renderSystem(snap); draw();
-    document.getElementById('ver').textContent = snap.version || '';
-    document.getElementById('proxyAddr').textContent = snap.proxy || '—';
-    document.querySelectorAll('.paddr').forEach(e => e.textContent = snap.proxy || '—');
-    document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : t('proxyOff');
-    document.getElementById('dir').textContent = snap.dir ? t('destFolder', { d: snap.dir }) : '';
+    $('ver').textContent = snap.version || '';
+    renderHome(snap); renderJobs(snap); renderSettings(snap);
+    if ($('page-home').classList.contains('active')) draw();
   };
 }
 connect();

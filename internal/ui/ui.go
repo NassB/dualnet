@@ -32,6 +32,9 @@ type Server struct {
 	Tun       *TunControl
 	Store     *store.Store
 	Version   string
+	Autostart *Autostart
+	// Native is true when the page is shown in dualnet's own window.
+	Native bool
 	// OnSettings is called after a setting changed in the UI (to save it).
 	OnSettings func()
 
@@ -66,6 +69,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
 	mux.HandleFunc("POST /api/system", s.setSystem)
+	mux.HandleFunc("POST /api/power", s.setPower)
+	mux.HandleFunc("POST /api/autostart", s.setAutostart)
 	mux.HandleFunc("GET /api/history", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.Store.History(30))
@@ -126,6 +131,8 @@ type snapshot struct {
 	Tun   tunView    `json:"tun"`
 	Sys2  systemView `json:"system"`
 	Ver   string     `json:"version"`
+	Power powerView  `json:"power"`
+	Auto  *bool      `json:"autostart,omitempty"` // nil = option not available
 }
 
 // sysView is the Windows proxy state: on/off, its address, and whether it points to us.
@@ -192,7 +199,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState()}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {
