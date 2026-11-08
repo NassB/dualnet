@@ -3,6 +3,7 @@ module github.com/NassB/dualnet
 go 1.23.1
 
 require (
+	fyne.io/systray v1.11.0
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
 	golang.org/x/sys v0.33.0
 	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
@@ -10,6 +11,7 @@ require (
 
 require (
 	github.com/go-gost/relay v0.5.0 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

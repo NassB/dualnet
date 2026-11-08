@@ -32,6 +32,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine plusieurs connexions internet
 
 Usage :
+  dualnet       (sans argument : icône dans la barre des tâches, en administrateur)
   dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0] [-system-proxy] [-transparent]
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o fichier] [-chunk 4] [-workers 4] <url>
@@ -41,7 +42,8 @@ Usage :
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
+		// Double-click on dualnet.exe: run in the notification area.
+		os.Args = append(os.Args, "tray")
 	}
 	// SIGTERM is what Windows sends when the console window is closed.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -96,62 +98,104 @@ func main() {
 
 	case "ui":
 		fs := flag.NewFlagSet("ui", flag.ExitOnError)
-		ifs := fs.String("if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
-		listen := fs.String("listen", "127.0.0.1:8090", "adresse de l'interface web")
-		proxyAddr := fs.String("proxy", "127.0.0.1:1080", `adresse du proxy ("" pour le désactiver)`)
+		cfg := uiConfig{}
+		fs.StringVar(&cfg.ifs, "if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
+		fs.StringVar(&cfg.listen, "listen", "127.0.0.1:8090", "adresse de l'interface web")
+		fs.StringVar(&cfg.proxyAddr, "proxy", "127.0.0.1:1080", `adresse du proxy ("" pour le désactiver)`)
 		home, _ := os.UserHomeDir()
-		dir := fs.String("dir", filepath.Join(home, "Downloads"), "dossier des téléchargements")
+		fs.StringVar(&cfg.dir, "dir", filepath.Join(home, "Downloads"), "dossier des téléchargements")
 		open := fs.Bool("open", true, "ouvrir le navigateur")
-		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
-		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
-		transp := fs.Bool("transparent", false, "capter tout le trafic du PC via une carte virtuelle (administrateur)")
+		fs.DurationVar(&cfg.sticky, "sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
+		fs.BoolVar(&cfg.systemProxy, "system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
+		fs.BoolVar(&cfg.transparent, "transparent", false, "capter tout le trafic du PC via une carte virtuelle (administrateur)")
 		fs.Parse(os.Args[2:])
-		restoreStale()
-		pool := watchPool(ctx, *ifs)
-		p := &proxy.Server{Pool: pool, Sticky: *sticky}
-		if *proxyAddr != "" {
-			go func() { check(p.ListenAndServe(*proxyAddr)) }()
-		}
-		st := store.Open(store.DefaultDir())
-		for _, l := range pool.All() {
-			st.ApplyLimit(l)
-		}
-		prevChange := pool.OnChange
-		pool.OnChange = func(l *links.Link, ev string) {
-			if ev == "ajouté" {
-				st.ApplyLimit(l)
-			}
-			prevChange(l, ev)
-		}
-		go st.Run(ctx, pool)
-		tun := &ui.TunControl{Proxy: p}
-		if *transp {
-			check(tun.Set(true))
-			fmt.Println("Mode transparent activé : tout le trafic IPv4 passe par dualnet.")
-		}
-		if *sys && *proxyAddr != "" {
-			check(sysproxy.Enable(*proxyAddr))
-		}
-		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir, Tun: tun, Store: st,
-			OnSettings: func() { st.RememberLimits(pool.All()) }}
-		ln, err := net.Listen("tcp", *listen)
+		app, err := startUI(ctx, cfg)
 		check(err)
-		url := "http://" + ln.Addr().String()
-		fmt.Println("Interface :", url)
+		fmt.Println("Interface :", app.url)
 		if *open {
-			ui.OpenBrowser(url)
-		}
-		cleanup = func() {
-			tun.Stop()
-			st.Record(pool.All(), time.Now())
-			st.Save()
+			ui.OpenBrowser(app.url)
 		}
 		go exitRestoring(ctx)
-		check(http.Serve(ln, srv.Handler()))
+		check(app.serve())
+
+	case "tray":
+		runTray(ctx)
 
 	default:
 		usage()
 	}
+}
+
+type uiConfig struct {
+	ifs, listen, proxyAddr, dir string
+	sticky                      time.Duration
+	systemProxy, transparent    bool
+}
+
+type uiApp struct {
+	url   string
+	tun   *ui.TunControl
+	serve func() error
+}
+
+// startUI starts the link pool, proxy, transparent mode (if asked), history and
+// the web server's listener. cleanup is set to undo it all on exit.
+func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
+	ln, err := net.Listen("tcp", cfg.listen)
+	if err != nil {
+		return nil, err
+	}
+	restoreStale()
+	pool := watchPool(ctx, cfg.ifs)
+	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky}
+	if cfg.proxyAddr != "" {
+		go func() { check(p.ListenAndServe(cfg.proxyAddr)) }()
+	}
+	st := store.Open(store.DefaultDir())
+	for _, l := range pool.All() {
+		st.ApplyLimit(l)
+	}
+	prevChange := pool.OnChange
+	pool.OnChange = func(l *links.Link, ev string) {
+		if ev == "ajouté" {
+			st.ApplyLimit(l)
+		}
+		prevChange(l, ev)
+	}
+	go st.Run(ctx, pool)
+	tun := &ui.TunControl{Proxy: p}
+	cleanup = func() {
+		tun.Stop()
+		st.Record(pool.All(), time.Now())
+		st.Save()
+	}
+	if cfg.transparent {
+		if err := tun.Set(true); err != nil {
+			return nil, err
+		}
+		fmt.Println("Mode transparent activé : tout le trafic IPv4 passe par dualnet.")
+	}
+	if cfg.systemProxy && cfg.proxyAddr != "" {
+		if err := sysproxy.Enable(cfg.proxyAddr); err != nil {
+			return nil, err
+		}
+	}
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st,
+		OnSettings: func() { st.RememberLimits(pool.All()) }}
+	return &uiApp{
+		url:   "http://" + ln.Addr().String(),
+		tun:   tun,
+		serve: func() error { return http.Serve(ln, srv.Handler()) },
+	}, nil
+}
+
+// shutdown undoes every system change and exits.
+func shutdown(code int) {
+	cleanup()
+	if sysproxy.Pending() {
+		sysproxy.Disable()
+	}
+	os.Exit(code)
 }
 
 // watchPool discovers the links and keeps them current (every 2 s) while dualnet runs.
@@ -204,15 +248,8 @@ func restoreStale() {
 // exitRestoring waits for Ctrl+C / window close, restores the proxy, then exits.
 func exitRestoring(ctx context.Context) {
 	<-ctx.Done()
-	cleanup()
-	if sysproxy.Pending() {
-		if err := sysproxy.Disable(); err != nil {
-			fmt.Fprintln(os.Stderr, "Impossible de restaurer le proxy Windows :", err)
-		} else {
-			fmt.Println("Proxy Windows restauré.")
-		}
-	}
-	os.Exit(0)
+	fmt.Println("Arrêt : réglages Windows restaurés.")
+	shutdown(0)
 }
 
 // cleanup undoes system changes on exit (transparent mode adapter).

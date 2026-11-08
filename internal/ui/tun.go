@@ -41,6 +41,13 @@ func (c *TunControl) Set(on bool) error {
 	return nil
 }
 
+// On reports whether the transparent mode is running.
+func (c *TunControl) On() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t != nil
+}
+
 // Stop turns it off (on exit).
 func (c *TunControl) Stop() { c.Set(false) }
 
