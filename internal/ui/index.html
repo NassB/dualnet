@@ -494,6 +494,17 @@ const WINDOW = 120, STEP = 0.5, MAXPTS = WINDOW / STEP;
 const hist = [];
 let links = [], peakTotal = 0, snapLast = null, busy = false;
 
+// ---------- in-place update helpers ----------
+let linksKey = '', jobsKey = '';
+function setF(root, f, text) { // set the text of [data-f=f] only when it changed
+  const e = root && root.querySelector('[data-f="' + f + '"]');
+  text = String(text);
+  if (e && e.textContent !== text) e.textContent = text;
+}
+function setH(e, html) { // set innerHTML only when it changed
+  if (e && e._h !== html) { e._h = html; e.innerHTML = html; }
+}
+
 // ---------- home ----------
 function renderHome(snap) {
   const p = snap.power || {};
@@ -507,31 +518,51 @@ function renderHome(snap) {
   $('heroSub').textContent = !p.on ? t('heroOffSub') : t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length });
   $('totalNum').textContent = fmtMbps(total);
   $('peakTxt').textContent = t('peak', { s: fmtMbps(peakTotal) });
-  $('shareBar').innerHTML = snap.links.map((l, i) =>
-    `<span style="width:${(100 * l.rxMbps / (total || 1)).toFixed(1)}%;background:${color(i)}"></span>`).join('');
+  // Everything below is updated in place. Rebuilding the DOM every 500 ms made the
+  // share bar restart its animation and dropped hover states: it looked like flashing.
+  const bar = $('shareBar');
+  if (bar.children.length !== snap.links.length) bar.innerHTML = snap.links.map(() => '<span></span>').join('');
+  snap.links.forEach((l, i) => {
+    const sp = bar.children[i];
+    sp.style.width = (100 * l.rxMbps / (total || 1)).toFixed(1) + '%';
+    sp.style.background = color(i);
+  });
   $('linksWarn').style.display = up.length < 2 ? 'flex' : 'none';
 
   const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
-  $('links').innerHTML = snap.links.map((l, i) => {
-    const ok = l.up && l.healthy;
-    const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : t('tagUp');
-    const c = color(i);
-    return `<div class="card link${ok ? '' : ' down'}">
-      <div class="link-head">
-        <div class="link-icon" style="background:color-mix(in srgb, ${c} 15%, transparent);color:${c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${linkIcon(l.name)}</svg></div>
-        <div><div class="link-name">${esc(l.name)}</div><div class="link-ip">${esc(l.ip)}</div></div>
-        <span class="badge ${ok ? 'ok' : 'bad'}">${tag}</span>
-      </div>
-      <div class="link-val">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
-      <div class="stats">
-        <span>${t('ping')} <b>${l.ping ? l.ping + ' ms' : '—'}</b></span>
-        <span>${t('conns')} <b>${l.active}</b></span>
-        <span>${t('share')} <b>${(100 * l.totalRx / allRx).toFixed(0)} %</b></span>
-      </div>
-      <div class="stats" style="margin-top:4px"><span>${fmtBytes(l.totalRx)} ${t('received')}</span></div>
-      <button class="btn ghost small cap-btn" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="askCap(this.dataset.link, +this.dataset.limit)">${l.limit ? t('cap') + ' ' + l.limit + ' Mb/s' : t('capNone')}</button>
-    </div>`;
-  }).join('');
+  const box = $('links');
+  const key = LANG + color(0) + snap.links.map(l => [l.name, l.ip, l.up, l.healthy, l.limit].join(',')).join('|');
+  if (key !== linksKey) { // links, their state or the theme changed: rebuild the cards
+    linksKey = key;
+    box.innerHTML = snap.links.map((l, i) => {
+      const ok = l.up && l.healthy;
+      const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : t('tagUp');
+      const c = color(i);
+      return `<div class="card link${ok ? '' : ' down'}">
+        <div class="link-head">
+          <div class="link-icon" style="background:color-mix(in srgb, ${c} 15%, transparent);color:${c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${linkIcon(l.name)}</svg></div>
+          <div><div class="link-name">${esc(l.name)}</div><div class="link-ip">${esc(l.ip)}</div></div>
+          <span class="badge ${ok ? 'ok' : 'bad'}">${tag}</span>
+        </div>
+        <div class="link-val"><span data-f="val"></span><small>Mb/s</small></div>
+        <div class="stats">
+          <span>${t('ping')} <b data-f="ping"></b></span>
+          <span>${t('conns')} <b data-f="conns"></b></span>
+          <span>${t('share')} <b data-f="share"></b></span>
+        </div>
+        <div class="stats" style="margin-top:4px"><span data-f="recv"></span></div>
+        <button class="btn ghost small cap-btn" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="askCap(this.dataset.link, +this.dataset.limit)">${l.limit ? t('cap') + ' ' + l.limit + ' Mb/s' : t('capNone')}</button>
+      </div>`;
+    }).join('');
+  }
+  snap.links.forEach((l, i) => {
+    const card = box.children[i];
+    setF(card, 'val', fmtMbps(l.rxMbps));
+    setF(card, 'ping', l.ping ? l.ping + ' ms' : '—');
+    setF(card, 'conns', l.active);
+    setF(card, 'share', (100 * l.totalRx / allRx).toFixed(0) + ' %');
+    setF(card, 'recv', fmtBytes(l.totalRx) + ' ' + t('received'));
+  });
 }
 $('powerBtn').addEventListener('click', async () => {
   if (!snapLast) return;
@@ -629,33 +660,44 @@ function renderLegend() {
 function renderJobs(snap) {
   if (snap.dir) $('dir').textContent = t('destFolder', { d: snap.dir });
   if (!snap.jobs.length) return;
-  $('jobs').innerHTML = snap.jobs.slice().reverse().map(j => {
+  const box = $('jobs');
+  const jobs = snap.jobs.slice().reverse();
+  const key = LANG + jobs.map(j => [j.id, j.state, j.file, j.err].join(',')).join('|');
+  if (key !== jobsKey) { // a download started, ended or failed: rebuild the cards
+    jobsKey = key;
+    box.innerHTML = jobs.map(j => {
+      const st = { running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
+      return `<div class="job">
+        <div class="top">
+          <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
+          <div class="actions">
+            <span class="state ${j.state}">${st}</span>
+            ${j.state === 'running' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+            ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
+          </div>
+        </div>
+        <div class="bar" data-f="bar"></div>
+        <div class="meta" data-f="meta"></div>
+        ${j.err ? `<div class="err">${esc(srv(j.err))}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  jobs.forEach((j, n) => {
+    const el = box.children[n];
+    if (!el) return;
     const pct = j.size ? 100 * j.done / j.size : 0;
     const avg = j.elapsed ? j.done * 8 / j.elapsed / 1e6 : 0;
     const eta = j.state === 'running' && j.mbps > 0 ? (j.size - j.done) * 8 / (j.mbps * 1e6) : NaN;
-    const st = { running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
     const segs = (j.perLink || []).map((b, i) =>
       `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}"></span>`).join('');
     const split = (j.perLink || []).map((b, i) =>
       `<span><span class="swatch" style="background:${color(i)}"></span> ${j.done ? (100 * b / j.done).toFixed(0) : 0} %</span>`).join(' ');
-    return `<div class="job">
-      <div class="top">
-        <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
-        <div class="actions">
-          <span class="state ${j.state}">${st}</span>
-          ${j.state === 'running' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
-          ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
-        </div>
-      </div>
-      <div class="bar">${segs}</div>
-      <div class="meta">
-        <span>${pct.toFixed(1)} % · ${fmtBytes(j.done)} / ${fmtBytes(j.size)}</span>
-        ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>${t('left', { t: fmtDur(eta) })}</span>` : `<span>${t('avgIn', { s: fmtMbps(avg), t: fmtDur(j.elapsed) })}</span>`}
-        <span class="legend">${split}</span>
-      </div>
-      ${j.err ? `<div class="err">${esc(srv(j.err))}</div>` : ''}
-    </div>`;
-  }).join('');
+    setH(el.querySelector('[data-f="bar"]'), segs);
+    setH(el.querySelector('[data-f="meta"]'), `
+      <span>${pct.toFixed(1)} % · ${fmtBytes(j.done)} / ${fmtBytes(j.size)}</span>
+      ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>${t('left', { t: fmtDur(eta) })}</span>` : `<span>${t('avgIn', { s: fmtMbps(avg), t: fmtDur(j.elapsed) })}</span>`}
+      <span class="legend">${split}</span>`);
+  });
 }
 $('dl').addEventListener('submit', async e => {
   e.preventDefault();

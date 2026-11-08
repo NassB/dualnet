@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
-	"syscall"
+
+	"github.com/NassB/dualnet/internal/winexec"
 )
 
 // The autostart is a scheduled task at logon with highest privileges, so the
@@ -15,9 +15,7 @@ const taskName = "dualnet"
 const autostartSupported = true
 
 func schtasks(args ...string) ([]byte, error) {
-	cmd := exec.Command("schtasks", args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd.CombinedOutput()
+	return winexec.Command("schtasks", args...).CombinedOutput()
 }
 
 func autostartEnabled() bool {

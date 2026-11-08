@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 
@@ -36,6 +35,8 @@ import (
 	"github.com/xjasonlyu/tun2socks/v2/proxy"
 	"github.com/xjasonlyu/tun2socks/v2/tunnel"
 	"github.com/xjasonlyu/tun2socks/v2/tunnel/statistic"
+
+	"github.com/NassB/dualnet/internal/winexec"
 )
 
 // wintun.dll 0.14.1 (amd64) from wintun.net, signed by WireGuard LLC.
@@ -129,7 +130,7 @@ func configure() error {
 		{"interface", "ipv6", "add", "route", "prefix=8000::/1", "interface=" + adapterName, "metric=1", "store=active"},
 	}
 	for _, c := range cmds {
-		if out, err := exec.Command("netsh", c...).CombinedOutput(); err != nil {
+		if out, err := winexec.Command("netsh", c...).CombinedOutput(); err != nil {
 			return fmt.Errorf("netsh %v : %v (%s)", c, err, bytes.TrimSpace(out))
 		}
 	}

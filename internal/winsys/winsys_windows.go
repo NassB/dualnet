@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/NassB/dualnet/internal/winexec"
 )
 
 const wcmKey = `SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy`
@@ -66,10 +68,10 @@ var (
 func Metrics() map[string]int {
 	metricMu.Lock()
 	defer metricMu.Unlock()
-	if time.Since(metricAt) < 5*time.Second && metricMemo != nil {
+	if time.Since(metricAt) < 30*time.Second && metricMemo != nil {
 		return metricMemo
 	}
-	out, err := exec.Command("netsh", "interface", "ipv4", "show", "interfaces").Output()
+	out, err := winexec.Command("netsh", "interface", "ipv4", "show", "interfaces").Output()
 	m := map[string]int{}
 	if err == nil {
 		for _, line := range strings.Split(string(out), "\n") {
@@ -96,7 +98,7 @@ func Prefer(name string, all []string) error {
 			case n == name:
 				metric = "10"
 			}
-			if out, err := exec.Command("netsh", "interface", fam, "set", "interface", n, "metric="+metric).CombinedOutput(); err != nil {
+			if out, err := winexec.Command("netsh", "interface", fam, "set", "interface", n, "metric="+metric).CombinedOutput(); err != nil {
 				return errors.New(strings.TrimSpace(string(out)))
 			}
 		}
@@ -129,6 +131,6 @@ func RestartSteam() error {
 }
 
 func steamRunning() bool {
-	out, _ := exec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH").Output()
+	out, _ := winexec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH").Output()
 	return strings.Contains(strings.ToLower(string(out)), "steam.exe")
 }
