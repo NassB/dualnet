@@ -29,6 +29,8 @@ type Server struct {
 	ProxyAddr string
 	OutDir    string
 	Tun       *TunControl
+	// OnSettings is called after a setting changed in the UI (to save it).
+	OnSettings func()
 
 	mu     sync.Mutex
 	jobs   []*job
@@ -59,6 +61,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/reveal", s.reveal)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
+	mux.HandleFunc("POST /api/limit", s.setLimit)
 	return localOnly(mux)
 }
 
@@ -84,6 +87,7 @@ type linkView struct {
 	Up      bool    `json:"up"`
 	Healthy bool    `json:"healthy"`
 	Ping    int64   `json:"ping"`
+	Limit   int64   `json:"limit"`
 	RxMbps  float64 `json:"rxMbps"`
 	TxMbps  float64 `json:"txMbps"`
 	Active  int64   `json:"active"`
@@ -189,7 +193,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					pr, prevTx[l] = rx, tx
 				}
 				snap.Links = append(snap.Links, linkView{
-					Name: l.Name, IP: l.IP().String(), Up: l.Up(), Healthy: l.Healthy(), Ping: l.LatencyMs(),
+					Name: l.Name, IP: l.IP().String(), Up: l.Up(), Healthy: l.Healthy(), Ping: l.LatencyMs(), Limit: l.LimitMbps(),
 					RxMbps: links.Mbps(rx-pr, dt), TxMbps: links.Mbps(tx-prevTx[l], dt),
 					Active: l.Active.Load(), TotalRx: rx, TotalTx: tx,
 				})
@@ -308,6 +312,27 @@ func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
 	}
 	exec.Command("explorer", "/select,", abs).Start()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// setLimit caps a link's download speed: ?link=<name>&mbps=<n> (0 = no cap).
+func (s *Server) setLimit(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("link")
+	mbps, err := strconv.ParseFloat(r.URL.Query().Get("mbps"), 64)
+	if err != nil || mbps < 0 {
+		http.Error(w, "valeur invalide", http.StatusBadRequest)
+		return
+	}
+	for _, l := range s.Pool.All() {
+		if l.Name == name {
+			l.SetLimitMbps(mbps)
+			if s.OnSettings != nil {
+				s.OnSettings()
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	http.NotFound(w, r)
 }
 
 // OpenBrowser opens url in the default browser (Windows).

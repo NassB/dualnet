@@ -26,6 +26,8 @@ type Link struct {
 	unhealthy atomic.Bool  // internet checks failing
 	fails     atomic.Int32 // consecutive failed checks
 	latency   atomic.Int64 // ms
+	limitMbps atomic.Int64
+	lim       limiter
 
 	BytesIn  atomic.Int64
 	BytesOut atomic.Int64
@@ -157,6 +159,7 @@ type countingConn struct {
 func (c *countingConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	c.link.BytesIn.Add(int64(n))
+	c.link.Throttle(n)
 	return n, err
 }
 

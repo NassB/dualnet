@@ -37,6 +37,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .kpi .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .warn { display: none; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--warn);
   background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
+.limit { margin-top: 6px; } .limit button { margin-left: 4px; }
 .kpi.down { opacity: .55; }
 .tag { font-size: 10px; font-weight: 600; color: var(--warn); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
 .kpi.total { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
@@ -205,6 +206,7 @@ function renderKpis(snap) {
       <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
       <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn. · ping ${l.ping ? l.ping + ' ms' : '—'}</div>
       <div class="sub">${fmtBytes(l.totalRx)} reçus (${share.toFixed(0)} %)</div>
+      <div class="sub limit">plafond <button class="ghost" onclick="setLimit('${esc(l.name)}', ${l.limit})">${l.limit ? l.limit + ' Mb/s' : 'aucun'}</button></div>
     </div>`;
   });
   document.getElementById('kpis').innerHTML = html;
@@ -329,6 +331,12 @@ function renderJobs(snap) {
       ${j.err ? `<div class="err">${esc(j.err)}</div>` : ''}
     </div>`;
   }).join('');
+}
+async function setLimit(name, cur) {
+  const v = prompt(`Plafond de débit pour ${name} en Mb/s (0 = aucun) :`, cur || 0);
+  if (v === null) return;
+  const r = await fetch(`/api/limit?link=${encodeURIComponent(name)}&mbps=${encodeURIComponent(v)}`, { method: 'POST' });
+  if (!r.ok) alert(await r.text());
 }
 function act(what, id) { fetch(`/api/${what}?id=${id}`, { method: 'POST' }); }
 document.getElementById('dl').addEventListener('submit', async e => {

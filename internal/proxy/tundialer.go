@@ -69,6 +69,7 @@ type countingPacketConn struct {
 func (c *countingPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	n, a, err := c.PacketConn.ReadFrom(p)
 	c.link.BytesIn.Add(int64(n))
+	c.link.Throttle(n)
 	return n, a, err
 }
 
