@@ -79,6 +79,14 @@ code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; bac
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 12px; }
 td { padding: 6px 0; border-top: 1px solid var(--border); }
 td:last-child { text-align: right; }
+.sys { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+.sys.on { border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
+.sys-title { font-weight: 600; }
+.sys-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.sys.on .sys-sub { color: var(--ok); }
+.sys.other .sys-sub { color: var(--warn); }
+button.off { background: transparent; color: var(--text); border-color: var(--border); }
 </style>
 </head>
 <body>
@@ -120,12 +128,19 @@ td:last-child { text-align: right; }
 
     <div class="panel">
       <h2>Proxy (navigation, torrents…)</h2>
+      <div class="sys">
+        <div>
+          <div class="sys-title">Proxy Windows</div>
+          <div class="sys-sub" id="sysText">—</div>
+        </div>
+        <button id="sysBtn" type="button">Activer</button>
+      </div>
       <div class="howto">
         <div class="row">Adresse : <code id="proxyAddr">—</code></div>
         <ol>
           <li><b>Navigateur</b> : Firefox → Paramètres → Réseau → Proxy manuel → SOCKS v5 <code id="p2">—</code>, cocher « DNS via SOCKS ».</li>
           <li><b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5, même adresse.</li>
-          <li><b>Tout Windows</b> : Paramètres → Réseau → Proxy → manuel, HTTP <code id="p3">—</code>.</li>
+          <li><b>Tout Windows (Steam, Edge, Chrome…)</b> : bouton ci-dessus. Relancez Steam après l'activation. Vos réglages d'origine sont remis à la fermeture de dualnet.</li>
         </ol>
         Chaque connexion part sur le lien le moins chargé ; un même site reste sur le même lien 10 min.
       </div>
@@ -310,6 +325,25 @@ document.getElementById('dl').addEventListener('submit', async e => {
   if (r.ok) document.getElementById('url').value = '';
 });
 
+let sysOn = false;
+function renderSys(snap) {
+  const v = snap.sys || {}, box = document.querySelector('.sys'), btn = document.getElementById('sysBtn'), t = document.getElementById('sysText');
+  sysOn = v.ours;
+  box.classList.toggle('on', !!v.ours);
+  box.classList.toggle('other', v.on && !v.ours);
+  if (v.err) t.textContent = v.err;
+  else if (v.ours) t.textContent = 'Activé : tout Windows passe par dualnet';
+  else if (v.on) t.textContent = 'Un autre proxy est réglé (' + v.server + ') — Activer le remplacera, il sera remis à la fermeture';
+  else t.textContent = 'Désactivé : seules les applis réglées à la main utilisent dualnet';
+  btn.textContent = v.ours ? 'Désactiver' : 'Activer';
+  btn.classList.toggle('off', !!v.ours);
+  btn.disabled = !snap.proxy;
+}
+document.getElementById('sysBtn').addEventListener('click', async () => {
+  const r = await fetch('/api/sysproxy?on=' + (sysOn ? 0 : 1), { method: 'POST' });
+  if (!r.ok) alert(await r.text());
+});
+
 function renderTotals(snap) {
   document.getElementById('totals').innerHTML = snap.links.map((l, i) =>
     `<tr><td><span class="swatch" style="background:${color(i)}"></span> ${esc(l.name)}</td><td>↓ ${fmtBytes(l.totalRx)} · ↑ ${fmtBytes(l.totalTx)}</td></tr>`).join('');
@@ -329,8 +363,8 @@ function connect() {
     links = snap.links;
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
-    renderKpis(snap); renderJobs(snap); renderTotals(snap); draw();
-    for (const id of ['proxyAddr', 'p2', 'p3']) document.getElementById(id).textContent = snap.proxy || '—';
+    renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); draw();
+    for (const id of ['proxyAddr', 'p2']) document.getElementById(id).textContent = snap.proxy || '—';
     document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : 'proxy désactivé';
     document.getElementById('dir').textContent = snap.dir ? 'Dossier de destination : ' + snap.dir : '';
   };

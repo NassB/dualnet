@@ -16,11 +16,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/proxy"
+	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/ui"
 )
 
@@ -28,10 +30,10 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine plusieurs connexions internet
 
 Usage :
-  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0]
+  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0] [-system-proxy]
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o fichier] [-chunk 4] [-workers 4] <url>
-  dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m]`)
+  dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy]`)
 	os.Exit(2)
 }
 
@@ -39,7 +41,8 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// SIGTERM is what Windows sends when the console window is closed.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	switch os.Args[1] {
@@ -77,10 +80,16 @@ func main() {
 		ifs := fs.String("if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
 		listen := fs.String("listen", "127.0.0.1:1080", "adresse d'écoute")
 		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien pendant cette durée")
+		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet (restauré à la fermeture)")
 		fs.Parse(os.Args[2:])
+		restoreStale()
 		ls := discover(*ifs)
 		s := &proxy.Server{Links: ls, Sticky: *sticky}
-		go func() { <-ctx.Done(); os.Exit(0) }()
+		if *sys {
+			check(sysproxy.Enable(*listen))
+			fmt.Println("Proxy Windows réglé sur", *listen, "(restauré à la fermeture)")
+		}
+		go exitRestoring(ctx)
 		check(s.ListenAndServe(*listen))
 
 	case "ui":
@@ -92,11 +101,16 @@ func main() {
 		dir := fs.String("dir", filepath.Join(home, "Downloads"), "dossier des téléchargements")
 		open := fs.Bool("open", true, "ouvrir le navigateur")
 		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
+		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
 		fs.Parse(os.Args[2:])
+		restoreStale()
 		ls := discover(*ifs)
 		if *proxyAddr != "" {
 			p := &proxy.Server{Links: ls, Sticky: *sticky}
 			go func() { check(p.ListenAndServe(*proxyAddr)) }()
+		}
+		if *sys && *proxyAddr != "" {
+			check(sysproxy.Enable(*proxyAddr))
 		}
 		srv := &ui.Server{Links: ls, ProxyAddr: *proxyAddr, OutDir: *dir}
 		ln, err := net.Listen("tcp", *listen)
@@ -106,7 +120,7 @@ func main() {
 		if *open {
 			ui.OpenBrowser(url)
 		}
-		go func() { <-ctx.Done(); os.Exit(0) }()
+		go exitRestoring(ctx)
 		check(http.Serve(ln, srv.Handler()))
 
 	default:
@@ -131,8 +145,32 @@ func discover(sel string) []*links.Link {
 	return ls
 }
 
+// restoreStale puts back the Windows proxy settings if a previous dualnet run was
+// killed while it had them pointing to itself.
+func restoreStale() {
+	if sysproxy.Pending() {
+		if err := sysproxy.Disable(); err == nil {
+			fmt.Println("Proxy Windows d'une session précédente restauré.")
+		}
+	}
+}
+
+// exitRestoring waits for Ctrl+C / window close, restores the proxy, then exits.
+func exitRestoring(ctx context.Context) {
+	<-ctx.Done()
+	if sysproxy.Pending() {
+		if err := sysproxy.Disable(); err != nil {
+			fmt.Fprintln(os.Stderr, "Impossible de restaurer le proxy Windows :", err)
+		} else {
+			fmt.Println("Proxy Windows restauré.")
+		}
+	}
+	os.Exit(0)
+}
+
 func check(err error) {
 	if err != nil {
+		sysproxy.Disable()
 		fmt.Fprintln(os.Stderr, "Erreur :", err)
 		os.Exit(1)
 	}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/sysproxy"
 )
 
 //go:embed index.html
@@ -54,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
+	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	return localOnly(mux)
 }
 
@@ -102,6 +104,43 @@ type snapshot struct {
 	Jobs  []jobView  `json:"jobs"`
 	Proxy string     `json:"proxy"`
 	Dir   string     `json:"dir"`
+	Sys   sysView    `json:"sys"`
+}
+
+// sysView is the Windows proxy state: on/off, its address, and whether it points to us.
+type sysView struct {
+	On     bool   `json:"on"`
+	Server string `json:"server"`
+	Ours   bool   `json:"ours"`
+	Err    string `json:"err,omitempty"`
+}
+
+func (s *Server) sysState() sysView {
+	on, server, err := sysproxy.Status()
+	v := sysView{On: on, Server: server, Ours: on && server == s.ProxyAddr}
+	if err != nil {
+		v.Err = err.Error()
+	}
+	return v
+}
+
+// setSysProxy turns the Windows proxy on (pointing to dualnet) or restores the previous settings.
+func (s *Server) setSysProxy(w http.ResponseWriter, r *http.Request) {
+	var err error
+	if r.URL.Query().Get("on") == "1" {
+		if s.ProxyAddr == "" {
+			http.Error(w, "proxy dualnet désactivé", http.StatusBadRequest)
+			return
+		}
+		err = sysproxy.Enable(s.ProxyAddr)
+	} else {
+		err = sysproxy.Disable()
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // events streams a snapshot every 500 ms (Server-Sent Events). Rates are computed
@@ -132,7 +171,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState()}
 			for i, l := range s.Links {
 				rx, tx := l.BytesIn.Load(), l.BytesOut.Load()
 				snap.Links = append(snap.Links, linkView{
