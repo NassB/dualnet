@@ -9,8 +9,12 @@ import (
 // whether the link reaches the internet and how long it takes.
 var probeTargets = []string{"1.1.1.1:443", "8.8.8.8:443", "9.9.9.9:443"}
 
+// Probe checks the link once (the "dualnet doctor" command uses it) and reports
+// whether this attempt reached the internet.
+func (l *Link) Probe(ctx context.Context) bool { return l.probe(ctx) }
+
 // probe checks the link once: it succeeds if any target accepts a connection.
-func (l *Link) probe(ctx context.Context) {
+func (l *Link) probe(ctx context.Context) bool {
 	for _, t := range probeTargets {
 		cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		start := time.Now()
@@ -24,7 +28,7 @@ func (l *Link) probe(ctx context.Context) {
 			l.latency.Store(time.Since(start).Milliseconds())
 			l.fails.Store(0)
 			l.unhealthy.Store(false)
-			return
+			return true
 		}
 	}
 	// Two failed rounds in a row: stop sending new connections to this link.
@@ -32,6 +36,13 @@ func (l *Link) probe(ctx context.Context) {
 		l.unhealthy.Store(true)
 		l.latency.Store(0)
 	}
+	return false
+}
+
+// SetHealthy marks the link as reaching (or not reaching) the internet (tests).
+func (l *Link) SetHealthy(ok bool) {
+	l.unhealthy.Store(!ok)
+	l.fails.Store(0)
 }
 
 // SetLatencyMs sets the measured ping (tests).

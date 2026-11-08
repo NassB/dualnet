@@ -17,9 +17,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/NassB/dualnet/internal/doctor"
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/notify"
@@ -40,6 +42,7 @@ Usage:
   dualnet       (no argument: notification-area icon, as administrator)
   dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir folder] [-sticky 0] [-system-proxy] [-transparent]
   dualnet window [http://127.0.0.1:8090]   (window for a running dualnet)
+  dualnet doctor
   dualnet version
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
@@ -57,6 +60,9 @@ func main() {
 	defer stop()
 
 	switch os.Args[1] {
+	case "doctor":
+		os.Exit(runDoctor(ctx))
+
 	case "version", "-v", "--version":
 		fmt.Println("dualnet", version)
 
@@ -301,4 +307,41 @@ func check(err error) {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
+}
+
+// runDoctor checks the installation and prints a report. Exit code 1 if
+// something failed, so it can be used in scripts.
+func runDoctor(ctx context.Context) int {
+	pool := links.NewPool(nil)
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	for _, l := range pool.All() {
+		wg.Add(1)
+		go func(l *links.Link) {
+			defer wg.Done()
+			if !l.Probe(ctx) { // two failures in a row mark a link as not answering
+				l.Probe(ctx)
+			}
+		}(l)
+	}
+	wg.Wait()
+
+	const proxyAddr = "127.0.0.1:1080"
+	env := doctor.Env{Pool: pool, ProxyAddr: proxyAddr, DataDir: store.DefaultDir()}
+	env.UseSystem()
+	env.TunOn = env.AdapterUp("dualnet") // another dualnet instance running in transparent mode
+	if c, err := net.DialTimeout("tcp", "127.0.0.1:8090", time.Second); err == nil {
+		c.Close() // a running instance: a Windows proxy pointing to it is legitimate
+		env.PowerMode = "proxy"
+	}
+	if autostartSupported {
+		env.Autostart = autostartEnabled
+	}
+	checks := doctor.Run(env)
+	fmt.Print(doctor.Format(checks))
+	if doctor.Worst(checks) == doctor.Fail {
+		return 1
+	}
+	return 0
 }
