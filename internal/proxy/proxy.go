@@ -26,10 +26,11 @@ type Server struct {
 	// that dislike IP changes (logins, banks) keep seeing one IP.
 	Sticky time.Duration
 
-	initOnce sync.Once
-	mu       sync.Mutex
-	sticky   map[string]stickyEntry
-	rate     map[*links.Link]float64 // recent Mb/s per link, used for weighting
+	initOnce   sync.Once
+	mu         sync.Mutex
+	sticky     map[string]stickyEntry
+	rate       map[*links.Link]float64         // recent Mb/s per link, used for weighting
+	transports map[*links.Link]*http.Transport // keep-alive HTTP pools per link
 }
 
 type stickyEntry struct {
@@ -196,30 +197,79 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 			pipe(c, br, up, l)
 			return
 		}
-		// Plain HTTP forwarding.
-		host := req.Host
-		if !strings.Contains(host, ":") {
-			host += ":80"
-		}
-		up, l, err := s.dial(host)
-		if err != nil {
-			fmt.Fprint(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
+		// Plain HTTP: forward over a per-link keep-alive pool, and keep serving
+		// requests on this client connection (Steam fetches many chunks this way).
+		if !s.forward(c, req) || req.Close {
 			return
 		}
-		l.Active.Add(1)
-		req.RequestURI = ""
-		req.Header.Del("Proxy-Connection")
-		req.Header.Set("Connection", "close")
-		if err := req.Write(up); err != nil {
-			up.Close()
-			l.Active.Add(-1)
-			return
-		}
-		io.Copy(c, up)
-		up.Close()
-		l.Active.Add(-1)
-		return
 	}
+}
+
+var hopHeaders = []string{"Proxy-Connection", "Proxy-Authorization", "Connection", "Keep-Alive", "Te", "Trailer", "Upgrade"}
+
+// forward sends one plain-HTTP request and writes the response to the client.
+// It returns false when the client connection must be closed.
+func (s *Server) forward(c net.Conn, req *http.Request) bool {
+	req.RequestURI = ""
+	if req.URL.Host == "" {
+		req.URL.Host = req.Host
+	}
+	if req.URL.Scheme == "" {
+		req.URL.Scheme = "http"
+	}
+	for _, h := range hopHeaders {
+		req.Header.Del(h)
+	}
+	host := req.URL.Hostname()
+	var resp *http.Response
+	var used *links.Link
+	err := errors.New("aucun lien connecté")
+	for _, l := range s.pick(host) {
+		l.Active.Add(1)
+		resp, err = s.transport(l).RoundTrip(req)
+		if err == nil {
+			used = l
+			break
+		}
+		l.Active.Add(-1)
+		// Retry on another link only if the body was not consumed.
+		if req.Body != nil && req.Body != http.NoBody {
+			break
+		}
+	}
+	if err != nil {
+		fmt.Fprint(c, badGateway)
+		return false
+	}
+	defer used.Active.Add(-1)
+	defer resp.Body.Close()
+	for _, h := range hopHeaders {
+		resp.Header.Del(h)
+	}
+	keep := !resp.Close
+	resp.Close = !keep
+	return resp.Write(c) == nil && keep
+}
+
+// transport returns the keep-alive HTTP client pool bound to link l.
+func (s *Server) transport(l *links.Link) *http.Transport {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.transports == nil {
+		s.transports = map[*links.Link]*http.Transport{}
+	}
+	t, ok := s.transports[l]
+	if !ok {
+		t = &http.Transport{
+			DialContext:           l.DialContext,
+			MaxIdleConnsPerHost:   16,
+			IdleConnTimeout:       90 * time.Second,
+			ResponseHeaderTimeout: 30 * time.Second,
+			DisableCompression:    true, // pass bytes through unchanged
+		}
+		s.transports[l] = t
+	}
+	return t
 }
 
 func pipe(client net.Conn, clientR io.Reader, up net.Conn, l *links.Link) {
@@ -292,3 +342,8 @@ func maxf(a, b float64) float64 {
 	}
 	return b
 }
+
+// badGateway is the reply when no link can reach the server.
+const badGateway = "HTTP/1.1 502 Bad Gateway" + crlf + "Content-Length: 0" + crlf + crlf
+
+const crlf = "\r\n"

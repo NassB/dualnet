@@ -1,7 +1,12 @@
 package proxy
 
 import (
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -81,5 +86,49 @@ func TestPickWeightsByCapacity(t *testing.T) {
 	// 400:80 = 5:1 -> 20 / 4
 	if got["fast"] < 19 || got["fast"] > 21 {
 		t.Fatalf("want ~20/4 split, got %v", got)
+	}
+}
+
+// Plain HTTP requests through the proxy reuse one upstream connection.
+func TestHTTPKeepAlive(t *testing.T) {
+	var conns atomic.Int32
+	up := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok " + r.URL.Path))
+	}))
+	up.Config.ConnState = func(_ net.Conn, st http.ConnState) {
+		if st == http.StateNew {
+			conns.Add(1)
+		}
+	}
+	up.Start()
+	defer up.Close()
+
+	s := &Server{Pool: links.PoolOf(links.New("a", net.IPv4(127, 0, 0, 1)))}
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go s.handle(c)
+		}
+	}()
+	pu, _ := url.Parse("http://" + ln.Addr().String())
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(pu)}}
+	for i := 0; i < 5; i++ {
+		resp, err := client.Get(up.URL + "/x")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if string(b) != "ok /x" {
+			t.Fatalf("body %q", b)
+		}
+	}
+	if n := conns.Load(); n != 1 {
+		t.Fatalf("upstream connections = %d, want 1 (keep-alive)", n)
 	}
 }
