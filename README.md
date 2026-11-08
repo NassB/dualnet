@@ -69,6 +69,8 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 .\dualnet.exe doctor                        # installation check (exit code 1 if something failed)
 .\dualnet.exe version
 .\dualnet.exe interfaces
+.\dualnet.exe install                    # administrator: copy to Program Files, Start Menu entry, "Apps & features" entry
+.\dualnet.exe uninstall [-purge] [-force] # administrator: remove all of it (-purge also deletes your data)
 ```
 
 `-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for downloads).

@@ -43,6 +43,8 @@ Usage:
   dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir folder] [-sticky 0] [-system-proxy] [-transparent]
   dualnet window [http://127.0.0.1:8090]   (window for a running dualnet)
   dualnet doctor
+  dualnet install   [-dir folder]      (administrator: copy to Program Files, Start Menu, Apps & features)
+  dualnet uninstall [-purge] [-force]   (administrator: remove all of it; -purge also deletes your data)
   dualnet version
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
@@ -62,6 +64,12 @@ func main() {
 	switch os.Args[1] {
 	case "doctor":
 		os.Exit(runDoctor(ctx))
+
+	case "install":
+		os.Exit(runInstall(os.Args[2:]))
+
+	case "uninstall":
+		os.Exit(runUninstall(os.Args[2:]))
 
 	case "version", "-v", "--version":
 		fmt.Println("dualnet", version)
