@@ -27,6 +27,17 @@ go build -o dualnet.exe .
 
 Pour le proxy, configurez l'application (navigateur, qBittorrent…) en SOCKS5 `127.0.0.1:1080` ou HTTP `127.0.0.1:1080`.
 
+## Le Wi‑Fi se coupe quand le téléphone est branché ?
+
+Windows limite par défaut les connexions simultanées : le partage USB est vu comme une connexion filaire, et le Wi‑Fi est déconnecté. Pour l'autoriser (PowerShell administrateur) :
+
+```powershell
+New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Force | Out-Null
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Name fMinimizeConnections -Value 0 -Type DWord
+```
+
+dualnet (modes `ui` et `proxy`) vérifie les interfaces toutes les 2 s : un lien qui revient est réutilisé sans redémarrer.
+
 ## Limites
 
 Sans serveur intermédiaire, un flux unique (vidéo, jeu, visio) ne peut pas utiliser deux liens à la fois.

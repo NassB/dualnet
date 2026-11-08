@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,24 +21,24 @@ import (
 )
 
 type Server struct {
-	Links []*links.Link
+	Pool *links.Pool
 	// Sticky keeps a destination host on the same link for this long, so sites
 	// that dislike IP changes (logins, banks) keep seeing one IP.
 	Sticky time.Duration
 
 	mu     sync.Mutex
 	sticky map[string]stickyEntry
-	rate   []float64 // recent Mb/s per link, used for weighting
+	rate   map[*links.Link]float64 // recent Mb/s per link, used for weighting
 }
 
 type stickyEntry struct {
-	idx  int
+	link *links.Link
 	seen time.Time
 }
 
 func (s *Server) ListenAndServe(addr string) error {
 	s.sticky = map[string]stickyEntry{}
-	s.rate = make([]float64, len(s.Links))
+	s.rate = map[*links.Link]float64{}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -67,30 +68,35 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-// pick chooses a link: sticky per host, otherwise the link with the most spare
-// capacity (measured rate / active connections).
-func (s *Server) pick(host string) []int {
+// pick returns the connected links in the order to try: the sticky one for this
+// host if still up, otherwise the one with the most spare capacity
+// (measured rate / active connections) first.
+func (s *Server) pick(host string) []*links.Link {
+	up := s.Pool.Up()
+	if len(up) == 0 {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	order := make([]int, 0, len(s.Links))
-	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky {
-		e.seen = time.Now()
-		s.sticky[host] = e
-		order = append(order, e.idx)
+	var first *links.Link
+	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky && e.link.Up() {
+		first = e.link
 	} else {
-		best, bestScore := 0, -1.0
-		for i, l := range s.Links {
-			score := (s.rate[i] + 1) / float64(l.Active.Load()+1)
+		bestScore := -1.0
+		for _, l := range up {
+			score := (s.rate[l] + 1) / float64(l.Active.Load()+1)
 			if score > bestScore {
-				best, bestScore = i, score
+				first, bestScore = l, score
 			}
 		}
-		s.sticky[host] = stickyEntry{best, time.Now()}
-		order = append(order, best)
 	}
-	for i := range s.Links {
-		if i != order[0] {
-			order = append(order, i)
+	if s.Sticky > 0 {
+		s.sticky[host] = stickyEntry{first, time.Now()}
+	}
+	order := []*links.Link{first}
+	for _, l := range up {
+		if l != first {
+			order = append(order, l)
 		}
 	}
 	return order
@@ -98,9 +104,8 @@ func (s *Server) pick(host string) []int {
 
 func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
 	host, _, _ := net.SplitHostPort(addr)
-	var lastErr error
-	for _, i := range s.pick(host) {
-		l := s.Links[i]
+	lastErr := errors.New("aucun lien connecté")
+	for _, l := range s.pick(host) {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		c, err := l.DialContext(ctx, "tcp", addr)
 		cancel()
@@ -239,16 +244,16 @@ func closeWrite(c net.Conn) {
 
 func (s *Server) stats() {
 	t := time.NewTicker(5 * time.Second)
-	prev := make([]int64, len(s.Links))
+	prev := map[*links.Link]int64{}
 	for range t.C {
 		var parts []string
 		s.mu.Lock()
-		for i, l := range s.Links {
+		for _, l := range s.Pool.Up() {
 			cur := l.BytesIn.Load() + l.BytesOut.Load()
-			r := links.Mbps(cur-prev[i], 5*time.Second)
-			prev[i] = cur
+			r := links.Mbps(cur-prev[l], 5*time.Second)
+			prev[l] = cur
 			// keep the best recent rate as capacity estimate, decaying slowly
-			s.rate[i] = maxf(r, s.rate[i]*0.9)
+			s.rate[l] = maxf(r, s.rate[l]*0.9)
 			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s, %d conn", l.Name, r, l.Active.Load()))
 		}
 		for h, e := range s.sticky {

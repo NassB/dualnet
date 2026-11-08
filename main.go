@@ -10,6 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -83,8 +84,8 @@ func main() {
 		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet (restauré à la fermeture)")
 		fs.Parse(os.Args[2:])
 		restoreStale()
-		ls := discover(*ifs)
-		s := &proxy.Server{Links: ls, Sticky: *sticky}
+		pool := watchPool(ctx, *ifs)
+		s := &proxy.Server{Pool: pool, Sticky: *sticky}
 		if *sys {
 			check(sysproxy.Enable(*listen))
 			fmt.Println("Proxy Windows réglé sur", *listen, "(restauré à la fermeture)")
@@ -104,15 +105,15 @@ func main() {
 		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
 		fs.Parse(os.Args[2:])
 		restoreStale()
-		ls := discover(*ifs)
+		pool := watchPool(ctx, *ifs)
 		if *proxyAddr != "" {
-			p := &proxy.Server{Links: ls, Sticky: *sticky}
+			p := &proxy.Server{Pool: pool, Sticky: *sticky}
 			go func() { check(p.ListenAndServe(*proxyAddr)) }()
 		}
 		if *sys && *proxyAddr != "" {
 			check(sysproxy.Enable(*proxyAddr))
 		}
-		srv := &ui.Server{Links: ls, ProxyAddr: *proxyAddr, OutDir: *dir}
+		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir}
 		ln, err := net.Listen("tcp", *listen)
 		check(err)
 		url := "http://" + ln.Addr().String()
@@ -126,6 +127,25 @@ func main() {
 	default:
 		usage()
 	}
+}
+
+// watchPool discovers the links and keeps them current (every 2 s) while dualnet runs.
+func watchPool(ctx context.Context, sel string) *links.Pool {
+	var parts []string
+	if sel != "" {
+		parts = strings.Split(sel, ",")
+	}
+	pool := links.NewPool(parts)
+	fmt.Println("Liens connectés :")
+	for _, l := range pool.Up() {
+		fmt.Println("  ", l)
+	}
+	if len(pool.Up()) < 2 {
+		fmt.Println("Un seul lien pour l'instant : les autres seront ajoutés dès qu'ils se connectent.")
+	}
+	pool.OnChange = func(l *links.Link, ev string) { log.Printf("Lien %s : %s", l, ev) }
+	go pool.Watch(ctx, 2*time.Second)
+	return pool
 }
 
 func discover(sel string) []*links.Link {

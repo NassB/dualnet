@@ -25,7 +25,7 @@ import (
 var indexHTML []byte
 
 type Server struct {
-	Links     []*links.Link
+	Pool      *links.Pool
 	ProxyAddr string
 	OutDir    string
 
@@ -42,6 +42,7 @@ type job struct {
 	started time.Time
 	ended   time.Time
 	stats   *download.Stats
+	links   []*links.Link // links used, in the order of stats' per-link counters
 	cancel  context.CancelFunc
 }
 
@@ -78,6 +79,7 @@ func localOnly(h http.Handler) http.Handler {
 type linkView struct {
 	Name    string  `json:"name"`
 	IP      string  `json:"ip"`
+	Up      bool    `json:"up"`
 	RxMbps  float64 `json:"rxMbps"`
 	TxMbps  float64 `json:"txMbps"`
 	Active  int64   `json:"active"`
@@ -155,11 +157,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 
 	const every = 500 * time.Millisecond
-	prevRx := make([]int64, len(s.Links))
-	prevTx := make([]int64, len(s.Links))
+	prevRx := map[*links.Link]int64{}
+	prevTx := map[*links.Link]int64{}
 	prevJob := map[int]int64{}
-	for i, l := range s.Links {
-		prevRx[i], prevTx[i] = l.BytesIn.Load(), l.BytesOut.Load()
+	for _, l := range s.Pool.All() {
+		prevRx[l], prevTx[l] = l.BytesIn.Load(), l.BytesOut.Load()
 	}
 	last := time.Now()
 	tk := time.NewTicker(every)
@@ -172,20 +174,32 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			dt := now.Sub(last)
 			last = now
 			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState()}
-			for i, l := range s.Links {
+			all := s.Pool.All()
+			index := map[*links.Link]int{}
+			for i, l := range all {
+				index[l] = i
 				rx, tx := l.BytesIn.Load(), l.BytesOut.Load()
+				pr, ok := prevRx[l]
+				if !ok { // link appeared since the last tick
+					pr, prevTx[l] = rx, tx
+				}
 				snap.Links = append(snap.Links, linkView{
-					Name: l.Name, IP: l.IP.String(),
-					RxMbps: links.Mbps(rx-prevRx[i], dt), TxMbps: links.Mbps(tx-prevTx[i], dt),
+					Name: l.Name, IP: l.IP().String(), Up: l.Up(),
+					RxMbps: links.Mbps(rx-pr, dt), TxMbps: links.Mbps(tx-prevTx[l], dt),
 					Active: l.Active.Load(), TotalRx: rx, TotalTx: tx,
 				})
-				prevRx[i], prevTx[i] = rx, tx
+				prevRx[l], prevTx[l] = rx, tx
 			}
 			s.mu.Lock()
 			for _, j := range s.jobs {
-				file, size, per := j.stats.Snapshot()
+				file, size, used := j.stats.Snapshot()
+				// Re-index per-link bytes on the pool order so colors match the UI.
+				per := make([]int64, len(all))
 				var done int64
-				for _, b := range per {
+				for i, b := range used {
+					if i < len(j.links) {
+						per[index[j.links[i]]] += b
+					}
 					done += b
 				}
 				end := j.ended
@@ -220,15 +234,20 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	if req.Workers <= 0 || req.Workers > 32 {
 		req.Workers = 4
 	}
+	up := s.Pool.Up()
+	if len(up) == 0 {
+		http.Error(w, "aucun lien connecté", http.StatusServiceUnavailable)
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.nextID++
-	j := &job{id: s.nextID, url: req.URL, state: "running", started: time.Now(), stats: &download.Stats{}, cancel: cancel}
+	j := &job{id: s.nextID, url: req.URL, state: "running", started: time.Now(), stats: &download.Stats{}, links: up, cancel: cancel}
 	s.jobs = append(s.jobs, j)
 	s.mu.Unlock()
 
 	go func() {
-		err := download.Run(ctx, s.Links, download.Options{
+		err := download.Run(ctx, up, download.Options{
 			URL: req.URL, OutDir: s.OutDir, ChunkSize: 2 << 20, WorkersPerLnk: req.Workers,
 			Quiet: true, Stats: j.stats,
 		})

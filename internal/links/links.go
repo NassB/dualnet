@@ -7,22 +7,52 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Link is one outgoing internet path, identified by the local IPv4 of its interface.
+// Link is one outgoing internet path: a network interface and its IPv4.
+// The IP can change (e.g. the phone is re-plugged); Pool keeps the Link object,
+// so its counters survive.
 type Link struct {
-	Name   string
-	IP     net.IP
+	Name string
+
+	mu     sync.RWMutex
+	ip     net.IP
 	dialer *net.Dialer
+	up     atomic.Bool
 
 	BytesIn  atomic.Int64
 	BytesOut atomic.Int64
 	Active   atomic.Int64
 }
 
-func (l *Link) String() string { return fmt.Sprintf("%s (%s)", l.Name, l.IP) }
+func (l *Link) String() string { return fmt.Sprintf("%s (%s)", l.Name, l.IP()) }
+
+// IP returns the current local address of the link.
+func (l *Link) IP() net.IP {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.ip
+}
+
+// Up reports whether the interface is currently connected.
+func (l *Link) Up() bool { return l.up.Load() }
+
+func (l *Link) setIP(ip net.IP) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.ip.Equal(ip) {
+		return
+	}
+	l.ip = ip
+	l.dialer = &net.Dialer{
+		LocalAddr: &net.TCPAddr{IP: ip},
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+}
 
 // DialContext opens a TCP connection that leaves through this link only.
 // Windows uses the strong host model: binding the source IP forces the matching interface.
@@ -30,7 +60,10 @@ func (l *Link) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	if network == "tcp" {
 		network = "tcp4"
 	}
-	c, err := l.dialer.DialContext(ctx, network, addr)
+	l.mu.RLock()
+	d := l.dialer
+	l.mu.RUnlock()
+	c, err := d.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -41,15 +74,10 @@ func (l *Link) DialContext(ctx context.Context, network, addr string) (net.Conn,
 func New(name string, ip net.IP) *Link { return newLink(name, ip) }
 
 func newLink(name string, ip net.IP) *Link {
-	return &Link{
-		Name: name,
-		IP:   ip,
-		dialer: &net.Dialer{
-			LocalAddr: &net.TCPAddr{IP: ip},
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		},
-	}
+	l := &Link{Name: name}
+	l.setIP(ip)
+	l.up.Store(true)
+	return l
 }
 
 var skipNames = []string{"loopback", "vethernet", "virtualbox", "vmware", "hyper-v", "bluetooth", "wsl", "tailscale", "zerotier", "wireguard", "openvpn", "tap-"}
@@ -58,37 +86,7 @@ var skipNames = []string{"loopback", "vethernet", "virtualbox", "vmware", "hyper
 // interface names or IPv4 addresses (case-insensitive); otherwise all plausible
 // physical interfaces with an IPv4 address are returned.
 func Discover(selectors []string) ([]*Link, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
-	var out []*Link
-	for _, ifc := range ifaces {
-		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		ip := firstIPv4(ifc)
-		if ip == nil {
-			continue
-		}
-		if len(selectors) > 0 {
-			if matches(selectors, ifc.Name, ip) {
-				out = append(out, newLink(ifc.Name, ip))
-			}
-			continue
-		}
-		lname := strings.ToLower(ifc.Name)
-		skip := false
-		for _, s := range skipNames {
-			if strings.Contains(lname, s) {
-				skip = true
-				break
-			}
-		}
-		if !skip {
-			out = append(out, newLink(ifc.Name, ip))
-		}
-	}
+	out := NewPool(selectors).Up()
 	if len(out) == 0 {
 		return nil, fmt.Errorf("aucune interface utilisable trouvée (utilisez -if)")
 	}

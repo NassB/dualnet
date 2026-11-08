@@ -35,6 +35,10 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .kpi .value { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; margin: 4px 0 2px; letter-spacing: -.02em; }
 .kpi .value small { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 4px; }
 .kpi .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.warn { display: none; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
+.kpi.down { opacity: .55; }
+.tag { font-size: 10px; font-weight: 600; color: var(--warn); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
 .kpi.total { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
 .bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: flex; margin-top: 10px; }
@@ -97,6 +101,7 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
     <span class="pill" id="proxyPill">proxy —</span>
   </header>
 
+  <div class="warn" id="linksWarn">Un seul lien connecté : pas de combinaison. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, Windows limite les connexions simultanées (voir le README). dualnet reprendra le lien automatiquement dès qu'il revient.</div>
   <section class="grid kpis" id="kpis"></section>
 
   <section class="panel">
@@ -186,8 +191,8 @@ function renderKpis(snap) {
   snap.links.forEach((l, i) => {
     peaks[i] = Math.max(peaks[i] || 0, l.rxMbps);
     const share = 100 * l.totalRx / allRx;
-    html += `<div class="panel kpi">
-      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}</div>
+    html += `<div class="panel kpi${l.up ? '' : ' down'}">
+      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}${l.up ? '' : ' <span class="tag">déconnecté</span>'}</div>
       <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
       <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn.</div>
       <div class="sub">${fmtBytes(l.totalRx)} reçus (${share.toFixed(0)} %)</div>
@@ -242,7 +247,7 @@ function draw() {
   for (let li = n - 1; li >= 0; li--) {
     ctx.beginPath();
     hist.forEach((p, k) => {
-      const top = p.v.slice(0, li + 1).reduce((a, b) => a + b, 0);
+      const top = p.v.slice(0, li + 1).reduce((a, b) => a + (b || 0), 0);
       k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
     });
     ctx.lineTo(x(hist.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
@@ -250,7 +255,7 @@ function draw() {
     ctx.fillStyle = c + '55'; ctx.fill();
     ctx.beginPath();
     hist.forEach((p, k) => {
-      const top = p.v.slice(0, li + 1).reduce((a, b) => a + b, 0);
+      const top = p.v.slice(0, li + 1).reduce((a, b) => a + (b || 0), 0);
       k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
     });
     ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.stroke();
@@ -322,7 +327,7 @@ document.getElementById('dl').addEventListener('submit', async e => {
   const url = document.getElementById('url').value.trim();
   const workers = +document.getElementById('workers').value;
   const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, workers }) });
-  if (r.ok) document.getElementById('url').value = '';
+  if (r.ok) document.getElementById('url').value = ''; else alert(await r.text());
 });
 
 let sysOn = false;
@@ -360,6 +365,8 @@ function connect() {
     const snap = JSON.parse(ev.data);
     snap.links = snap.links || []; snap.jobs = snap.jobs || [];
     if (!started || snap.links.length !== links.length) { links = snap.links; renderLegend(); started = true; }
+    const up = snap.links.filter(l => l.up).length;
+    document.getElementById('linksWarn').style.display = up < 2 ? 'block' : 'none';
     links = snap.links;
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
