@@ -356,10 +356,6 @@ td.r, th.r { text-align: right; }
           <div class="txt"><div class="title" data-i18n="preferTitle"></div><div class="sub" data-i18n="preferSub"></div></div>
           <div class="row" id="prefer"></div>
         </div>
-        <div class="setting">
-          <div class="txt"><div class="title" data-i18n="steamTitle"></div><div class="sub" data-i18n="steamSub"></div></div>
-          <button class="btn ghost" id="steamBtn" data-i18n="restart"></button>
-        </div>
       </div>
 
       <div class="card mt">
@@ -919,11 +915,6 @@ $('tunSw').addEventListener('change', e => post('/api/transparent?on=' + (e.targ
 $('sysSw').addEventListener('change', e => post('/api/sysproxy?on=' + (e.target.checked ? 1 : 0)));
 $('simSw').addEventListener('change', e => post('/api/system?do=simultaneous&on=' + (e.target.checked ? 1 : 0)));
 $('autoSw').addEventListener('change', e => post('/api/autostart?on=' + (e.target.checked ? 1 : 0)));
-$('steamBtn').addEventListener('click', async e => {
-  const b = e.currentTarget; b.disabled = true; b.textContent = t('restarting');
-  if (await post('/api/system?do=steam')) toast(t('done'), true);
-  b.disabled = false; b.textContent = t('restart');
-});
 
 // ---------- history ----------
 async function loadHistory() {

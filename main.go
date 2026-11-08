@@ -121,7 +121,7 @@ func main() {
 		home, _ := os.UserHomeDir()
 		fs.StringVar(&cfg.dir, "dir", filepath.Join(home, "Downloads"), "download folder")
 		open := fs.Bool("open", true, "open the browser")
-		fs.DurationVar(&cfg.sticky, "sticky", 10*time.Minute, "keep a site on the same link (0 = spread every connection, best for Steam)")
+		fs.DurationVar(&cfg.sticky, "sticky", 10*time.Minute, "keep a site on the same link (0 = spread every connection: best for downloads)")
 		fs.BoolVar(&cfg.systemProxy, "system-proxy", false, "point the Windows proxy to dualnet at startup (restored on exit)")
 		fs.BoolVar(&cfg.transparent, "transparent", false, "capture all PC traffic with a virtual adapter (administrator)")
 		fs.Parse(os.Args[2:])

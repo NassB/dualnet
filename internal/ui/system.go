@@ -21,7 +21,6 @@ func (s *Server) systemState() systemView {
 //
 //	?do=simultaneous&on=1|0   allow Wi-Fi + wired link at once
 //	?do=prefer&link=<name>    Windows prefers this link ("" = automatic)
-//	?do=steam                 restart Steam
 func (s *Server) setSystem(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	var err error
@@ -34,8 +33,6 @@ func (s *Server) setSystem(w http.ResponseWriter, r *http.Request) {
 			names = append(names, l.Name)
 		}
 		err = winsys.Prefer(q.Get("link"), names)
-	case "steam":
-		err = winsys.RestartSteam()
 	default:
 		http.Error(w, "unknown action", http.StatusBadRequest)
 		return

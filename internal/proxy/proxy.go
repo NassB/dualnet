@@ -283,7 +283,7 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 			return
 		}
 		// Plain HTTP: forward over a per-link keep-alive pool, and keep serving
-		// requests on this client connection (Steam fetches many chunks this way).
+		// requests on this client connection (download tools fetch many chunks this way).
 		if !s.forward(c, req) || req.Close {
 			return
 		}

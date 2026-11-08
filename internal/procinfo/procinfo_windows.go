@@ -155,7 +155,7 @@ func exeName(pid uint32) string {
 	return name
 }
 
-// AppFor returns the executable name (e.g. "steam.exe") of the program that owns
+// AppFor returns the executable name (e.g. "game.exe") of the program that owns
 // the local endpoint ip:port of a "tcp" or "udp" flow, or "" when unknown.
 func AppFor(proto string, ip netip.Addr, port uint16) string {
 	pid, ok := owner(proto, ip, port)

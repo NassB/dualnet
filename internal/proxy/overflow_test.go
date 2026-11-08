@@ -176,12 +176,12 @@ func TestOverflowRuleWins(t *testing.T) {
 	if got := linkOf(t, c); got != "b" {
 		t.Fatalf("game.exe is restricted to b by a rule but went through %s", got)
 	}
-	other, err := d.DialContext(context.Background(), tcpFlow(ln, 2)) // Steam.exe: no rule
+	other, err := d.DialContext(context.Background(), tcpFlow(ln, 2)) // Launcher.exe: no rule
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer other.Close()
 	if got := linkOf(t, other); got != "a" {
-		t.Fatalf("Steam.exe went through %s while b is on standby, want a", got)
+		t.Fatalf("Launcher.exe went through %s while b is on standby, want a", got)
 	}
 }

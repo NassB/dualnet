@@ -16,7 +16,7 @@ Double-click `dualnet.exe`:
 
 1. Windows asks for administrator rights (needed by transparent mode);
 2. **dualnet's window opens** (its own app window, no browser) and an icon appears in the notification area;
-3. press the big **power button** to turn dualnet on or off. When on, all the PC's IPv4 traffic (Steam, games, browser…) is spread over your links; when off, Windows uses its normal connection. Your choice is remembered.
+3. press the big **power button** to turn dualnet on or off. When on, all the PC's IPv4 traffic (games, downloads, browser…) is spread over your links; when off, Windows uses its normal connection. Your choice is remembered.
 
 Closing the window keeps dualnet running in the notification area; open it again from the icon. **Quit** in the icon's menu stops dualnet and restores normal networking.
 
@@ -31,7 +31,7 @@ The interface has four pages:
 - **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live chart;
 - **Downloads**: download one file over all links at once;
 - **History**: data per link and per day;
-- **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, restart Steam, application rules, start with Windows, notifications, update check, diagnostics and the installation check.
+- **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, application rules, start with Windows, notifications, update check, diagnostics and the installation check.
 
 ## What dualnet does
 
@@ -48,13 +48,13 @@ The interface has four pages:
 - **Overflow mode**: mark a link "only when the others are busy" (typically your phone's mobile data). It stays idle, saving its data, until the other links carry 80 % of their capacity; it is released after 5 seconds under 50 %. It stays the failover, serves everything when no other link is usable, and a program restricted to it by a rule still gets it.
 - **Per-link speed cap** (Mb/s), remembered.
 - **Monthly data budget per link** (GB): when a link has used its budget, it gets no new connections until next month (warning at 80 %). Only data that goes through dualnet counts. The last usable link is never excluded, so the internet keeps working.
-- **Applications and rules** (transparent mode): the dashboard lists which programs use the network and through which links. A rule restricts a program to one link (for example an online game on Wi‑Fi for a steady ping while Steam uses every link); if that link is down, the program uses the others.
+- **Applications and rules** (transparent mode): the dashboard lists which programs use the network and through which links. A rule restricts a program to one link (for example an online game on Wi‑Fi for a steady ping while your downloads use every link); if that link is down, the program uses the others.
 - **Notifications**: a Windows notification when a link drops, comes back or appears (and for budget events), even if the window is closed. The toast appears under Windows PowerShell's name. The Settings page has a "send a test" button.
 - **Update check**: once a day dualnet asks GitHub for the latest release and shows a banner. Nothing is downloaded or installed automatically; it can be turned off in Settings.
 - **Installation check**: `dualnet doctor`, or Settings → Diagnostics → *Run checks*. It looks at administrator rights, each link and its internet access, Windows' Wi‑Fi policy, the virtual adapter, a Windows proxy left pointing at a stopped dualnet, DNS, WebView2 and where the elevated program lives. Fixable problems get a button; nothing is changed without a click.
 - **Diagnostics**: Settings can show the log live and copy a bug-report text (version, checks, links, last log lines). Check it before sharing: it lists your network interface names and addresses.
 - **History**: data per link and per day (30 days shown, one year kept).
-- **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows, restart Steam.
+- **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows.
 
 Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`). Set the `DUALNET_DATA` environment variable to use another folder.
 
@@ -71,7 +71,7 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 .\dualnet.exe interfaces
 ```
 
-`-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for Steam).
+`-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for downloads).
 
 Add `?lang=en`, `?lang=fr`, `?lang=es` or `?lang=de` (or any other language file) to the interface address to force a language. The notification-area menu and the Windows notifications are in English or French (Windows' language).
 
@@ -88,13 +88,13 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPo
 
 - A `dualnet` virtual adapter (Wintun) plus routes `0.0.0.0/1` and `128.0.0.0/1`; your normal routes are left untouched.
 - Connections are terminated by tun2socks (gVisor stack) and reopened over a link (TCP and UDP, so DNS and games too).
-- **IPv6 is refused**: applications fall back to IPv4. Restart Steam after enabling it (button in the interface): its already-open connections keep their old path.
+- **IPv6 is refused**: applications fall back to IPv4. Programs that were already running keep the connections they had; most reopen them by themselves, otherwise restart the program.
 - When dualnet exits, even if it crashes, the adapter and its routes disappear.
 - `wintun.dll` 0.14.1 (signed by WireGuard LLC, license: `internal/transparent/WINTUN-LICENSE.txt`) is embedded in the executable and extracted next to it on first run.
 
 ## Limits
 
-- Without a server in between, **a single connection** (one video stream, one online game) cannot use two links at once: the gain comes from apps that open several connections (Steam, downloads, browsing).
+- Without a server in between, **a single connection** (one video stream, one online game) cannot use two links at once: the gain comes from apps that open several connections (downloads, game launchers, browsing).
 - IPv6 is not used in transparent mode.
 - Per-application statistics and rules work in transparent mode only: in proxy mode dualnet cannot tell which program a connection comes from.
 - An already open connection cannot move to another link: if its link drops it ends, and the application reconnects over the remaining links.

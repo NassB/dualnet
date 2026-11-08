@@ -74,7 +74,7 @@ func write(s Settings) error {
 	return nil
 }
 
-// refresh tells running programs (WinINet: Edge, Steam…) that the settings changed.
+// refresh tells running programs (WinINet-based programs: Edge, many launchers…) that the settings changed.
 func refresh() {
 	if KeyPath != `Software\Microsoft\Windows\CurrentVersion\Internet Settings` {
 		return

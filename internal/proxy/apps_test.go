@@ -35,7 +35,7 @@ func fakeApps(md *M.Metadata) string {
 	case 1:
 		return "game.exe"
 	case 2:
-		return "Steam.exe"
+		return "Launcher.exe"
 	}
 	return "" // unknown
 }
@@ -93,7 +93,7 @@ func TestRulesRestrictApplications(t *testing.T) {
 		seen[linkOf(t, c)] = true
 	}
 	if !seen["a"] || !seen["b"] {
-		t.Fatalf("Steam.exe should use both links, used %v", seen)
+		t.Fatalf("Launcher.exe should use both links, used %v", seen)
 	}
 
 	// the chosen link goes away: the app keeps working on the other one
@@ -178,11 +178,11 @@ func TestAppStats(t *testing.T) {
 
 func TestAppRegistry(t *testing.T) {
 	r := NewAppRegistry()
-	x := r.Get("Steam.exe")
-	if r.Get("steam.exe") != x {
+	x := r.Get("Launcher.exe")
+	if r.Get("launcher.exe") != x {
 		t.Fatal("names must be compared without regard to case")
 	}
-	if x.Name != "Steam.exe" {
+	if x.Name != "Launcher.exe" {
 		t.Fatalf("first spelling must be kept, got %q", x.Name)
 	}
 	x.opened()
@@ -191,7 +191,7 @@ func TestAppRegistry(t *testing.T) {
 	y.opened()
 	y.addRx("a", 5)
 	snap := r.Snapshot()
-	if len(snap) != 2 || snap[0].Name != "Steam.exe" {
+	if len(snap) != 2 || snap[0].Name != "Launcher.exe" {
 		t.Fatalf("busiest first: %+v", snap)
 	}
 	// idle and closed for 10+ minutes: forgotten; one still connected is kept

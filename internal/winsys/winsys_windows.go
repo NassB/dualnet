@@ -3,12 +3,10 @@
 //   - allow Wi-Fi and a wired link at the same time (fMinimizeConnections policy);
 //   - which link Windows prefers for traffic that does not go through dualnet
 //     (interface metric);
-//   - restarting Steam so it reopens its connections.
 package winsys
 
 import (
 	"errors"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -107,30 +105,4 @@ func Prefer(name string, all []string) error {
 	metricAt = time.Time{}
 	metricMu.Unlock()
 	return nil
-}
-
-// RestartSteam closes Steam and opens it again as the logged-in user (not
-// elevated, even if dualnet runs as administrator).
-func RestartSteam() error {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Valve\Steam`, registry.QUERY_VALUE)
-	if err != nil {
-		return errors.New("Steam is not installed")
-	}
-	exe, _, err := k.GetStringValue("SteamExe")
-	k.Close()
-	if err != nil || exe == "" {
-		return errors.New("Steam is not installed")
-	}
-	exec.Command(exe, "-shutdown").Run()
-	for i := 0; i < 40 && steamRunning(); i++ {
-		time.Sleep(500 * time.Millisecond)
-	}
-	// explorer.exe opens the URL through the user's shell, so Steam does not
-	// inherit dualnet's administrator rights.
-	return exec.Command("explorer.exe", "steam://open/main").Start()
-}
-
-func steamRunning() bool {
-	out, _ := winexec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH").Output()
-	return strings.Contains(strings.ToLower(string(out)), "steam.exe")
 }

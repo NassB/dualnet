@@ -95,7 +95,7 @@ func TestAppForSeesNewConnections(t *testing.T) {
 	}
 }
 
-// A burst of simultaneous new connections (a browser, Steam…) must all be named.
+// A burst of simultaneous new connections (a browser, a download tool…) must all be named.
 func TestAppForBurst(t *testing.T) {
 	ln, _ := net.Listen("tcp4", "127.0.0.1:0")
 	defer ln.Close()

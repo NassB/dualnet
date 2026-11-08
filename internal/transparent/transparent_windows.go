@@ -1,4 +1,4 @@
-// Package transparent captures all of Windows' internet traffic (Steam, games…)
+// Package transparent captures all of Windows' internet traffic (games, downloads…)
 // with a virtual network adapter (Wintun) and hands every connection to dualnet's
 // link picker. No per-application proxy setting is needed.
 //
