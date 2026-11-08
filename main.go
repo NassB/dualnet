@@ -109,6 +109,7 @@ func main() {
 		fs.BoolVar(&cfg.systemProxy, "system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
 		fs.BoolVar(&cfg.transparent, "transparent", false, "capter tout le trafic du PC via une carte virtuelle (administrateur)")
 		fs.Parse(os.Args[2:])
+		setupLog(true)
 		app, err := startUI(ctx, cfg)
 		check(err)
 		fmt.Println("Interface :", app.url)
@@ -119,6 +120,8 @@ func main() {
 		check(app.serve())
 
 	case "tray":
+		setupLog(false)
+		log.Println("dualnet démarré (barre des tâches)")
 		runTray(ctx)
 
 	default:
@@ -257,6 +260,7 @@ var cleanup = func() {}
 
 func check(err error) {
 	if err != nil {
+		log.Println("Erreur :", err)
 		cleanup()
 		sysproxy.Disable()
 		fmt.Fprintln(os.Stderr, "Erreur :", err)
