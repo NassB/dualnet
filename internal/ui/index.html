@@ -320,6 +320,11 @@ td.r, th.r { text-align: right; }
           <label class="switch"><input type="checkbox" id="autoSw"><span></span></label>
         </div>
         <div class="setting">
+          <div class="txt"><div class="title" data-i18n="notifTitle"></div><div class="sub" data-i18n="notifSub"></div></div>
+          <button class="btn ghost small" id="notifTest" data-i18n="notifTest"></button>
+          <label class="switch"><input type="checkbox" id="notifSw"><span></span></label>
+        </div>
+        <div class="setting">
           <div class="txt"><div class="title" data-i18n="updTitle"></div><div class="sub" data-i18n="updSub"></div></div>
           <label class="switch"><input type="checkbox" id="updSw"><span></span></label>
         </div>
@@ -402,6 +407,8 @@ const I18N = {
     steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
     appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
     proxyOff: 'proxy disabled', done: 'Done',
+    notifTitle: 'Notifications', notifSub: 'A Windows notification when a link drops, comes back or appears, even if this window is closed.',
+    notifTest: 'Send a test', notifSent: 'Test notification sent',
     diagTitle: 'Diagnostics', diagHead: 'Bug reports',
     diagSub: 'Version, links and the latest log lines. Check it before sharing publicly: it lists your network interface names and addresses.',
     diagCopy: 'Copy diagnostics', logView: 'View log', logHide: 'Hide log', logFolder: 'Open data folder', copied: 'Copied to the clipboard', noLog: '(the log is empty)',
@@ -449,6 +456,8 @@ const I18N = {
     steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
     appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
     proxyOff: 'proxy désactivé', done: 'Fait',
+    notifTitle: 'Notifications', notifSub: 'Une notification Windows quand un lien se coupe, revient ou apparaît, même si cette fenêtre est fermée.',
+    notifTest: 'Envoyer un test', notifSent: 'Notification de test envoyée',
     diagTitle: 'Diagnostic', diagHead: 'Rapports de bug',
     diagSub: 'Version, liens et dernières lignes du journal. Relisez-le avant de le partager publiquement : il liste les noms et adresses de vos interfaces réseau.',
     diagCopy: 'Copier le diagnostic', logView: 'Voir le journal', logHide: 'Masquer le journal', logFolder: 'Ouvrir le dossier de données', copied: 'Copié dans le presse-papiers', noLog: '(le journal est vide)',
@@ -772,7 +781,10 @@ function renderUpdate(snap) {
   $('updBanner').style.display = u.available ? 'flex' : 'none';
   if (u.available) $('updText').textContent = t('updAvail', { v: u.latest });
   setSwitch('updSw', u.check, false);
+  setSwitch('notifSw', snap.notify, false);
 }
+$('notifSw').addEventListener('change', e => post('/api/notify?on=' + (e.target.checked ? 1 : 0)));
+$('notifTest').addEventListener('click', async () => { if (await post('/api/notify/test')) toast(t('notifSent'), true); });
 $('updBtn').addEventListener('click', () => post('/api/update/open'));
 $('updSw').addEventListener('change', e => post('/api/updatecheck?on=' + (e.target.checked ? 1 : 0)));
 

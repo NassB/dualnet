@@ -22,6 +22,7 @@ import (
 
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/notify"
 	"github.com/NassB/dualnet/internal/proxy"
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
@@ -183,11 +184,13 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		st.ApplyLimit(l)
 	}
 	prevChange := pool.OnChange
+	notifier := &notify.Notifier{Enabled: st.NotifyEnabled, French: windowsFrench}
 	pool.OnChange = func(l *links.Link, ev string) {
-		if ev == "added" {
+		if ev == links.EventAdded {
 			st.ApplyLimit(l)
 		}
 		prevChange(l, ev)
+		notifier.LinkEvent(l.Name, ev, len(pool.Up()))
 	}
 	go st.Run(ctx, pool)
 	checker := &update.Checker{Current: version, Repo: "NassB/dualnet", Enabled: st.UpdateCheckEnabled}
@@ -209,7 +212,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Autostart: autostartHooks(),
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Notify: notifier, Autostart: autostartHooks(),
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),

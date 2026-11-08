@@ -49,9 +49,9 @@ func (p *Pool) Health(ctx context.Context, every time.Duration) {
 				l.probe(ctx)
 				if now := l.Healthy(); now != was && p.OnChange != nil {
 					if now {
-						p.OnChange(l, "answering again")
+						p.OnChange(l, EventAnswering)
 					} else {
-						p.OnChange(l, "not answering (skipped)")
+						p.OnChange(l, EventNotAnswering)
 					}
 				}
 			}(l)

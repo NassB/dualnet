@@ -27,6 +27,23 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// Notify: Windows notifications for link events; nil = yes.
+	Notify *bool `json:"notify,omitempty"`
+}
+
+// NotifyEnabled reports whether link notifications are on (default).
+func (s *Store) NotifyEnabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.Notify == nil || *s.settings.Notify
+}
+
+// SetNotify saves the notification choice.
+func (s *Store) SetNotify(on bool) {
+	s.mu.Lock()
+	s.settings.Notify = &on
+	s.mu.Unlock()
+	s.Save()
 }
 
 // UpdateCheckEnabled reports whether the daily update check is on (default).

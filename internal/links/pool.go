@@ -81,17 +81,17 @@ func (p *Pool) Refresh() {
 		if !ok {
 			l = newLink(name, ip)
 			p.all = append(p.all, l)
-			changes = append(changes, change{l, "added"})
+			changes = append(changes, change{l, EventAdded})
 			continue
 		}
 		l.setIP(ip)
 		if !l.up.Swap(true) {
-			changes = append(changes, change{l, "reconnected"})
+			changes = append(changes, change{l, EventReconnected})
 		}
 	}
 	for _, l := range p.all {
 		if _, ok := current[l.Name]; !ok && l.up.Swap(false) {
-			changes = append(changes, change{l, "disconnected"})
+			changes = append(changes, change{l, EventDisconnected})
 		}
 	}
 	p.mu.Unlock()
