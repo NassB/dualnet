@@ -99,6 +99,18 @@ git push origin v0.2.0
 
 The workflow builds `dualnet.exe` with that version and attaches it to a GitHub release with generated notes.
 
+## Security
+
+dualnet runs as administrator, and its interface talks to a local API on `127.0.0.1:8090`. That API:
+
+- only answers to loopback `Host` names (no DNS rebinding);
+- requires the custom header `X-Dualnet: 1` on every request that changes something, and refuses requests the browser marks as cross-site or that carry a foreign `Origin`: a web page you visit cannot drive dualnet (a custom header forces a CORS preflight, which dualnet never grants);
+- only accepts `http(s)` URLs for downloads.
+
+If you script the local API yourself, send `X-Dualnet: 1` with your POST requests.
+
+Found a problem? Please open an issue.
+
 ## License
 
 [MIT](LICENSE). `wintun.dll` keeps its own license (WireGuard LLC).

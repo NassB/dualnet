@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -75,23 +75,7 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.Store.History(30))
 	})
-	return localOnly(mux)
-}
-
-// localOnly rejects requests whose Host is not local (DNS-rebinding protection:
-// the API can start downloads and open Explorer).
-func localOnly(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(r.Host)
-		if err != nil {
-			host = r.Host
-		}
-		if host != "127.0.0.1" && host != "localhost" && host != "[::1]" && host != "::1" {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
+	return guard(mux)
 }
 
 type linkView struct {
@@ -255,6 +239,10 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
 		http.Error(w, "missing url", http.StatusBadRequest)
+		return
+	}
+	if u, err := url.Parse(req.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		http.Error(w, "invalid url", http.StatusBadRequest)
 		return
 	}
 	if req.Workers <= 0 || req.Workers > 32 {

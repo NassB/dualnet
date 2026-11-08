@@ -426,7 +426,7 @@ const I18N = {
 // Server messages are in English; translate the known ones for French users.
 const SERVER_FR = {
   'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
-  'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid value': 'valeur invalide',
+  'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid url': 'URL invalide', 'invalid value': 'valeur invalide',
   'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
   'unknown action': 'action inconnue', 'not available': 'non disponible',
 };
@@ -468,7 +468,7 @@ function toast(msg, ok) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = 'toast', 4000);
 }
 async function post(url) {
-  const r = await fetch(url, { method: 'POST' });
+  const r = await fetch(url, { method: 'POST', headers: { 'X-Dualnet': '1' } });
   if (!r.ok) toast(srv(await r.text()));
   return r.ok;
 }
@@ -701,7 +701,7 @@ function renderJobs(snap) {
 }
 $('dl').addEventListener('submit', async e => {
   e.preventDefault();
-  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' },
     body: JSON.stringify({ url: $('url').value.trim(), workers: +$('workers').value }) });
   if (r.ok) $('url').value = ''; else toast(srv(await r.text()));
 });
