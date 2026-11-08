@@ -1,73 +1,94 @@
 # dualnet
 
-Combine plusieurs connexions internet sur un PC Windows (ex. Wi‑Fi de la box + partage USB du téléphone), **sans serveur distant**.
+Combine several internet connections on one Windows PC — for example your home Wi‑Fi and your phone's USB tethering — **without any remote server**.
 
-## Démarrage rapide
+The interface is in English, or in French when your browser prefers French.
 
-Double-cliquez sur `dualnet.exe` :
+## Download
 
-1. Windows demande les droits administrateur (nécessaires au mode transparent) ;
-2. une icône apparaît dans la barre des tâches et l'interface s'ouvre dans le navigateur (`http://127.0.0.1:8090`) ;
-3. le **mode transparent** est actif : tout le trafic IPv4 du PC (Steam, jeux, navigateur…) est réparti sur les liens.
+Get `dualnet.exe` from the [latest release](https://github.com/NassB/dualnet/releases/latest). It is a single file, nothing to install.
 
-Menu de l'icône : ouvrir l'interface, activer/désactiver le mode transparent, **démarrer avec Windows**, quitter (le réseau redevient normal).
+> The executable is not code-signed, so Windows SmartScreen may warn the first time: click **More info → Run anyway**. You can also build it yourself (see [Development](#development)).
 
-## Ce que fait dualnet
+## Quick start
 
-| Mode | Pour quoi | Gain |
+Double-click `dualnet.exe`:
+
+1. Windows asks for administrator rights (needed by transparent mode);
+2. an icon appears in the notification area and the interface opens in your browser (`http://127.0.0.1:8090`);
+3. **transparent mode** is on: all the PC's IPv4 traffic (Steam, games, browser…) is spread over your links.
+
+Tray menu: open the interface, toggle transparent mode, **start with Windows**, quit (networking goes back to normal).
+
+## What dualnet does
+
+| Mode | For | Gain |
 |---|---|---|
-| **Transparent** (carte virtuelle Wintun) | Tout le PC, sans réglage | Les connexions sont réparties entre les liens |
-| **Proxy** SOCKS5/HTTP `127.0.0.1:1080` | Applis réglées sur le proxy | Idem, appli par appli |
-| **Téléchargement** (`get` ou interface) | Un gros fichier | Les débits **s'additionnent** sur ce fichier |
+| **Transparent** (Wintun virtual adapter) | The whole PC, no settings | Connections are spread over the links |
+| **Proxy** SOCKS5/HTTP `127.0.0.1:1080` | Apps configured to use the proxy | Same, app by app |
+| **Download** (`get` or the interface) | One large file | Link speeds **add up** for that file |
 
-- **Répartition selon le débit réel** : chaque nouvelle connexion va au lien qui a le plus de capacité libre (capacité mesurée ÷ connexions ouvertes).
-- **Surveillance des liens** : toutes les 2 s (branchement / débranchement / changement d'IP) et test internet toutes les 5 s ; un lien qui ne répond plus est ignoré jusqu'à son retour. Ping affiché.
-- **Plafond par lien** (Mb/s), mémorisé.
-- **Historique** : données par lien et par jour (30 jours affichés, un an conservé).
-- **Réglages Windows** en un clic (administrateur) : garder le Wi‑Fi avec le partage USB, lien préféré par Windows, relancer Steam.
+- **Spreads by measured speed**: each new connection goes to the link with the most free capacity (measured capacity ÷ busy connections; idle sockets do not count).
+- **Link monitoring**: every 2 s (plugged / unplugged / IP change) plus an internet check every 5 s; a link that stops answering is skipped until it comes back. Ping is shown.
+- **Per-link speed cap** (Mb/s), remembered.
+- **History**: data per link and per day (30 days shown, one year kept).
+- **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows, restart Steam.
 
-Données et réglages : `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`).
+Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`).
 
-## Ligne de commande
+## Command line
 
 ```powershell
-.\dualnet.exe ui -sticky 0 -transparent     # interface + mode transparent (PowerShell administrateur)
-.\dualnet.exe ui                            # interface + proxy, sans droits admin
-.\dualnet.exe get https://exemple.com/gros-fichier.iso
+.\dualnet.exe ui -sticky 0 -transparent     # interface + transparent mode (administrator PowerShell)
+.\dualnet.exe ui                            # interface + proxy, no admin rights needed
+.\dualnet.exe get https://example.com/big-file.iso
 .\dualnet.exe proxy -listen 127.0.0.1:1080 -system-proxy
 .\dualnet.exe interfaces
 ```
 
-`-sticky 10m` (par défaut) garde un même site sur le même lien 10 min (utile pour les sites qui surveillent l'IP) ; `-sticky 0` répartit chaque connexion (idéal pour Steam).
+`-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for Steam).
 
-## Le Wi‑Fi se coupe quand le téléphone est branché ?
+Add `?lang=en` or `?lang=fr` to the interface address to force a language.
 
-Windows coupe par défaut le Wi‑Fi quand une connexion filaire (le partage USB) est présente. Bouton « Garder le Wi‑Fi avec le partage USB » dans l'interface, ou en PowerShell administrateur :
+## Wi‑Fi drops when the phone is plugged in?
+
+By default Windows disconnects Wi‑Fi as soon as a wired connection (the USB tethering) is present. Use the “Keep Wi‑Fi with USB tethering” button in the interface, or in an administrator PowerShell:
 
 ```powershell
 New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Force | Out-Null
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Name fMinimizeConnections -Value 0 -Type DWord
 ```
 
-## Mode transparent : détails
+## Transparent mode: details
 
-- Carte virtuelle `dualnet` (Wintun) + routes `0.0.0.0/1` et `128.0.0.0/1` ; vos routes normales ne sont pas modifiées.
-- Les connexions sont terminées par tun2socks (pile gVisor) et rouvertes sur un lien (TCP et UDP, donc DNS et jeux).
-- **IPv6 refusé** : les applications basculent en IPv4. Relancez Steam après l'activation (bouton dans l'interface) : ses connexions déjà ouvertes restent sur leur ancien chemin.
-- À la fermeture, même en cas de plantage, la carte et ses routes disparaissent.
-- `wintun.dll` 0.14.1 (signée par WireGuard LLC, licence : `internal/transparent/WINTUN-LICENSE.txt`) est intégrée à l'exécutable et extraite à côté au premier lancement.
+- A `dualnet` virtual adapter (Wintun) plus routes `0.0.0.0/1` and `128.0.0.0/1`; your normal routes are left untouched.
+- Connections are terminated by tun2socks (gVisor stack) and reopened over a link (TCP and UDP, so DNS and games too).
+- **IPv6 is refused**: applications fall back to IPv4. Restart Steam after enabling it (button in the interface): its already-open connections keep their old path.
+- When dualnet exits, even if it crashes, the adapter and its routes disappear.
+- `wintun.dll` 0.14.1 (signed by WireGuard LLC, license: `internal/transparent/WINTUN-LICENSE.txt`) is embedded in the executable and extracted next to it on first run.
 
-## Développement
+## Limits
+
+- Without a server in between, **a single connection** (one video stream, one online game) cannot use two links at once: the gain comes from apps that open several connections (Steam, downloads, browsing).
+- IPv6 is not used in transparent mode.
+
+## Development
 
 ```powershell
 go test ./...
 go build -o dualnet.exe .
-go run ./tools/mkicon     # régénère l'icône (assets/) et la ressource du .exe
+go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resource
 ```
 
-GitHub Actions compile et teste à chaque push ; un tag `v*` publie `dualnet.exe` dans une release.
+GitHub Actions builds and tests every push. To publish a release, push a version tag:
 
-## Limites
+```powershell
+git tag v0.2.0
+git push origin v0.2.0
+```
 
-- Sans serveur intermédiaire, **une seule connexion** (une vidéo, une partie en ligne) ne peut pas utiliser deux liens à la fois : le gain vient des applications qui ouvrent plusieurs connexions (Steam, téléchargements, navigation).
-- IPv6 non utilisé en mode transparent.
+The workflow builds `dualnet.exe` with that version and attaches it to a GitHub release with generated notes.
+
+## License
+
+[MIT](LICENSE). `wintun.dll` keeps its own license (WireGuard LLC).

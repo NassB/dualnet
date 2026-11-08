@@ -31,6 +31,7 @@ type Server struct {
 	OutDir    string
 	Tun       *TunControl
 	Store     *store.Store
+	Version   string
 	// OnSettings is called after a setting changed in the UI (to save it).
 	OnSettings func()
 
@@ -124,6 +125,7 @@ type snapshot struct {
 	Sys   sysView    `json:"sys"`
 	Tun   tunView    `json:"tun"`
 	Sys2  systemView `json:"system"`
+	Ver   string     `json:"version"`
 }
 
 // sysView is the Windows proxy state: on/off, its address, and whether it points to us.
@@ -190,7 +192,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState()}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {

@@ -22,7 +22,11 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Build
-        run: go build -trimpath -ldflags "-s -w" -o dualnet.exe .
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="dev-${GITHUB_SHA::7}"; fi
+          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o dualnet.exe .
+          ./dualnet.exe version
       - uses: actions/upload-artifact@v4
         with:
           name: dualnet
@@ -32,3 +36,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dualnet.exe
+          generate_release_notes: true

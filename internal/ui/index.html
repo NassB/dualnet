@@ -24,6 +24,7 @@ body { margin: 0; background: var(--bg); color: var(--text);
 header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.ver { font-size: 12px; font-weight: 500; color: var(--muted); }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
@@ -102,7 +103,7 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
 <body>
 <div class="wrap">
   <header>
-    <h1>dualnet</h1>
+    <h1>dualnet <small id="ver" class="ver"></small></h1>
     <span class="pill"><span class="dot" id="conn"></span><span id="connText" data-i18n="connecting"></span></span>
     <span class="pill" id="proxyPill">proxy —</span>
   </header>
@@ -584,6 +585,7 @@ function connect() {
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
     renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); renderTun(snap); renderSystem(snap); draw();
+    document.getElementById('ver').textContent = snap.version || '';
     document.getElementById('proxyAddr').textContent = snap.proxy || '—';
     document.querySelectorAll('.paddr').forEach(e => e.textContent = snap.proxy || '—');
     document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : t('proxyOff');

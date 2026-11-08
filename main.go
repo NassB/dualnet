@@ -28,12 +28,16 @@ import (
 	"github.com/NassB/dualnet/internal/ui"
 )
 
+// version is set at build time: go build -ldflags "-X main.version=v1.2.3".
+var version = "dev"
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine several internet connections
 
 Usage:
   dualnet       (no argument: notification-area icon, as administrator)
   dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir folder] [-sticky 0] [-system-proxy] [-transparent]
+  dualnet version
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
   dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy]`)
@@ -50,6 +54,9 @@ func main() {
 	defer stop()
 
 	switch os.Args[1] {
+	case "version", "-v", "--version":
+		fmt.Println("dualnet", version)
+
 	case "interfaces":
 		lines, err := links.ListAll()
 		check(err)
@@ -183,7 +190,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st,
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version,
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),

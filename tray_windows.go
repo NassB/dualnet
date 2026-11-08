@@ -63,7 +63,7 @@ func runTray(ctx context.Context) {
 	systray.Run(func() {
 		systray.SetIcon(trayIcon)
 		systray.SetTitle("dualnet")
-		systray.SetTooltip(tr("dualnet — combined internet links", "dualnet — connexions internet combinées"))
+		systray.SetTooltip("dualnet " + version + " — " + tr("combined internet links", "connexions internet combinées"))
 		open := systray.AddMenuItem(tr("Open interface", "Ouvrir l'interface"), "")
 		systray.AddSeparator()
 		transp := systray.AddMenuItemCheckbox(tr("Transparent mode (whole PC)", "Mode transparent (tout le PC)"), "", app.tun.On())
