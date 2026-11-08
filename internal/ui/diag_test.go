@@ -110,3 +110,40 @@ func TestUpdateSettingEndpoint(t *testing.T) {
 		t.Fatal("opening an update that does not exist must be refused")
 	}
 }
+
+func TestBudgetEndpoint(t *testing.T) {
+	st := store.Open(t.TempDir())
+	wifi := links.New("Wi-Fi", net.IPv4(192, 168, 1, 2))
+	srv := &Server{Store: st, Pool: links.PoolOf(wifi)}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path string, header bool) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		if header {
+			req.Header.Set(CSRFHeader, "1")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if post("/api/budget?link=Wi-Fi&gb=20", false) != 403 || st.Budget("Wi-Fi") != 0 {
+		t.Fatal("budget changed without the header")
+	}
+	if post("/api/budget?link=Wi-Fi&gb=20", true) != 204 || st.Budget("Wi-Fi") != 20 {
+		t.Fatalf("budget not set: %v", st.Budget("Wi-Fi"))
+	}
+	for _, bad := range []string{"gb=-1", "gb=abc", "gb=NaN", "gb=1e9", "gb="} {
+		if got := post("/api/budget?link=Wi-Fi&"+bad, true); got != 400 {
+			t.Errorf("%s: HTTP %d, want 400", bad, got)
+		}
+	}
+	if post("/api/budget?link=Nope&gb=5", true) != 404 {
+		t.Error("unknown link must be a 404")
+	}
+	if post("/api/budget?link=Wi-Fi&gb=0", true) != 204 || st.Budget("Wi-Fi") != 0 {
+		t.Error("0 must remove the budget")
+	}
+}

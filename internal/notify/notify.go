@@ -48,6 +48,14 @@ func (n *Notifier) message(name, event string, up int) (body string, ok bool) {
 		return fmt.Sprintf(n.tr("Link “%s” disconnected. dualnet keeps using the other links.", "Lien « %s » déconnecté. dualnet continue avec les autres liens."), name), true
 	case links.EventNotAnswering:
 		return fmt.Sprintf(n.tr("Link “%s” stopped reaching the internet and is skipped for now.", "Le lien « %s » n’accède plus à internet : il est ignoré pour l’instant."), name), true
+	case links.EventBudgetWarn:
+		return fmt.Sprintf(n.tr("Link “%s” has used 80%% of its monthly data budget.", "Le lien « %s » a utilisé 80 %% de son budget de données mensuel."), name), true
+	case links.EventOverBudget:
+		return fmt.Sprintf(n.tr("Link “%s” reached its monthly data budget and is no longer used.", "Le lien « %s » a atteint son budget de données mensuel et n’est plus utilisé."), name), true
+	case links.EventBudgetKept:
+		return fmt.Sprintf(n.tr("Link “%s” is over its monthly budget but stays in use: it is the only link left.", "Le lien « %s » a dépassé son budget mensuel mais reste utilisé : c’est le seul lien restant."), name), true
+	case links.EventBudgetOK:
+		return fmt.Sprintf(n.tr("Link “%s” is available again: its monthly budget was reset.", "Le lien « %s » est de nouveau disponible : son budget mensuel est remis à zéro."), name), true
 	case links.EventAnswering:
 		return fmt.Sprintf(n.tr("Link “%s” reaches the internet again.", "Le lien « %s » accède de nouveau à internet."), name), true
 	}

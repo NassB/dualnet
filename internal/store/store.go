@@ -27,6 +27,8 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// Budgets: monthly data budget per link in GB (absent = none).
+	Budgets map[string]float64 `json:"budgets,omitempty"`
 	// Notify: Windows notifications for link events; nil = yes.
 	Notify *bool `json:"notify,omitempty"`
 }
@@ -98,8 +100,12 @@ func Open(dir string) *Store {
 	return s
 }
 
-// DefaultDir is %APPDATA%\dualnet.
+// DefaultDir is %APPDATA%\dualnet, or the folder named by the DUALNET_DATA
+// environment variable (to keep a copy apart, or for tests).
 func DefaultDir() string {
+	if d := os.Getenv("DUALNET_DATA"); d != "" {
+		return d
+	}
 	d, err := os.UserConfigDir()
 	if err != nil {
 		d = os.TempDir()
@@ -226,6 +232,7 @@ func (s *Store) Run(ctx context.Context, pool *links.Pool) {
 			return
 		case now := <-t.C:
 			s.Record(pool.All(), now)
+			s.Enforce(pool, now)
 			if i%6 == 0 {
 				s.Save()
 			}

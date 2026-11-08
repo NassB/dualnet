@@ -23,10 +23,11 @@ type Link struct {
 	dialer *net.Dialer
 	up     atomic.Bool
 
-	unhealthy atomic.Bool  // internet checks failing
-	fails     atomic.Int32 // consecutive failed checks
-	latency   atomic.Int64 // ms
-	limitMbps atomic.Int64
+	overBudget atomic.Bool  // monthly data budget used
+	unhealthy  atomic.Bool  // internet checks failing
+	fails      atomic.Int32 // consecutive failed checks
+	latency    atomic.Int64 // ms
+	limitMbps  atomic.Int64
 
 	connsMu sync.Mutex
 	conns   map[*countingConn]struct{} // open connections, to tell busy from idle
@@ -227,7 +228,14 @@ func Mbps(bytes int64, d time.Duration) float64 {
 func (l *Link) Healthy() bool { return !l.unhealthy.Load() }
 
 // Usable reports whether new connections may use this link.
-func (l *Link) Usable() bool { return l.Up() && l.Healthy() }
+func (l *Link) Usable() bool { return l.Up() && l.Healthy() && !l.OverBudget() }
+
+// OverBudget reports whether the link used its monthly data budget and is
+// excluded for new connections.
+func (l *Link) OverBudget() bool { return l.overBudget.Load() }
+
+// SetOverBudget marks or releases the link for budget reasons.
+func (l *Link) SetOverBudget(v bool) { l.overBudget.Store(v) }
 
 // LatencyMs is the last measured TCP connect time to the internet (0 = unknown).
 func (l *Link) LatencyMs() int64 { return l.latency.Load() }

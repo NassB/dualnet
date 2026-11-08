@@ -94,7 +94,8 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: v
 .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; margin-left: auto; }
 .badge.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .badge.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
-.cap-btn { position: absolute; right: 14px; bottom: 14px; }
+.link { padding-bottom: 54px; }
+.card-actions { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 6px; }
 
 /* chart */
 .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -350,7 +351,7 @@ td.r, th.r { text-align: right; }
 <div class="modal" id="capModal">
   <div class="card">
     <div class="title" id="capTitle" style="font-weight:600"></div>
-    <input type="number" min="0" step="1" id="capInput">
+    <input type="number" min="0" step="any" id="capInput">
     <div class="row">
       <button class="btn ghost" id="capCancel" data-i18n="cancel"></button>
       <button class="btn" id="capOk" data-i18n="save"></button>
@@ -407,6 +408,8 @@ const I18N = {
     steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
     appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
     proxyOff: 'proxy disabled', done: 'Done',
+    thisMonth: 'This month', budget: 'Budget', noBudget: 'No budget', tagOver: 'Budget used',
+    budgetPrompt: 'Monthly data budget for {n} in GB (0 = none). Counts the data that goes through dualnet on this link; when it is used up, dualnet stops sending it new connections until next month.',
     notifTitle: 'Notifications', notifSub: 'A Windows notification when a link drops, comes back or appears, even if this window is closed.',
     notifTest: 'Send a test', notifSent: 'Test notification sent',
     diagTitle: 'Diagnostics', diagHead: 'Bug reports',
@@ -456,6 +459,8 @@ const I18N = {
     steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
     appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
     proxyOff: 'proxy désactivé', done: 'Fait',
+    thisMonth: 'Ce mois-ci', budget: 'Budget', noBudget: 'Sans budget', tagOver: 'Budget atteint',
+    budgetPrompt: 'Budget de données mensuel pour {n} en Go (0 = aucun). Compte les données qui passent par dualnet sur ce lien ; une fois atteint, dualnet ne lui envoie plus de nouvelles connexions jusqu’au mois prochain.',
     notifTitle: 'Notifications', notifSub: 'Une notification Windows quand un lien se coupe, revient ou apparaît, même si cette fenêtre est fermée.',
     notifTest: 'Envoyer un test', notifSent: 'Notification de test envoyée',
     diagTitle: 'Diagnostic', diagHead: 'Rapports de bug',
@@ -551,7 +556,7 @@ function setH(e, html) { // set innerHTML only when it changed
 // ---------- home ----------
 function renderHome(snap) {
   const p = snap.power || {};
-  const up = snap.links.filter(l => l.up && l.healthy);
+  const up = snap.links.filter(l => l.up && l.healthy && !l.overBudget);
   const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
   peakTotal = Math.max(peakTotal, total);
   $('hero').classList.toggle('off', !p.on);
@@ -574,12 +579,12 @@ function renderHome(snap) {
 
   const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
   const box = $('links');
-  const key = LANG + color(0) + snap.links.map(l => [l.name, l.ip, l.up, l.healthy, l.limit].join(',')).join('|');
+  const key = LANG + color(0) + snap.links.map(l => [l.name, l.ip, l.up, l.healthy, l.limit, l.budget, l.overBudget].join(',')).join('|');
   if (key !== linksKey) { // links, their state or the theme changed: rebuild the cards
     linksKey = key;
     box.innerHTML = snap.links.map((l, i) => {
-      const ok = l.up && l.healthy;
-      const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : t('tagUp');
+      const ok = l.up && l.healthy && !l.overBudget;
+      const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : l.overBudget ? t('tagOver') : t('tagUp');
       const c = color(i);
       return `<div class="card link${ok ? '' : ' down'}">
         <div class="link-head">
@@ -593,8 +598,11 @@ function renderHome(snap) {
           <span>${t('conns')} <b data-f="conns"></b></span>
           <span>${t('share')} <b data-f="share"></b></span>
         </div>
-        <div class="stats" style="margin-top:4px"><span data-f="recv"></span></div>
-        <button class="btn ghost small cap-btn" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="askCap(this.dataset.link, +this.dataset.limit)">${l.limit ? t('cap') + ' ' + l.limit + ' Mb/s' : t('capNone')}</button>
+        <div class="stats" style="margin-top:4px"><span data-f="recv"></span><span data-f="month"></span></div>
+        <div class="card-actions">
+          <button class="btn ghost small" data-link="${esc(l.name)}" data-budget="${l.budget}" onclick="askBudget(this.dataset.link, +this.dataset.budget)">${l.budget ? t('budget') + ' ' + l.budget + ' GB' : t('noBudget')}</button>
+          <button class="btn ghost small" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="askCap(this.dataset.link, +this.dataset.limit)">${l.limit ? t('cap') + ' ' + l.limit + ' Mb/s' : t('capNone')}</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -605,6 +613,7 @@ function renderHome(snap) {
     setF(card, 'conns', l.active);
     setF(card, 'share', (100 * l.totalRx / allRx).toFixed(0) + ' %');
     setF(card, 'recv', fmtBytes(l.totalRx) + ' ' + t('received'));
+    setF(card, 'month', t('thisMonth') + ' ' + l.monthGB.toFixed(1) + (l.budget ? ' / ' + l.budget : '') + ' GB');
   });
 }
 $('powerBtn').addEventListener('click', async () => {
@@ -615,15 +624,17 @@ $('powerBtn').addEventListener('click', async () => {
 });
 
 // cap modal
-let capLink = '';
-function askCap(name, cur) {
-  capLink = name; $('capTitle').textContent = t('capPrompt', { n: name });
+let numCb = null; // what to do with the number typed in the dialog
+function askNum(title, cur, cb) {
+  numCb = cb; $('capTitle').textContent = title;
   $('capInput').value = cur || 0; $('capModal').classList.add('show'); $('capInput').focus(); $('capInput').select();
 }
+const askCap = (name, cur) => askNum(t('capPrompt', { n: name }), cur, v => post(`/api/limit?link=${encodeURIComponent(name)}&mbps=${v}`));
+const askBudget = (name, cur) => askNum(t('budgetPrompt', { n: name }), cur, v => post(`/api/budget?link=${encodeURIComponent(name)}&gb=${v}`));
 $('capCancel').onclick = () => $('capModal').classList.remove('show');
 $('capOk').onclick = async () => {
   $('capModal').classList.remove('show');
-  await post(`/api/limit?link=${encodeURIComponent(capLink)}&mbps=${encodeURIComponent($('capInput').value || 0)}`);
+  if (numCb) await numCb(encodeURIComponent($('capInput').value || 0));
 };
 $('capInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('capOk').click(); if (e.key === 'Escape') $('capCancel').click(); });
 

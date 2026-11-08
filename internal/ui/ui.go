@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
+	mux.HandleFunc("POST /api/budget", s.setBudget)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
@@ -96,6 +97,9 @@ type linkView struct {
 	Healthy bool    `json:"healthy"`
 	Ping    int64   `json:"ping"`
 	Limit   int64   `json:"limit"`
+	Budget  float64 `json:"budget"`  // monthly data budget in GB (0 = none)
+	MonthGB float64 `json:"monthGB"` // data used this month, GB
+	Over    bool    `json:"overBudget"`
 	RxMbps  float64 `json:"rxMbps"`
 	TxMbps  float64 `json:"txMbps"`
 	Active  int64   `json:"active"`
@@ -207,10 +211,13 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					pr, prevTx[l] = rx, tx
 				}
 				snap.Links = append(snap.Links, linkView{
-					Name: l.Name, IP: l.IP().String(), Up: l.Up(), Healthy: l.Healthy(), Ping: l.LatencyMs(), Limit: l.LimitMbps(),
+					Name: l.Name, IP: l.IP().String(), Up: l.Up(), Healthy: l.Healthy(), Ping: l.LatencyMs(), Limit: l.LimitMbps(), Over: l.OverBudget(),
 					RxMbps: links.Mbps(rx-pr, dt), TxMbps: links.Mbps(tx-prevTx[l], dt),
 					Active: l.Active.Load(), TotalRx: rx, TotalTx: tx,
 				})
+				if n := len(snap.Links); n > 0 {
+					snap.Links[n-1].Budget, snap.Links[n-1].MonthGB = s.budgetOf(l, now)
+				}
 				prevRx[l], prevTx[l] = rx, tx
 			}
 			s.mu.Lock()
