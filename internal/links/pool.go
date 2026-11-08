@@ -117,6 +117,10 @@ func (p *Pool) Watch(ctx context.Context, every time.Duration) {
 }
 
 func (p *Pool) wanted(name string, ip net.IP) bool {
+	// Never use dualnet's own virtual adapter (transparent mode) as a link: it would loop.
+	if strings.EqualFold(name, "dualnet") || ip.Equal(net.IPv4(198, 18, 0, 1)) {
+		return false
+	}
 	if len(p.selectors) > 0 {
 		return matches(p.selectors, name, ip)
 	}

@@ -80,7 +80,7 @@ func newLink(name string, ip net.IP) *Link {
 	return l
 }
 
-var skipNames = []string{"loopback", "vethernet", "virtualbox", "vmware", "hyper-v", "bluetooth", "wsl", "tailscale", "zerotier", "wireguard", "openvpn", "tap-"}
+var skipNames = []string{"dualnet", "wintun", "loopback", "vethernet", "virtualbox", "vmware", "hyper-v", "bluetooth", "wsl", "tailscale", "zerotier", "wireguard", "openvpn", "tap-"}
 
 // Discover returns the links to use. If selectors is non-empty, it is a list of
 // interface names or IPv4 addresses (case-insensitive); otherwise all plausible
