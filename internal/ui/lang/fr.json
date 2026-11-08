@@ -189,5 +189,9 @@
     "link is not usable": "lien inutilisable",
     "speed test already running": "un test de vitesse est déjà en cours",
     "speed test failed": "échec du test de vitesse"
-  }
+  },
+  "colLimit": "Vitesse max",
+  "limitNone": "Sans limite",
+  "limitMbps": "{n} Mb/s",
+  "limitMax": "max {n} Mb/s"
 }

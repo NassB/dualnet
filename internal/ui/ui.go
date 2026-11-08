@@ -81,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/limit", s.setLimit)
 	mux.HandleFunc("POST /api/budget", s.setBudget)
 	mux.HandleFunc("POST /api/rule", s.setRule)
+	mux.HandleFunc("POST /api/applimit", s.setAppLimit)
 	mux.HandleFunc("GET /api/doctor", s.getDoctor)
 	mux.HandleFunc("POST /api/speedtest", s.speedTest)
 	mux.HandleFunc("POST /api/role", s.setRole)

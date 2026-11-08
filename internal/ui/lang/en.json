@@ -189,5 +189,9 @@
     "link is not usable": "link is not usable",
     "speed test already running": "speed test already running",
     "speed test failed": "speed test failed"
-  }
+  },
+  "colLimit": "Max speed",
+  "limitNone": "No limit",
+  "limitMbps": "{n} Mb/s",
+  "limitMax": "max {n} Mb/s"
 }

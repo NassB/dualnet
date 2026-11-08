@@ -210,3 +210,61 @@ func TestAppRegistry(t *testing.T) {
 		t.Fatalf("listed %d apps, want at most 20", n)
 	}
 }
+
+// A cap on an application slows all its connections together, and only its.
+func TestAppLimit(t *testing.T) {
+	ln := echoServer(t)
+	defer ln.Close()
+	a := links.New("a", net.IPv4(127, 0, 0, 1))
+	limit := 8 // Mb/s = 1 MB/s
+	s := &Server{Pool: links.PoolOf(a), AppLimit: func(app string) int {
+		if app == "game.exe" {
+			return limit
+		}
+		return 0
+	}}
+	d := TunDialer{S: s, AppOf: fakeApps}
+
+	pump := func(srcPort uint16, size int) time.Duration {
+		t.Helper()
+		c, err := d.DialContext(context.Background(), tcpFlow(ln, srcPort))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		go func() { c.Write(make([]byte, size)) }()
+		start := time.Now()
+		buf := make([]byte, 32*1024)
+		for got := 0; got < size; {
+			c.SetReadDeadline(time.Now().Add(5 * time.Second))
+			n, err := c.Read(buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got += n
+		}
+		return time.Since(start)
+	}
+
+	if el := pump(1, 500_000); el < 300*time.Millisecond || el > 1200*time.Millisecond {
+		t.Fatalf("500 KB at 1 MB/s took %v, want ~0.5 s", el)
+	}
+	if el := pump(2, 500_000); el > 200*time.Millisecond {
+		t.Fatalf("an application without a cap took %v", el)
+	}
+	// raising the cap applies to the next second without reconnecting
+	limit = 0
+	time.Sleep(1100 * time.Millisecond)
+	if el := pump(1, 500_000); el > 200*time.Millisecond {
+		t.Fatalf("cap removed but still slow: %v", el)
+	}
+	var seen bool
+	for _, v := range s.Apps.Snapshot() {
+		if v.Name == "game.exe" {
+			seen = true
+		}
+	}
+	if !seen {
+		t.Fatal("game.exe missing from the stats")
+	}
+}

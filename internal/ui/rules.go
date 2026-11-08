@@ -2,6 +2,7 @@ package ui
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,11 +18,13 @@ type appView struct {
 	RxMbps  float64 `json:"rxMbps"`
 	PerLink []int64 `json:"perLink"` // bytes received through each link, in the order of the links list
 	Rule    string  `json:"rule"`    // link the application is restricted to ("" = none)
+	Limit   int     `json:"limit"`   // download cap in Mb/s (0 = none)
 }
 
 type ruleView struct {
-	App  string `json:"app"`
-	Link string `json:"link"`
+	App   string `json:"app"`
+	Link  string `json:"link"`
+	Limit int    `json:"limit"`
 }
 
 // appViews turns the per-application counters into what the page shows. prev
@@ -41,6 +44,7 @@ func (s *Server) appViews(all []*links.Link, dt time.Duration, prev map[string]i
 		}
 		if s.Store != nil {
 			v.Rule = s.Store.RuleLink(a.Name)
+			v.Limit = s.Store.RuleLimit(a.Name)
 		}
 		out = append(out, v)
 	}
@@ -51,7 +55,7 @@ func (s *Server) ruleViews() []ruleView {
 	out := []ruleView{}
 	if s.Store != nil {
 		for _, r := range s.Store.Rules() {
-			out = append(out, ruleView{App: r.App, Link: r.Link})
+			out = append(out, ruleView{App: r.App, Link: r.Link, Limit: r.Limit})
 		}
 	}
 	return out
@@ -79,5 +83,18 @@ func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.Store.SetRule(app, link)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// setAppLimit caps an application's download speed: ?app=<exe name>&mbps=<n>.
+// 0 removes the cap.
+func (s *Server) setAppLimit(w http.ResponseWriter, r *http.Request) {
+	app := strings.TrimSpace(r.URL.Query().Get("app"))
+	mbps, err := strconv.Atoi(r.URL.Query().Get("mbps"))
+	if app == "" || len(app) > 128 || strings.ContainsAny(app, `/\:*?"<>|`) || err != nil || mbps < 0 || mbps > 100000 {
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	s.Store.SetRuleLimit(app, mbps)
 	w.WriteHeader(http.StatusNoContent)
 }

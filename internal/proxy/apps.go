@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/ratelimit"
 )
 
 // UnknownApp names the traffic whose owning program could not be found.
@@ -20,6 +21,45 @@ type AppStats struct {
 	active, total, rx, tx, last atomic.Int64
 	mu                          sync.Mutex
 	rxByLink                    map[string]int64
+
+	// download cap shared by all the application's connections
+	lim     ratelimit.Bucket
+	limFn   func() int // current cap in Mb/s, asked again every second
+	limAt   atomic.Int64
+	limMbps atomic.Int64
+	limitMu sync.Mutex
+}
+
+// bindLimit tells the application where to read its cap from.
+func (a *AppStats) bindLimit(fn func() int) {
+	if fn == nil {
+		return
+	}
+	a.limitMu.Lock()
+	a.limFn = fn
+	a.limitMu.Unlock()
+	a.refreshLimit()
+}
+
+func (a *AppStats) refreshLimit() {
+	a.limAt.Store(time.Now().UnixNano())
+	a.limitMu.Lock()
+	fn := a.limFn
+	a.limitMu.Unlock()
+	if fn == nil {
+		return
+	}
+	if m := int64(fn()); m != a.limMbps.Swap(m) {
+		a.lim.Set(float64(m) * 1e6 / 8)
+	}
+}
+
+// throttle accounts n received bytes against the application's cap.
+func (a *AppStats) throttle(n int) {
+	if time.Since(time.Unix(0, a.limAt.Load())) > time.Second {
+		a.refreshLimit()
+	}
+	a.lim.Wait(n)
 }
 
 func (a *AppStats) touch()  { a.last.Store(time.Now().UnixNano()) }
@@ -44,6 +84,7 @@ type AppView struct {
 	Total    int64            // connections since dualnet started
 	Rx, Tx   int64            // bytes received / sent
 	RxByLink map[string]int64 // bytes received through each link
+	Limit    int              // download cap in Mb/s (0 = none)
 }
 
 // AppRegistry holds the counters of every application seen recently.
@@ -81,7 +122,7 @@ func (r *AppRegistry) Snapshot() []AppView {
 			delete(r.apps, k)
 			continue
 		}
-		v := AppView{Name: a.Name, Active: a.active.Load(), Total: a.total.Load(), Rx: a.rx.Load(), Tx: a.tx.Load(), RxByLink: map[string]int64{}}
+		v := AppView{Name: a.Name, Active: a.active.Load(), Total: a.total.Load(), Rx: a.rx.Load(), Tx: a.tx.Load(), RxByLink: map[string]int64{}, Limit: int(a.limMbps.Load())}
 		a.mu.Lock()
 		for l, b := range a.rxByLink {
 			v.RxByLink[l] = b

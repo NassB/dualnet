@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/NassB/dualnet/internal/ratelimit"
 )
 
 // Link is one outgoing internet path: a network interface and its IPv4.
@@ -31,7 +33,7 @@ type Link struct {
 
 	connsMu sync.Mutex
 	conns   map[*countingConn]struct{} // open connections, to tell busy from idle
-	lim     limiter
+	lim     ratelimit.Bucket
 
 	BytesIn  atomic.Int64
 	BytesOut atomic.Int64

@@ -187,6 +187,21 @@ func TestRuleEndpoint(t *testing.T) {
 		t.Error("an empty link must remove the rule")
 	}
 	// the events stream carries apps and rules (empty here: nothing captured)
+	if post("/api/applimit?app=game.exe&mbps=20", false) != 403 || st.RuleLimit("game.exe") != 0 {
+		t.Error("app limit accepted without the guard header")
+	}
+	if post("/api/applimit?app=game.exe&mbps=20", true) != 204 || st.RuleLimit("game.exe") != 20 {
+		t.Error("app limit not set")
+	}
+	for _, bad := range []string{"app=&mbps=5", "app=a%2Fb&mbps=5", "app=x.exe&mbps=-1", "app=x.exe&mbps=abc", "app=x.exe&mbps=999999"} {
+		if got := post("/api/applimit?"+bad, true); got != 400 {
+			t.Errorf("%s: status %d, want 400", bad, got)
+		}
+	}
+	if v := srv.ruleViews(); len(v) != 1 || v[0].Limit != 20 {
+		t.Errorf("ruleViews = %v", v)
+	}
+	post("/api/applimit?app=game.exe&mbps=0", true)
 	if v := srv.ruleViews(); len(v) != 0 {
 		t.Errorf("ruleViews = %v", v)
 	}

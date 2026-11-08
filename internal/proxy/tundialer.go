@@ -32,7 +32,11 @@ func (d TunDialer) app(md *M.Metadata) (string, *AppStats) {
 	if name == "" {
 		name = UnknownApp
 	}
-	return name, d.S.Apps.Get(name)
+	st := d.S.Apps.Get(name)
+	if d.S.AppLimit != nil && name != UnknownApp {
+		st.bindLimit(func() int { return d.S.AppLimit(name) })
+	}
+	return name, st
 }
 
 // DialContext opens a TCP connection to the destination over the best link the
@@ -94,6 +98,7 @@ func (c *activeConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	if c.app != nil && n > 0 {
 		c.app.addRx(c.link.Name, n)
+		c.app.throttle(n)
 	}
 	return n, err
 }
@@ -129,6 +134,7 @@ func (c *countingPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	c.link.Throttle(n)
 	if c.app != nil && n > 0 {
 		c.app.addRx(c.link.Name, n)
+		c.app.throttle(n)
 	}
 	return n, a, err
 }

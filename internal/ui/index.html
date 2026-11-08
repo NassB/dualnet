@@ -144,7 +144,7 @@ code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; bac
 
 .warn-banner { display: none; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
   color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 12px; padding: 11px 14px; margin-bottom: 14px; font-size: 13px; }
-.app-row { display: grid; grid-template-columns: minmax(120px, 1.3fr) 70px 90px 90px minmax(90px, 1fr) minmax(130px, 150px); gap: 10px;
+.app-row { display: grid; grid-template-columns: minmax(120px, 1.3fr) 70px 90px 90px minmax(90px, 1fr) minmax(130px, 150px) 92px; gap: 10px;
   align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; font-variant-numeric: tabular-nums; }
 .app-row.head { border-top: 0; color: var(--muted); font-size: 12px; padding-top: 0; }
 .app-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -831,6 +831,11 @@ async function runSpeed(btn) {
 
 // ---------- applications and rules ----------
 let appsKey = '', rulesKey = '';
+const LIMITS = [0, 2, 5, 10, 20, 50, 100, 200];
+function limitOptions(cur) {
+  const vals = LIMITS.includes(cur) ? LIMITS : [...LIMITS, cur].sort((a, b) => a - b);
+  return vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${v ? esc(t('limitMbps', { n: v })) : esc(t('limitNone'))}</option>`).join('');
+}
 function routeOptions(snap, current) {
   return `<option value="">${esc(t('routeAll'))}</option>` + snap.links.map(l =>
     `<option value="${esc(l.name)}"${current === l.name ? ' selected' : ''}>${esc(t('routeOnly', { n: l.name }))}</option>`).join('');
@@ -841,15 +846,16 @@ function renderApps(snap) {
   if (!snap.tun || !snap.tun.on) { setH(box, `<div class="empty">${esc(t('appsNeedTun'))}</div>`); appsKey = ''; return; }
   if (!apps.length) { setH(box, `<div class="empty">${esc(t('appsNone'))}</div>`); appsKey = ''; return; }
   // rebuild only when the list, the rules or the links change; otherwise update the numbers in place
-  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + apps.map(a => a.name + ':' + a.rule).join(',');
+  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + apps.map(a => a.name + ':' + a.rule + ':' + a.limit).join(',');
   if (key !== appsKey) {
     appsKey = key; box._h = null;
-    box.innerHTML = `<div class="app-row head"><span>${t('colApp')}</span><span class="r">${t('colConns')}</span><span class="r">${t('colSpeed')}</span><span class="r">${t('colData')}</span><span class="hide-sm">${t('colLinks')}</span><span class="hide-sm">${t('colRoute')}</span></div>` +
+    box.innerHTML = `<div class="app-row head"><span>${t('colApp')}</span><span class="r">${t('colConns')}</span><span class="r">${t('colSpeed')}</span><span class="r">${t('colData')}</span><span class="hide-sm">${t('colLinks')}</span><span class="hide-sm">${t('colRoute')}</span><span class="hide-sm">${t('colLimit')}</span></div>` +
       apps.map((a, i) => `<div class="app-row">
         <span class="app-name" title="${esc(a.name)}">${esc(a.name)}</span>
         <span class="r" data-f="conns"></span><span class="r" data-f="speed"></span><span class="r" data-f="data"></span>
         <div class="bar hide-sm" data-f="bar" style="margin:0"></div>
         <select class="hide-sm" data-app="${esc(a.name)}" onchange="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=' + encodeURIComponent(this.value))">${routeOptions(snap, a.rule)}</select>
+        <select class="hide-sm" data-app="${esc(a.name)}" onchange="post('/api/applimit?app=' + encodeURIComponent(this.dataset.app) + '&mbps=' + this.value)">${limitOptions(a.limit)}</select>
       </div>`).join('');
   }
   apps.forEach((a, i) => {
@@ -864,10 +870,10 @@ function renderApps(snap) {
 }
 function renderRules(snap) {
   const rules = snap.rules || [];
-  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + rules.map(r => r.app + ':' + r.link).join(',');
+  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + rules.map(r => r.app + ':' + r.link + ':' + r.limit).join(',');
   if (key === rulesKey) return;
   rulesKey = key;
-  $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc(t('routeOnly', { n: r.link }))}</span>
+  $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc([r.link ? t('routeOnly', { n: r.link }) : '', r.limit ? t('limitMax', { n: r.limit }) : ''].filter(Boolean).join(' · '))}</span>
       <button class="btn ghost small" data-app="${esc(r.app)}" onclick="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=')">${t('ruleRemove')}</button></div>`).join('')
     : `<div class="empty">${t('rulesNone')}</div>`;
   const sel = $('ruleLink'), cur = sel.value;
