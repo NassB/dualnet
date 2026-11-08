@@ -1,0 +1,27 @@
+name: integration
+
+# Tests that need a real Windows machine with administrator rights: the Wintun
+# adapter, routes, install and uninstall. They use the network, so they run on
+# demand and once a week rather than on every push.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+      - name: Integration tests (administrator)
+        run: go test -tags integration -v -count=1 -timeout 20m ./integration
