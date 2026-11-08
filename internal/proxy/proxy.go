@@ -28,6 +28,11 @@ type Server struct {
 	Sticky time.Duration
 	// BusyWindow: connections idle longer than this do not count as load (default 10 s).
 	BusyWindow time.Duration
+	// Rules returns the links an application is restricted to (transparent mode);
+	// nil or empty = unrestricted.
+	Rules func(app string) []string
+	// Apps counts the traffic per application (transparent mode).
+	Apps *AppRegistry
 
 	initOnce   sync.Once
 	mu         sync.Mutex
@@ -45,6 +50,9 @@ func (s *Server) init() {
 	s.initOnce.Do(func() {
 		s.sticky = map[string]stickyEntry{}
 		s.rate = map[*links.Link]float64{}
+		if s.Apps == nil {
+			s.Apps = NewAppRegistry()
+		}
 		go s.stats()
 	})
 }
@@ -152,12 +160,17 @@ func (s *Server) pickLowestLatency() []*links.Link {
 // isDNSPort: DNS (53) and DNS over TLS (853).
 func isDNSPort(port string) bool { return port == "53" || port == "853" }
 
-func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
+func (s *Server) dial(addr string) (net.Conn, *links.Link, error) { return s.dialFor(addr, nil) }
+
+// dialFor connects over the best link allow accepts (nil = any), falling back to
+// the other links when none of the accepted ones can be used.
+func (s *Server) dialFor(addr string, allow func(*links.Link) bool) (net.Conn, *links.Link, error) {
 	host, port, _ := net.SplitHostPort(addr)
 	order := s.pick(host)
 	if isDNSPort(port) {
 		order = s.pickLowestLatency()
 	}
+	order = filterLinks(order, allow)
 	lastErr := errNoLink
 	for _, l := range order {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/store"
@@ -145,5 +146,48 @@ func TestBudgetEndpoint(t *testing.T) {
 	}
 	if post("/api/budget?link=Wi-Fi&gb=0", true) != 204 || st.Budget("Wi-Fi") != 0 {
 		t.Error("0 must remove the budget")
+	}
+}
+
+func TestRuleEndpoint(t *testing.T) {
+	st := store.Open(t.TempDir())
+	srv := &Server{Store: st, Tun: &TunControl{}, Pool: links.PoolOf(links.New("Wi-Fi", net.IPv4(192, 168, 1, 2)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path string, header bool) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		if header {
+			req.Header.Set(CSRFHeader, "1")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if post("/api/rule?app=game.exe&link=Wi-Fi", false) != 403 || len(st.Rules()) != 0 {
+		t.Fatal("rule added without the header")
+	}
+	if post("/api/rule?app=game.exe&link=Wi-Fi", true) != 204 || st.RuleLink("game.exe") != "Wi-Fi" {
+		t.Fatal("rule not added")
+	}
+	for _, bad := range []string{"app=&link=Wi-Fi", "app=..%5Cevil.exe&link=Wi-Fi", "app=a%2Fb&link=Wi-Fi", "app=C%3Agame.exe&link=Wi-Fi"} {
+		if got := post("/api/rule?"+bad, true); got != 400 {
+			t.Errorf("%s: HTTP %d, want 400", bad, got)
+		}
+	}
+	if post("/api/rule?app=game.exe&link=Nope", true) != 404 {
+		t.Error("a rule for an unknown link must be refused")
+	}
+	if post("/api/rule?app=game.exe&link=", true) != 204 || st.RuleLink("game.exe") != "" {
+		t.Error("an empty link must remove the rule")
+	}
+	// the events stream carries apps and rules (empty here: nothing captured)
+	if v := srv.ruleViews(); len(v) != 0 {
+		t.Errorf("ruleViews = %v", v)
+	}
+	if v := srv.appViews(srv.Pool.All(), time.Second, map[string]int64{}); v == nil || len(v) != 0 {
+		t.Errorf("appViews = %#v, want a non-nil empty list (JSON [])", v)
 	}
 }

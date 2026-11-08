@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/NassB/dualnet/internal/procinfo"
 	"github.com/NassB/dualnet/internal/proxy"
 	"github.com/NassB/dualnet/internal/transparent"
+	M "github.com/xjasonlyu/tun2socks/v2/metadata"
 )
 
 // TunControl starts and stops the transparent mode.
@@ -32,7 +34,7 @@ func (c *TunControl) Set(on bool) error {
 	if c.t != nil {
 		return nil
 	}
-	t, err := transparent.Start(proxy.TunDialer{S: c.Proxy})
+	t, err := transparent.Start(proxy.TunDialer{S: c.Proxy, AppOf: appOf})
 	if err != nil {
 		c.err = err.Error()
 		return err
@@ -69,4 +71,21 @@ func (s *Server) setTun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// appOf names the program that opened a captured flow, from its source port.
+func appOf(md *M.Metadata) string {
+	proto := "tcp"
+	if md.Network == M.UDP {
+		proto = "udp"
+	}
+	return procinfo.AppFor(proto, md.SrcIP, md.SrcPort)
+}
+
+// Apps returns the per-application counters (empty until traffic is captured).
+func (c *TunControl) Apps() []proxy.AppView {
+	if c == nil || c.Proxy == nil || c.Proxy.Apps == nil {
+		return nil
+	}
+	return c.Proxy.Apps.Snapshot()
 }

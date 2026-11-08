@@ -27,6 +27,8 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// Rules: applications restricted to one link (transparent mode).
+	Rules []Rule `json:"rules,omitempty"`
 	// Budgets: monthly data budget per link in GB (absent = none).
 	Budgets map[string]float64 `json:"budgets,omitempty"`
 	// Notify: Windows notifications for link events; nil = yes.

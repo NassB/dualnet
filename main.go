@@ -175,11 +175,11 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 	}
 	pool := watchPool(ctx, cfg.ifs)
 	proxyAddrInUse = cfg.proxyAddr
-	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky}
+	st := store.Open(store.DefaultDir())
+	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky, Rules: st.RuleLinks}
 	if cfg.proxyAddr != "" {
 		go func() { check(p.ListenAndServe(cfg.proxyAddr)) }()
 	}
-	st := store.Open(store.DefaultDir())
 	for _, l := range pool.All() {
 		st.ApplyLimit(l)
 	}

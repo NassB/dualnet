@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
 	mux.HandleFunc("POST /api/budget", s.setBudget)
+	mux.HandleFunc("POST /api/rule", s.setRule)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
@@ -133,6 +134,8 @@ type snapshot struct {
 	Power powerView  `json:"power"`
 	Upd   updateView `json:"update"`
 	Notif bool       `json:"notify"`
+	Apps  []appView  `json:"apps"`
+	Rules []ruleView `json:"rules"`
 	Auto  *bool      `json:"autostart,omitempty"` // nil = option not available
 }
 
@@ -187,6 +190,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	prevRx := map[*links.Link]int64{}
 	prevTx := map[*links.Link]int64{}
 	prevJob := map[int]int64{}
+	prevApp := map[string]int64{}
 	for _, l := range s.Pool.All() {
 		prevRx[l], prevTx[l] = l.BytesIn.Load(), l.BytesOut.Load()
 	}
@@ -245,6 +249,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				snap.Jobs = append(snap.Jobs, v)
 			}
 			s.mu.Unlock()
+			snap.Apps = s.appViews(all, dt, prevApp)
+			snap.Rules = s.ruleViews()
 			b, _ := json.Marshal(snap)
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			fl.Flush()

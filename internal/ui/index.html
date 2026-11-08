@@ -142,6 +142,17 @@ code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; bac
 
 .warn-banner { display: none; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
   color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 12px; padding: 11px 14px; margin-bottom: 14px; font-size: 13px; }
+.app-row { display: grid; grid-template-columns: minmax(120px, 1.3fr) 70px 90px 90px minmax(90px, 1fr) minmax(130px, 150px); gap: 10px;
+  align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; font-variant-numeric: tabular-nums; }
+.app-row.head { border-top: 0; color: var(--muted); font-size: 12px; padding-top: 0; }
+.app-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-row .r { text-align: right; }
+.app-row select { padding: 4px 6px; font-size: 12px; width: 100%; }
+.rule-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.rule-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+form.rule-add { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+form.rule-add input { flex: 1 1 200px; min-width: 0; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; }
+@media (max-width: 760px) { .app-row { grid-template-columns: 1fr 70px 90px; } .app-row .hide-sm { display: none; } }
 .info-banner { display: none; align-items: center; gap: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
   color: var(--text); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); border-radius: 12px; padding: 9px 14px; margin-bottom: 14px; font-size: 13px; }
 .info-banner svg { width: 18px; height: 18px; flex: none; color: var(--accent); }
@@ -236,6 +247,14 @@ td.r, th.r { text-align: right; }
 
       <div class="card mt">
         <div class="chart-head">
+          <h2 data-i18n="appsTitle"></h2>
+          <div class="legend" id="appsLegend"></div>
+        </div>
+        <div id="apps"></div>
+      </div>
+
+      <div class="card mt">
+        <div class="chart-head">
           <h2 data-i18n="chartTitle"></h2>
           <div class="legend" id="legend"></div>
         </div>
@@ -312,6 +331,20 @@ td.r, th.r { text-align: right; }
           <div class="txt"><div class="title" data-i18n="steamTitle"></div><div class="sub" data-i18n="steamSub"></div></div>
           <button class="btn ghost" id="steamBtn" data-i18n="restart"></button>
         </div>
+      </div>
+
+      <div class="card mt">
+        <h2 data-i18n="rulesTitle"></h2>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="rulesHead"></div><div class="sub" data-i18n="rulesSub"></div></div>
+        </div>
+        <div id="rules"></div>
+        <form class="rule-add" id="ruleForm">
+          <input type="text" id="ruleApp" list="appNames" data-i18n-ph="ruleAppPh" maxlength="100" required>
+          <datalist id="appNames"></datalist>
+          <select id="ruleLink"></select>
+          <button class="btn small" type="submit" data-i18n="ruleAdd"></button>
+        </form>
       </div>
 
       <div class="card mt" id="appCard">
@@ -408,6 +441,12 @@ const I18N = {
     steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
     appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
     proxyOff: 'proxy disabled', done: 'Done',
+    appsTitle: 'Applications', appsNeedTun: 'Per-application statistics and rules need transparent mode (run dualnet as administrator and turn it on).',
+    appsNone: 'No application traffic yet.', colApp: 'Application', colConns: 'Conn.', colSpeed: 'Speed', colData: 'Received', colLinks: 'Links', colRoute: 'Uses',
+    routeAll: 'All links', routeOnly: 'Only {n}',
+    rulesTitle: 'Application rules', rulesHead: 'Restrict an application to one link',
+    rulesSub: 'Example: keep an online game on Wi‑Fi for a steady ping while Steam uses every link. If the chosen link is down, the application uses the others. Transparent mode only.',
+    rulesNone: 'No rules.', ruleAppPh: 'Program, e.g. game.exe', ruleAdd: 'Add rule', ruleRemove: 'Remove',
     thisMonth: 'This month', budget: 'Budget', noBudget: 'No budget', tagOver: 'Budget used',
     budgetPrompt: 'Monthly data budget for {n} in GB (0 = none). Counts the data that goes through dualnet on this link; when it is used up, dualnet stops sending it new connections until next month.',
     notifTitle: 'Notifications', notifSub: 'A Windows notification when a link drops, comes back or appears, even if this window is closed.',
@@ -459,6 +498,12 @@ const I18N = {
     steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
     appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
     proxyOff: 'proxy désactivé', done: 'Fait',
+    appsTitle: 'Applications', appsNeedTun: 'Les statistiques et règles par application nécessitent le mode transparent (lancez dualnet en administrateur et activez-le).',
+    appsNone: 'Pas encore de trafic d’application.', colApp: 'Application', colConns: 'Conn.', colSpeed: 'Débit', colData: 'Reçu', colLinks: 'Liens', colRoute: 'Utilise',
+    routeAll: 'Tous les liens', routeOnly: 'Seulement {n}',
+    rulesTitle: 'Règles par application', rulesHead: 'Limiter une application à un lien',
+    rulesSub: 'Exemple : garder un jeu en ligne sur le Wi‑Fi pour un ping stable pendant que Steam utilise tous les liens. Si le lien choisi est coupé, l’application utilise les autres. Mode transparent uniquement.',
+    rulesNone: 'Aucune règle.', ruleAppPh: 'Programme, ex. game.exe', ruleAdd: 'Ajouter', ruleRemove: 'Supprimer',
     thisMonth: 'Ce mois-ci', budget: 'Budget', noBudget: 'Sans budget', tagOver: 'Budget atteint',
     budgetPrompt: 'Budget de données mensuel pour {n} en Go (0 = aucun). Compte les données qui passent par dualnet sur ce lien ; une fois atteint, dualnet ne lui envoie plus de nouvelles connexions jusqu’au mois prochain.',
     notifTitle: 'Notifications', notifSub: 'Une notification Windows quand un lien se coupe, revient ou apparaît, même si cette fenêtre est fermée.',
@@ -787,6 +832,57 @@ $('logToggle').addEventListener('click', async () => {
 });
 setInterval(() => { if (!$('logView').hidden && $('page-settings').classList.contains('active')) loadLog(); }, 5000);
 
+// ---------- applications and rules ----------
+let appsKey = '', rulesKey = '';
+function routeOptions(snap, current) {
+  return `<option value="">${esc(t('routeAll'))}</option>` + snap.links.map(l =>
+    `<option value="${esc(l.name)}"${current === l.name ? ' selected' : ''}>${esc(t('routeOnly', { n: l.name }))}</option>`).join('');
+}
+function renderApps(snap) {
+  const box = $('apps'), apps = snap.apps || [];
+  $('appsLegend').innerHTML = snap.links.map((l, i) => `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
+  if (!snap.tun || !snap.tun.on) { setH(box, `<div class="empty">${esc(t('appsNeedTun'))}</div>`); appsKey = ''; return; }
+  if (!apps.length) { setH(box, `<div class="empty">${esc(t('appsNone'))}</div>`); appsKey = ''; return; }
+  // rebuild only when the list, the rules or the links change; otherwise update the numbers in place
+  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + apps.map(a => a.name + ':' + a.rule).join(',');
+  if (key !== appsKey) {
+    appsKey = key; box._h = null;
+    box.innerHTML = `<div class="app-row head"><span>${t('colApp')}</span><span class="r">${t('colConns')}</span><span class="r">${t('colSpeed')}</span><span class="r">${t('colData')}</span><span class="hide-sm">${t('colLinks')}</span><span class="hide-sm">${t('colRoute')}</span></div>` +
+      apps.map((a, i) => `<div class="app-row">
+        <span class="app-name" title="${esc(a.name)}">${esc(a.name)}</span>
+        <span class="r" data-f="conns"></span><span class="r" data-f="speed"></span><span class="r" data-f="data"></span>
+        <div class="bar hide-sm" data-f="bar" style="margin:0"></div>
+        <select class="hide-sm" data-app="${esc(a.name)}" onchange="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=' + encodeURIComponent(this.value))">${routeOptions(snap, a.rule)}</select>
+      </div>`).join('');
+  }
+  apps.forEach((a, i) => {
+    const row = box.children[i + 1];
+    if (!row) return;
+    setF(row, 'conns', a.active);
+    setF(row, 'speed', a.rxMbps >= 0.05 ? fmtMbps(a.rxMbps) + ' Mb/s' : '—');
+    setF(row, 'data', fmtBytes(a.rx));
+    const tot = a.perLink.reduce((x, y) => x + y, 0) || 1;
+    setH(row.querySelector('[data-f="bar"]'), a.perLink.map((b, k) => `<span style="width:${(100 * b / tot).toFixed(1)}%;background:${color(k)}"></span>`).join(''));
+  });
+}
+function renderRules(snap) {
+  const rules = snap.rules || [];
+  const key = LANG + snap.links.map(l => l.name).join(',') + '|' + rules.map(r => r.app + ':' + r.link).join(',');
+  if (key === rulesKey) return;
+  rulesKey = key;
+  $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc(t('routeOnly', { n: r.link }))}</span>
+      <button class="btn ghost small" data-app="${esc(r.app)}" onclick="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=')">${t('ruleRemove')}</button></div>`).join('')
+    : `<div class="empty">${t('rulesNone')}</div>`;
+  const sel = $('ruleLink'), cur = sel.value;
+  sel.innerHTML = snap.links.map(l => `<option value="${esc(l.name)}">${esc(t('routeOnly', { n: l.name }))}</option>`).join('');
+  if (cur) sel.value = cur;
+  $('appNames').innerHTML = (snap.apps || []).map(a => `<option value="${esc(a.name)}">`).join('');
+}
+$('ruleForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (await post('/api/rule?app=' + encodeURIComponent($('ruleApp').value.trim()) + '&link=' + encodeURIComponent($('ruleLink').value))) $('ruleApp').value = '';
+});
+
 function renderUpdate(snap) {
   const u = snap.update || {};
   $('updBanner').style.display = u.available ? 'flex' : 'none';
@@ -863,7 +959,7 @@ function connect() {
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
     $('ver').textContent = snap.version || '';
-    renderHome(snap); renderJobs(snap); renderSettings(snap); renderUpdate(snap);
+    renderHome(snap); renderApps(snap); renderJobs(snap); renderSettings(snap); renderRules(snap); renderUpdate(snap);
     if ($('page-home').classList.contains('active')) draw();
   };
 }
