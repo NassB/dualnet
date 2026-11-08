@@ -37,6 +37,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .kpi .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .warn { display: none; border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); color: var(--warn);
   background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
+.hist td { text-align: left; } .hist td:last-child { text-align: right; } .hist tr:first-child td { color: var(--muted); border-top: 0; }
 .limit { margin-top: 6px; } .limit button { margin-left: 4px; }
 .kpi.down { opacity: .55; }
 .tag { font-size: 10px; font-weight: 600; color: var(--warn); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
@@ -160,6 +161,11 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
       </div>
       <table id="totals"></table>
     </div>
+  </section>
+
+  <section class="panel" style="margin-top:14px">
+    <h2>Historique (30 derniers jours)</h2>
+    <div id="history" class="empty">Chargement…</div>
   </section>
 </div>
 
@@ -388,6 +394,26 @@ function renderTotals(snap) {
   document.getElementById('totals').innerHTML = snap.links.map((l, i) =>
     `<tr><td><span class="swatch" style="background:${color(i)}"></span> ${esc(l.name)}</td><td>↓ ${fmtBytes(l.totalRx)} · ↑ ${fmtBytes(l.totalTx)}</td></tr>`).join('');
 }
+
+// ---------- history ----------
+async function loadHistory() {
+  try {
+    const days = await (await fetch('/api/history')).json();
+    const el = document.getElementById('history');
+    if (!days.length) { el.textContent = 'Pas encore de données (enregistrées toutes les 10 s).'; return; }
+    const names = [...new Set(days.flatMap(d => Object.keys(d.links)))];
+    const idx = n => { const i = links.findIndex(l => l.name === n); return i < 0 ? names.indexOf(n) : i; };
+    el.className = '';
+    el.innerHTML = `<table class="hist"><tr><td>Jour</td>${names.map(n =>
+      `<td><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</td>`).join('')}<td>Total</td><td>Part</td></tr>` +
+      days.map(d => {
+        const tot = names.reduce((a, n) => a + ((d.links[n] || {}).rx || 0), 0) || 1;
+        const bar = names.map(n => `<span style="width:${(100 * ((d.links[n] || {}).rx || 0) / tot).toFixed(1)}%;background:${color(idx(n))}"></span>`).join('');
+        return `<tr><td>${d.date}</td>${names.map(n => `<td>${fmtBytes((d.links[n] || {}).rx || 0)}</td>`).join('')}<td>${fmtBytes(tot)}</td><td style="width:30%"><div class="bar" style="margin:0">${bar}</div></td></tr>`;
+      }).join('') + '</table>';
+  } catch (e) { /* server not ready */ }
+}
+loadHistory(); setInterval(loadHistory, 30000);
 
 // ---------- live stream ----------
 let started = false;

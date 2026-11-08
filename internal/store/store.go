@@ -1,0 +1,184 @@
+// Package store keeps dualnet's data between runs, in %APPDATA%\dualnet:
+// daily traffic per link (history.json) and settings such as speed caps
+// (settings.json).
+package store
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/NassB/dualnet/internal/links"
+)
+
+// Usage is the traffic of one link over one day.
+type Usage struct {
+	Rx int64 `json:"rx"`
+	Tx int64 `json:"tx"`
+}
+
+// Settings are the user's choices that survive a restart.
+type Settings struct {
+	Limits map[string]float64 `json:"limits"` // link name -> Mb/s cap
+}
+
+type Store struct {
+	Dir string
+
+	mu       sync.Mutex
+	history  map[string]map[string]Usage // day (2006-01-02) -> link -> usage
+	settings Settings
+	last     map[*links.Link]Usage
+}
+
+// Open loads the store from dir (created if needed).
+func Open(dir string) *Store {
+	s := &Store{Dir: dir, history: map[string]map[string]Usage{}, last: map[*links.Link]Usage{}}
+	s.settings.Limits = map[string]float64{}
+	os.MkdirAll(dir, 0o755)
+	readJSON(filepath.Join(dir, "history.json"), &s.history)
+	readJSON(filepath.Join(dir, "settings.json"), &s.settings)
+	if s.settings.Limits == nil {
+		s.settings.Limits = map[string]float64{}
+	}
+	return s
+}
+
+// DefaultDir is %APPDATA%\dualnet.
+func DefaultDir() string {
+	d, err := os.UserConfigDir()
+	if err != nil {
+		d = os.TempDir()
+	}
+	return filepath.Join(d, "dualnet")
+}
+
+func readJSON(path string, v any) {
+	if b, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(b, v)
+	}
+}
+
+func writeJSON(path string, v any) error {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// Record adds the traffic since the previous call to today's totals.
+func (s *Store) Record(ls []*links.Link, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	day := now.Format("2006-01-02")
+	if s.history[day] == nil {
+		s.history[day] = map[string]Usage{}
+	}
+	for _, l := range ls {
+		cur := Usage{Rx: l.BytesIn.Load(), Tx: l.BytesOut.Load()}
+		prev, seen := s.last[l]
+		s.last[l] = cur
+		if !seen {
+			continue // counters start at 0 when dualnet starts; first sample is the baseline
+		}
+		u := s.history[day][l.Name]
+		u.Rx += cur.Rx - prev.Rx
+		u.Tx += cur.Tx - prev.Tx
+		s.history[day][l.Name] = u
+	}
+	// keep one year
+	cutoff := now.AddDate(-1, 0, 0).Format("2006-01-02")
+	for d := range s.history {
+		if d < cutoff {
+			delete(s.history, d)
+		}
+	}
+}
+
+// Save writes the history and settings to disk.
+func (s *Store) Save() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := writeJSON(filepath.Join(s.Dir, "history.json"), s.history); err != nil {
+		return err
+	}
+	return writeJSON(filepath.Join(s.Dir, "settings.json"), s.settings)
+}
+
+// Day is one row of the history view.
+type Day struct {
+	Date  string           `json:"date"`
+	Links map[string]Usage `json:"links"`
+}
+
+// History returns the last n days, most recent first.
+func (s *Store) History(n int) []Day {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var days []string
+	for d := range s.history {
+		days = append(days, d)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(days)))
+	if len(days) > n {
+		days = days[:n]
+	}
+	out := []Day{}
+	for _, d := range days {
+		m := map[string]Usage{}
+		for k, v := range s.history[d] {
+			m[k] = v
+		}
+		out = append(out, Day{Date: d, Links: m})
+	}
+	return out
+}
+
+// RememberLimits stores the links' current caps.
+func (s *Store) RememberLimits(ls []*links.Link) {
+	s.mu.Lock()
+	for _, l := range ls {
+		s.settings.Limits[l.Name] = float64(l.LimitMbps())
+	}
+	s.mu.Unlock()
+	s.Save()
+}
+
+// ApplyLimit sets a newly seen link's cap from the saved settings.
+func (s *Store) ApplyLimit(l *links.Link) {
+	s.mu.Lock()
+	v := s.settings.Limits[l.Name]
+	s.mu.Unlock()
+	if v > 0 {
+		l.SetLimitMbps(v)
+	}
+}
+
+// Run records every 10 s and saves every minute until ctx is done (then saves).
+func (s *Store) Run(ctx context.Context, pool *links.Pool) {
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	s.Record(pool.All(), time.Now())
+	for i := 1; ; i++ {
+		select {
+		case <-ctx.Done():
+			s.Record(pool.All(), time.Now())
+			s.Save()
+			return
+		case now := <-t.C:
+			s.Record(pool.All(), now)
+			if i%6 == 0 {
+				s.Save()
+			}
+		}
+	}
+}

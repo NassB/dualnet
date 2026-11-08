@@ -23,6 +23,7 @@ import (
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/proxy"
+	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/ui"
 )
@@ -111,6 +112,18 @@ func main() {
 		if *proxyAddr != "" {
 			go func() { check(p.ListenAndServe(*proxyAddr)) }()
 		}
+		st := store.Open(store.DefaultDir())
+		for _, l := range pool.All() {
+			st.ApplyLimit(l)
+		}
+		prevChange := pool.OnChange
+		pool.OnChange = func(l *links.Link, ev string) {
+			if ev == "ajouté" {
+				st.ApplyLimit(l)
+			}
+			prevChange(l, ev)
+		}
+		go st.Run(ctx, pool)
 		tun := &ui.TunControl{Proxy: p}
 		if *transp {
 			check(tun.Set(true))
@@ -119,7 +132,8 @@ func main() {
 		if *sys && *proxyAddr != "" {
 			check(sysproxy.Enable(*proxyAddr))
 		}
-		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir, Tun: tun}
+		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir, Tun: tun, Store: st,
+			OnSettings: func() { st.RememberLimits(pool.All()) }}
 		ln, err := net.Listen("tcp", *listen)
 		check(err)
 		url := "http://" + ln.Addr().String()
@@ -127,7 +141,11 @@ func main() {
 		if *open {
 			ui.OpenBrowser(url)
 		}
-		cleanup = tun.Stop
+		cleanup = func() {
+			tun.Stop()
+			st.Record(pool.All(), time.Now())
+			st.Save()
+		}
 		go exitRestoring(ctx)
 		check(http.Serve(ln, srv.Handler()))
 

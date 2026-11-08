@@ -18,6 +18,7 @@ import (
 
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
 )
 
@@ -29,6 +30,7 @@ type Server struct {
 	ProxyAddr string
 	OutDir    string
 	Tun       *TunControl
+	Store     *store.Store
 	// OnSettings is called after a setting changed in the UI (to save it).
 	OnSettings func()
 
@@ -62,6 +64,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
+	mux.HandleFunc("GET /api/history", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(s.Store.History(30))
+	})
 	return localOnly(mux)
 }
 
