@@ -1,0 +1,269 @@
+// Package proxy is a local SOCKS5 + HTTP proxy that spreads outgoing connections
+// over several links. One connection always uses one link; many connections use all.
+package proxy
+
+import (
+	"bufio"
+	"context"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/NassB/dualnet/internal/links"
+)
+
+type Server struct {
+	Links []*links.Link
+	// Sticky keeps a destination host on the same link for this long, so sites
+	// that dislike IP changes (logins, banks) keep seeing one IP.
+	Sticky time.Duration
+
+	mu     sync.Mutex
+	sticky map[string]stickyEntry
+	rate   []float64 // recent Mb/s per link, used for weighting
+}
+
+type stickyEntry struct {
+	idx  int
+	seen time.Time
+}
+
+func (s *Server) ListenAndServe(addr string) error {
+	s.sticky = map[string]stickyEntry{}
+	s.rate = make([]float64, len(s.Links))
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	log.Printf("Proxy SOCKS5/HTTP à l'écoute sur %s", addr)
+	go s.stats()
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			return err
+		}
+		go s.handle(c)
+	}
+}
+
+func (s *Server) handle(c net.Conn) {
+	defer c.Close()
+	br := bufio.NewReader(c)
+	first, err := br.Peek(1)
+	if err != nil {
+		return
+	}
+	if first[0] == 0x05 {
+		s.socks5(c, br)
+	} else {
+		s.http(c, br)
+	}
+}
+
+// pick chooses a link: sticky per host, otherwise the link with the most spare
+// capacity (measured rate / active connections).
+func (s *Server) pick(host string) []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	order := make([]int, 0, len(s.Links))
+	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky {
+		e.seen = time.Now()
+		s.sticky[host] = e
+		order = append(order, e.idx)
+	} else {
+		best, bestScore := 0, -1.0
+		for i, l := range s.Links {
+			score := (s.rate[i] + 1) / float64(l.Active.Load()+1)
+			if score > bestScore {
+				best, bestScore = i, score
+			}
+		}
+		s.sticky[host] = stickyEntry{best, time.Now()}
+		order = append(order, best)
+	}
+	for i := range s.Links {
+		if i != order[0] {
+			order = append(order, i)
+		}
+	}
+	return order
+}
+
+func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
+	host, _, _ := net.SplitHostPort(addr)
+	var lastErr error
+	for _, i := range s.pick(host) {
+		l := s.Links[i]
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		c, err := l.DialContext(ctx, "tcp", addr)
+		cancel()
+		if err == nil {
+			return c, l, nil
+		}
+		lastErr = err
+	}
+	return nil, nil, lastErr
+}
+
+func (s *Server) socks5(c net.Conn, br *bufio.Reader) {
+	// Greeting: VER NMETHODS METHODS...
+	hdr := make([]byte, 2)
+	if _, err := io.ReadFull(br, hdr); err != nil {
+		return
+	}
+	if _, err := io.ReadFull(br, make([]byte, hdr[1])); err != nil {
+		return
+	}
+	c.Write([]byte{0x05, 0x00}) // no auth
+
+	// Request: VER CMD RSV ATYP DST.ADDR DST.PORT
+	req := make([]byte, 4)
+	if _, err := io.ReadFull(br, req); err != nil {
+		return
+	}
+	if req[1] != 0x01 { // only CONNECT
+		c.Write([]byte{0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		return
+	}
+	var host string
+	switch req[3] {
+	case 0x01:
+		b := make([]byte, 4)
+		io.ReadFull(br, b)
+		host = net.IP(b).String()
+	case 0x03:
+		l, _ := br.ReadByte()
+		b := make([]byte, l)
+		io.ReadFull(br, b)
+		host = string(b)
+	case 0x04:
+		b := make([]byte, 16)
+		io.ReadFull(br, b)
+		host = net.IP(b).String()
+	default:
+		return
+	}
+	pb := make([]byte, 2)
+	if _, err := io.ReadFull(br, pb); err != nil {
+		return
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(int(binary.BigEndian.Uint16(pb))))
+
+	up, l, err := s.dial(addr)
+	if err != nil {
+		c.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+		return
+	}
+	defer up.Close()
+	c.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	pipe(c, br, up, l)
+}
+
+func (s *Server) http(c net.Conn, br *bufio.Reader) {
+	for {
+		req, err := http.ReadRequest(br)
+		if err != nil {
+			return
+		}
+		if req.Method == http.MethodConnect {
+			up, l, err := s.dial(req.Host)
+			if err != nil {
+				fmt.Fprint(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
+				return
+			}
+			defer up.Close()
+			fmt.Fprint(c, "HTTP/1.1 200 Connection Established\r\n\r\n")
+			pipe(c, br, up, l)
+			return
+		}
+		// Plain HTTP forwarding.
+		host := req.Host
+		if !strings.Contains(host, ":") {
+			host += ":80"
+		}
+		up, l, err := s.dial(host)
+		if err != nil {
+			fmt.Fprint(c, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
+			return
+		}
+		l.Active.Add(1)
+		req.RequestURI = ""
+		req.Header.Del("Proxy-Connection")
+		req.Header.Set("Connection", "close")
+		if err := req.Write(up); err != nil {
+			up.Close()
+			l.Active.Add(-1)
+			return
+		}
+		io.Copy(c, up)
+		up.Close()
+		l.Active.Add(-1)
+		return
+	}
+}
+
+func pipe(client net.Conn, clientR io.Reader, up net.Conn, l *links.Link) {
+	l.Active.Add(1)
+	defer l.Active.Add(-1)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(up, clientR)
+		closeWrite(up)
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(client, up)
+		closeWrite(client)
+	}()
+	wg.Wait()
+}
+
+func closeWrite(c net.Conn) {
+	type cw interface{ CloseWrite() error }
+	if x, ok := c.(cw); ok {
+		if err := x.CloseWrite(); err == nil {
+			return
+		}
+	}
+	c.SetReadDeadline(time.Now())
+}
+
+func (s *Server) stats() {
+	t := time.NewTicker(5 * time.Second)
+	prev := make([]int64, len(s.Links))
+	for range t.C {
+		var parts []string
+		s.mu.Lock()
+		for i, l := range s.Links {
+			cur := l.BytesIn.Load() + l.BytesOut.Load()
+			r := links.Mbps(cur-prev[i], 5*time.Second)
+			prev[i] = cur
+			// keep the best recent rate as capacity estimate, decaying slowly
+			s.rate[i] = maxf(r, s.rate[i]*0.9)
+			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s, %d conn", l.Name, r, l.Active.Load()))
+		}
+		for h, e := range s.sticky {
+			if time.Since(e.seen) > s.Sticky {
+				delete(s.sticky, h)
+			}
+		}
+		s.mu.Unlock()
+		log.Println(strings.Join(parts, "  |  "))
+	}
+}
+
+func maxf(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
