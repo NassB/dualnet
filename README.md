@@ -107,13 +107,14 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPo
 go test ./...
 go build -o dualnet.exe .
 go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resource
+go test -tags integration -v ./integration   # administrator only: real install/uninstall and transparent mode
 ```
 
-GitHub Actions vets, tests and builds every push with the newest Go, and runs `govulncheck`. To publish a release, push a version tag:
+GitHub Actions vets, tests and builds every push with the newest Go, and runs `govulncheck`. The `integration` workflow (on demand and weekly) runs the administrator-only tests on a real Windows runner. To publish a release, push a version tag:
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 The workflow builds `dualnet.exe` with that version and, only after a green build, a separate job attaches it to a GitHub release with generated notes, together with its SHA-256 checksum and a build attestation. See [CONTRIBUTING](CONTRIBUTING.md).
