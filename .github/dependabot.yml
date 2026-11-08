@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Go modules (dualnet runs as administrator: keep its dependencies current)
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+  # GitHub Actions pinned to commits
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

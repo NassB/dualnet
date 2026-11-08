@@ -6,34 +6,70 @@ on:
     tags: ["v*"]
   pull_request:
 
+# Read-only by default; only the release job gets more (see below).
 permissions:
-  contents: write
+  contents: read
 
+# Every action is pinned to a commit (the comment names its version); Dependabot
+# keeps them up to date.
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # The newest Go, not the one in go.mod: releases must not be built with
+          # an old toolchain that has known standard-library vulnerabilities.
+          go-version: stable
+          check-latest: true
       - name: Vet
         run: go vet ./...
       - name: Test
         run: go test ./...
+      - name: Known vulnerabilities (govulncheck)
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: Build
         shell: bash
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="dev-${GITHUB_SHA::7}"; fi
           go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o dualnet.exe .
           ./dualnet.exe version
-      - uses: actions/upload-artifact@v4
+          sha256sum dualnet.exe > dualnet.exe.sha256
+          cat dualnet.exe.sha256
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dualnet
-          path: dualnet.exe
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+          path: |
+            dualnet.exe
+            dualnet.exe.sha256
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create the release
+      id-token: write     # sign the build attestation
+      attestations: write # store it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          files: dualnet.exe
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dualnet
+      - name: Check the artifact against its checksum
+        run: sha256sum --check dualnet.exe.sha256
+      # Proof of where and how dualnet.exe was built: `gh attestation verify`
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dualnet.exe
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          files: |
+            dualnet.exe
+            dualnet.exe.sha256
           generate_release_notes: true
