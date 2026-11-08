@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
+	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/transparent"
 	"github.com/NassB/dualnet/internal/ui"
@@ -24,6 +25,17 @@ import (
 
 //go:embed assets/icon.ico
 var trayIcon []byte
+
+//go:embed assets/icon-off.ico
+var trayOffIcon []byte
+
+// trayIconFor is the notification-area icon: in colour while dualnet is on, grey when off.
+func trayIconFor(on bool) []byte {
+	if on {
+		return trayIcon
+	}
+	return trayOffIcon
+}
 
 const trayURL = "http://127.0.0.1:8090"
 
@@ -146,7 +158,7 @@ func (a *appWindow) loop() {
 func runTrayIcon(app *uiApp, win *appWindow) {
 	runtime.LockOSThread() // the icon's hidden window and message loop live on this thread
 	systray.Run(func() {
-		systray.SetIcon(trayIcon)
+		systray.SetIcon(trayIconFor(app.tun.On()))
 		systray.SetTitle("dualnet")
 		systray.SetTooltip("dualnet " + version + " — " + tr("combined internet links", "connexions internet combinées"))
 		open := systray.AddMenuItem(tr("Open dualnet", "Ouvrir dualnet"), "")
@@ -176,10 +188,33 @@ func runTrayIcon(app *uiApp, win *appWindow) {
 				}
 			}
 		}()
-		// Keep the checkboxes in sync with changes made in the window.
+		// Keep the checkbox, the icon and the tooltip current (changes can come from the window).
 		go func() {
+			prev := map[*links.Link]int64{}
+			last, lastOn := time.Now(), app.tun.On()
 			for range time.Tick(2 * time.Second) {
-				setChecked(power, app.tun.On())
+				on := app.tun.On()
+				setChecked(power, on)
+				if on != lastOn {
+					lastOn = on
+					systray.SetIcon(trayIconFor(on))
+				}
+				now := time.Now()
+				dt := now.Sub(last)
+				last = now
+				var speeds []linkSpeed
+				for _, l := range app.srv.Pool.All() {
+					cur := l.BytesIn.Load()
+					if p, seen := prev[l]; seen && l.Up() {
+						speeds = append(speeds, linkSpeed{l.Name, links.Mbps(cur-p, dt)})
+					}
+					prev[l] = cur
+				}
+				state := tr("off", "désactivé")
+				if on {
+					state = tr("on", "actif")
+				}
+				systray.SetTooltip(trayTooltip(version, state, speeds))
 			}
 		}()
 	}, func() { shutdown(0) })

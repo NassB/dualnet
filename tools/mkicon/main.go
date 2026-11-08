@@ -1,6 +1,6 @@
 // mkicon draws dualnet's icon (two links merging into one arrow) and writes
-// assets/icon.ico (16–256 px), assets/icon.png and rsrc_windows_amd64.syso
-// (the .exe icon). Run from the repo root: go run ./tools/mkicon
+// assets/icon.ico (16–256 px), assets/icon.png, rsrc_windows_amd64.syso (the .exe
+// icon) and the greyed assets/icon-off.ico used while dualnet is off. Run from the repo root: go run ./tools/mkicon
 package main
 
 import (
@@ -95,20 +95,24 @@ func inRoundRect(u, v, x0, y0, x1, y1, r float64) bool {
 	return (u-cx)*(u-cx)+(v-cy)*(v-cy) <= r*r
 }
 
-func main() {
-	sizes := []int{16, 24, 32, 48, 64, 128, 256}
-	var pngs [][]byte
+// frames renders the icon at every size (PNG for 256 px, classic DIB below).
+func frames(sizes []int) [][]byte {
+	var out [][]byte
 	for _, s := range sizes {
 		img := draw(s)
 		if s >= 256 {
 			var b bytes.Buffer
 			png.Encode(&b, img)
-			pngs = append(pngs, b.Bytes())
+			out = append(out, b.Bytes())
 		} else {
-			pngs = append(pngs, dib(img)) // small sizes: classic DIB, required by Windows
+			out = append(out, dib(img)) // small sizes: classic DIB, required by Windows
 		}
 	}
-	// ICO with PNG-compressed entries (supported since Windows Vista)
+	return out
+}
+
+// icoFile assembles frames into an .ico file.
+func icoFile(sizes []int, pngs [][]byte) []byte {
 	var ico bytes.Buffer
 	binary.Write(&ico, binary.LittleEndian, [3]uint16{0, 1, uint16(len(sizes))})
 	offset := 6 + 16*len(sizes)
@@ -127,11 +131,26 @@ func main() {
 	for _, p := range pngs {
 		ico.Write(p)
 	}
-	must(os.WriteFile("assets/icon.ico", ico.Bytes(), 0o644))
+	return ico.Bytes()
+}
+
+func grey(v uint8) color.NRGBA { return color.NRGBA{v, v, v, 0xff} }
+
+func main() {
+	sizes := []int{16, 24, 32, 48, 64, 128, 256}
+	pngs := frames(sizes)
+	must(os.WriteFile("assets/icon.ico", icoFile(sizes, pngs), 0o644))
 	var big bytes.Buffer
 	png.Encode(&big, draw(256))
 	must(os.WriteFile("assets/icon.png", big.Bytes(), 0o644))
 	must(os.WriteFile("rsrc_windows_amd64.syso", writeSyso(pngs, sizes), 0o644))
+
+	// The same drawing in greys: the notification-area icon while dualnet is off.
+	blue, orange, white = grey(0x70), grey(0x62), grey(0x9a)
+	must(os.WriteFile("assets/icon-off.ico", icoFile(sizes, frames(sizes)), 0o644))
+	var off bytes.Buffer
+	png.Encode(&off, draw(256))
+	must(os.WriteFile("assets/icon-off.png", off.Bytes(), 0o644))
 }
 
 func must(err error) {
