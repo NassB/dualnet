@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -93,5 +95,33 @@ func TestWorkflowHygiene(t *testing.T) {
 	}
 	if !sawVuln || !sawSum {
 		t.Errorf("build lacks govulncheck (%v) or the checksum (%v)", sawVuln, sawSum)
+	}
+}
+
+// A typo in a workflow, an issue form or the Dependabot file would only show up
+// on GitHub: make sure they at least parse.
+func TestGitHubYAMLParses(t *testing.T) {
+	var files []string
+	err := filepath.WalkDir(".github", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(p, ".yml") || strings.HasSuffix(p, ".yaml")) {
+			files = append(files, p)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) < 5 {
+		t.Fatalf("only %d YAML files under .github: %v", len(files), files)
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v any
+		if err := yaml.Unmarshal(data, &v); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
 	}
 }

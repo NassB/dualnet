@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea to improve dualnet
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you want to do?
+      description: The situation or problem first, then the idea.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: Which links you combine (Wi‑Fi + phone USB tethering, two boxes…) and what you use them for.
