@@ -459,8 +459,8 @@ async function loadHistory() {
     el.innerHTML = `<table class="hist"><tr><td>Jour</td>${names.map(n =>
       `<td><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</td>`).join('')}<td>Total</td><td>Part</td></tr>` +
       days.map(d => {
-        const tot = names.reduce((a, n) => a + ((d.links[n] || {}).rx || 0), 0) || 1;
-        const bar = names.map(n => `<span style="width:${(100 * ((d.links[n] || {}).rx || 0) / tot).toFixed(1)}%;background:${color(idx(n))}"></span>`).join('');
+        const tot = names.reduce((a, n) => a + ((d.links[n] || {}).rx || 0), 0);
+        const bar = names.map(n => `<span style="width:${(100 * ((d.links[n] || {}).rx || 0) / (tot || 1)).toFixed(1)}%;background:${color(idx(n))}"></span>`).join('');
         return `<tr><td>${d.date}</td>${names.map(n => `<td>${fmtBytes((d.links[n] || {}).rx || 0)}</td>`).join('')}<td>${fmtBytes(tot)}</td><td style="width:30%"><div class="bar" style="margin:0">${bar}</div></td></tr>`;
       }).join('') + '</table>';
   } catch (e) { /* server not ready */ }
