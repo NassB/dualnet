@@ -168,7 +168,11 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		return nil, err
 	}
 	restoreStale()
+	if cfg.proxyAddr != "" {
+		sysproxy.ClearOurs(cfg.proxyAddr) // leftover from an earlier run
+	}
 	pool := watchPool(ctx, cfg.ifs)
+	proxyAddrInUse = cfg.proxyAddr
 	p := &proxy.Server{Pool: pool, Sticky: cfg.sticky}
 	if cfg.proxyAddr != "" {
 		go func() { check(p.ListenAndServe(cfg.proxyAddr)) }()
@@ -218,6 +222,7 @@ func shutdown(code int) {
 	if sysproxy.Pending() {
 		sysproxy.Disable()
 	}
+	sysproxy.ClearOurs(proxyAddrInUse)
 	os.Exit(code)
 }
 
@@ -274,6 +279,10 @@ func exitRestoring(ctx context.Context) {
 	fmt.Println("Stopping: Windows settings restored.")
 	shutdown(0)
 }
+
+// proxyAddrInUse is dualnet's proxy address, so a Windows proxy left pointing
+// to it can be cleared on exit.
+var proxyAddrInUse = "127.0.0.1:1080"
 
 // cleanup undoes system changes on exit (transparent mode adapter).
 var cleanup = func() {}

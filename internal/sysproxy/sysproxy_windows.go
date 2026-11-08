@@ -101,6 +101,11 @@ func Enable(addr string) error {
 		if err != nil {
 			return err
 		}
+		if cur.Enable == 1 && cur.Server == addr {
+			// Already pointing to dualnet (left over from an earlier run): the
+			// user's real setting cannot be known; restoring means "no proxy".
+			cur = Settings{Override: cur.Override}
+		}
 		b, _ := json.Marshal(cur)
 		os.MkdirAll(filepath.Dir(BackupFile), 0o755)
 		if err := os.WriteFile(BackupFile, b, 0o600); err != nil {
@@ -129,6 +134,23 @@ func Disable() error {
 		return err
 	}
 	return os.Remove(BackupFile)
+}
+
+// ClearOurs turns the Windows proxy off if it points to addr while no backup
+// exists — a leftover from an earlier dualnet run that would otherwise send
+// apps to a proxy that is not running.
+func ClearOurs(addr string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, err := os.Stat(BackupFile); err == nil {
+		return nil // Disable will restore the saved settings
+	}
+	cur, err := read()
+	if err != nil || cur.Enable != 1 || cur.Server != addr {
+		return err
+	}
+	cur.Enable = 0
+	return write(cur)
 }
 
 // Pending reports whether a backup exists (dualnet changed the proxy and has not restored it).

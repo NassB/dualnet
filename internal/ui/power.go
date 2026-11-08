@@ -20,6 +20,9 @@ func (s *Server) powerState() powerView {
 	switch {
 	case s.Tun.On():
 		return powerView{On: true, Mode: "transparent"}
+	case transparent.Admin():
+		// As administrator the switch means transparent mode only.
+		return powerView{}
 	case s.ProxyAddr != "":
 		if on, server, _ := sysproxy.Status(); on && server == s.ProxyAddr {
 			return powerView{On: true, Mode: "proxy"}
@@ -40,6 +43,9 @@ func (s *Server) SetPower(on bool) error {
 	} else {
 		s.Tun.Set(false)
 		err = sysproxy.Disable()
+		if err == nil && s.ProxyAddr != "" {
+			err = sysproxy.ClearOurs(s.ProxyAddr)
+		}
 	}
 	if err == nil && s.Store != nil {
 		s.Store.SetEnabled(on)
