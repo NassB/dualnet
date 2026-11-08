@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/NassB/dualnet/internal/sysproxy"
+	"github.com/NassB/dualnet/internal/transparent"
 	"github.com/NassB/dualnet/internal/winexec"
 )
 
@@ -47,15 +48,27 @@ func Installed() bool {
 	return true
 }
 
-// isAdmin tells whether the process can write under HKLM and Program Files:
-// only an elevated process may open the physical drive.
-func isAdmin() bool {
-	f, err := os.Open(`\\.\PHYSICALDRIVE0`)
-	if err != nil {
-		return false
+func isAdmin() bool { return transparent.Admin() }
+
+// AutostartEnabled reports whether the start-with-Windows task exists.
+func AutostartEnabled() bool { return schtasks("/Query", "/TN", Name) == nil }
+
+// SetAutostart creates (on, for exe) or deletes the start-with-Windows task: a
+// scheduled task at logon with highest privileges, so the transparent mode
+// starts without a UAC prompt.
+func SetAutostart(exe string, on bool) error {
+	var out []byte
+	var err error
+	if on {
+		out, err = winexec.Command("schtasks", "/Create", "/F", "/TN", Name, "/SC", "ONLOGON", "/RL", "HIGHEST",
+			"/TR", "\""+exe+"\" tray -hidden").CombinedOutput()
+	} else {
+		out, err = winexec.Command("schtasks", "/Delete", "/F", "/TN", Name).CombinedOutput()
 	}
-	f.Close()
-	return true
+	if err != nil {
+		return errors.New(strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func copyFile(src, dst string) error {
@@ -87,6 +100,8 @@ func copyFile(src, dst string) error {
 		}
 	}
 	if err := os.Rename(tmp, dst); err != nil {
+		os.Rename(dst+".old", dst) // put the previous program back
+		os.Remove(tmp)
 		return err
 	}
 	os.Remove(dst + ".old")
@@ -107,6 +122,15 @@ func Install(dir string) (*Result, error) {
 		return nil, err
 	}
 	res := &Result{}
+	if ents, err := os.ReadDir(dir); err == nil {
+		var names []string
+		for _, e := range ents {
+			names = append(names, e.Name())
+		}
+		if !installable(names) {
+			return res, fmt.Errorf("%s already holds other files: choose a new or empty folder (default: %s)", dir, DefaultDir())
+		}
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return res, err
 	}
@@ -118,6 +142,13 @@ func Install(dir string) (*Result, error) {
 			return res, fmt.Errorf("copy to %s: %w (is dualnet running from there? quit it first)", dir, err)
 		}
 		res.add("copied dualnet.exe to " + dir)
+	}
+	// a start-with-Windows task made from another copy must launch this one
+	if AutostartEnabled() {
+		if err := SetAutostart(dst, true); err != nil {
+			return res, fmt.Errorf("updating the start-with-Windows task: %w", err)
+		}
+		res.add("start-with-Windows task now runs " + dst)
 	}
 
 	lnk := shortcutPath()
@@ -180,8 +211,15 @@ func Uninstall(o Options) (*Result, error) {
 	}
 
 	// other running instances would keep files open
-	if err := winexec.Command("taskkill", "/F", "/IM", Name+".exe", "/FI", fmt.Sprintf("PID ne %d", os.Getpid())).Run(); err == nil {
-		res.add("stopped the running dualnet")
+	// (asked politely first so it can undo its network changes, then forced)
+	others := []string{"/IM", Name + ".exe", "/FI", fmt.Sprintf("PID ne %d", os.Getpid())}
+	if winexec.Command("taskkill", others...).Run() == nil {
+		time.Sleep(3 * time.Second)
+		if winexec.Command("taskkill", append([]string{"/F"}, others...)...).Run() == nil {
+			res.add("stopped the running dualnet (it had to be forced)")
+		} else {
+			res.add("stopped the running dualnet")
+		}
 		time.Sleep(500 * time.Millisecond)
 	}
 
@@ -190,8 +228,15 @@ func Uninstall(o Options) (*Result, error) {
 			res.add("removed the start-with-Windows task")
 		}
 	}
-	if sysproxy.ClearOurs("127.0.0.1:1080") == nil {
-		res.add("checked the Windows proxy setting")
+	// a Windows proxy dualnet changed and did not restore (it was killed)
+	if sysproxy.Pending() {
+		if err := sysproxy.Disable(); err == nil {
+			res.add("restored your Windows proxy setting")
+		}
+	} else if on, server, err := sysproxy.Status(); err == nil && on && strings.HasPrefix(server, "127.0.0.1:") {
+		if sysproxy.ClearOurs(server) == nil {
+			res.add("turned off the Windows proxy left on " + server)
+		}
 	}
 	if err := os.Remove(shortcutPath()); err == nil {
 		res.add("removed the Start Menu shortcut")
@@ -208,13 +253,21 @@ func Uninstall(o Options) (*Result, error) {
 			helper.SysProcAttr.CmdLine = `cmd /c "` + selfDeleteCommand(dir) + `"`
 			helper.Start()
 			res.add("the program folder will be deleted in a few seconds: " + dir)
-		} else if err := os.RemoveAll(dir); err != nil {
-			return res, err
 		} else {
-			res.add("deleted " + dir)
+			for _, f := range ownFiles {
+				os.Remove(filepath.Join(dir, f))
+			}
+			if err := os.Remove(dir); err == nil {
+				res.add("deleted " + dir)
+			} else {
+				res.add("removed dualnet's files from " + dir + " (it also holds other files, which were left alone)")
+			}
 		}
 	}
-	if o.Purge && o.DataDir != "" {
+	if o.Purge {
+		if !dataDirOK(o.DataDir) {
+			return res, fmt.Errorf("not deleting %q: purge only removes a folder named %q", o.DataDir, Name)
+		}
 		if err := os.RemoveAll(o.DataDir); err != nil {
 			return res, err
 		}

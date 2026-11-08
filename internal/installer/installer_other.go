@@ -15,6 +15,12 @@ func DefaultDir() string { return "" }
 // Installed reports whether dualnet is installed.
 func Installed() bool { return false }
 
+// AutostartEnabled reports whether the start-with-Windows task exists.
+func AutostartEnabled() bool { return false }
+
+// SetAutostart creates or deletes the start-with-Windows task.
+func SetAutostart(string, bool) error { return errUnsupported }
+
 // Install copies the running program to dir and registers it.
 func Install(dir string) (*Result, error) { return nil, errUnsupported }
 

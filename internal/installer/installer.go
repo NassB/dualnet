@@ -38,10 +38,42 @@ func inside(path, dir string) bool {
 	return p == d || strings.HasPrefix(p, d+`\`)
 }
 
-// selfDeleteCommand is the cmd.exe line that removes dir once the running
-// program (which lives in it) has exited: it waits a few seconds, then deletes.
+// ownFiles are the only files dualnet puts in its program folder (wintun.dll is
+// written next to the exe at run time; .old/.new are leftovers of an update).
+var ownFiles = []string{"dualnet.exe", "wintun.dll", "dualnet.exe.old", "dualnet.exe.new"}
+
+// selfDeleteCommand is the cmd.exe line that removes dualnet's own files from
+// dir once the running program (which lives there) has exited, then the folder
+// itself if nothing else is in it (rmdir without /s never deletes content).
 func selfDeleteCommand(dir string) string {
-	return `ping -n 4 127.0.0.1 >nul & rmdir /s /q "` + dir + `"`
+	c := "ping -n 4 127.0.0.1 >nul"
+	for _, f := range ownFiles {
+		c += ` & del /f /q "` + filepath.Join(dir, f) + `"`
+	}
+	return c + ` & rmdir "` + dir + `"`
+}
+
+// installable reports whether a folder with these entries may receive the
+// program: it must be empty or already hold dualnet.exe. Uninstall only removes
+// what dualnet put there, but refusing a folder full of someone else's files
+// keeps things tidy.
+func installable(entries []string) bool {
+	if len(entries) == 0 {
+		return true
+	}
+	for _, e := range entries {
+		if strings.EqualFold(e, "dualnet.exe") {
+			return true
+		}
+	}
+	return false
+}
+
+// dataDirOK reports whether dir looks like dualnet's own data folder: purge
+// deletes it recursively, so DUALNET_DATA must not be able to aim it at, say,
+// Documents.
+func dataDirOK(dir string) bool {
+	return dir != "" && strings.EqualFold(filepath.Base(filepath.Clean(dir)), Name)
 }
 
 // uninstallString is the command "Apps & features" runs.

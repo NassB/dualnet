@@ -25,10 +25,28 @@ func TestPaths(t *testing.T) {
 
 func TestCommands(t *testing.T) {
 	c := selfDeleteCommand(`C:\Program Files\dualnet`)
-	if !strings.Contains(c, `rmdir /s /q "C:\Program Files\dualnet"`) || !strings.HasPrefix(c, "ping ") {
-		t.Fatal(c)
+	if !strings.HasPrefix(c, "ping ") || !strings.HasSuffix(c, `& rmdir "C:\Program Files\dualnet"`) ||
+		!strings.Contains(c, `del /f /q "C:\Program Files\dualnet\dualnet.exe"`) || strings.Contains(c, "/s") {
+		t.Fatal(c) // never a recursive delete
 	}
 	if got := uninstallString(`C:\Program Files\dualnet\dualnet.exe`); got != `"C:\Program Files\dualnet\dualnet.exe" uninstall` {
 		t.Fatal(got)
+	}
+}
+
+func TestSafety(t *testing.T) {
+	if !installable(nil) || !installable([]string{"dualnet.exe", "wintun.dll"}) || !installable([]string{"DualNet.EXE"}) {
+		t.Fatal("an empty folder or one with dualnet.exe must be accepted")
+	}
+	if installable([]string{"Documents", "notes.txt"}) {
+		t.Fatal("a folder with other people's files must be refused")
+	}
+	if !dataDirOK(`C:\Users\me\AppData\Roaming\dualnet`) || !dataDirOK(`D:\x\DualNet\`) {
+		t.Fatal("dualnet's own folder is fine")
+	}
+	for _, bad := range []string{"", `C:\Users\me\Documents`, `C:\`, `C:\Users\me`} {
+		if dataDirOK(bad) {
+			t.Fatalf("%q must not be purged", bad)
+		}
 	}
 }

@@ -83,7 +83,7 @@ func TestInstallUninstall(t *testing.T) {
 	}
 	base := t.TempDir()
 	inst := filepath.Join(base, "Program Files", "dualnet")
-	data := filepath.Join(base, "data")
+	data := filepath.Join(base, "dualnet")
 	os.MkdirAll(data, 0o755)
 	os.WriteFile(filepath.Join(data, "settings.json"), []byte("{}"), 0o644)
 	env := []string{"DUALNET_DATA=" + data}
