@@ -99,7 +99,8 @@ func TestPageUsesExistingKeys(t *testing.T) {
 	html := string(indexHTML)
 	var used []string
 	for _, re := range []*regexp.Regexp{
-		regexp.MustCompile(`\bt\('([A-Za-z0-9_.]+)'`),
+		// complete literal keys only: t('fix.' + id) is built dynamically (the parity test covers those)
+		regexp.MustCompile(`\bt\('([A-Za-z0-9_.]+)'\s*[,)]`),
 		regexp.MustCompile(`data-i18n(?:-html|-ph|-title)?="([A-Za-z0-9_.]+)"`),
 	} {
 		for _, m := range re.FindAllStringSubmatch(html, -1) {

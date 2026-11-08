@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NassB/dualnet/internal/doctor"
 	"github.com/NassB/dualnet/internal/transparent"
 )
 
@@ -71,6 +72,10 @@ func (s *Server) diagnostics() string {
 				l.Name, l.IP(), l.Up(), l.Healthy(), l.LatencyMs(), l.LimitMbps(), l.Active.Load(), l.Busy(10*time.Second), l.BytesIn.Load(), l.BytesOut.Load())
 		}
 	}
+	b.WriteString("\nchecks:\n")
+	env := s.doctorEnv()
+	env.Reach = nil // no network round trip just to copy a report
+	b.WriteString(doctor.Format(doctor.Run(env)))
 	b.WriteString("\nlast log lines:\n")
 	b.WriteString(tailLines(s.logFile(), 200))
 	b.WriteString("\n")

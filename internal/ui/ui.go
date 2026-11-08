@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NassB/dualnet/internal/doctor"
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/notify"
@@ -37,6 +38,8 @@ type Server struct {
 	Autostart *Autostart
 	Update    *update.Checker
 	Notify    *notify.Notifier
+	// DoctorEnv replaces the real system probes of the installation check (tests).
+	DoctorEnv func() doctor.Env
 	// Native is true when the page is shown in dualnet's own window.
 	Native bool
 	// OnSettings is called after a setting changed in the UI (to save it).
@@ -74,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/limit", s.setLimit)
 	mux.HandleFunc("POST /api/budget", s.setBudget)
 	mux.HandleFunc("POST /api/rule", s.setRule)
+	mux.HandleFunc("GET /api/doctor", s.getDoctor)
+	mux.HandleFunc("POST /api/onboarding", s.setOnboarding)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
@@ -134,6 +139,7 @@ type snapshot struct {
 	Power powerView  `json:"power"`
 	Upd   updateView `json:"update"`
 	Notif bool       `json:"notify"`
+	Onb   bool       `json:"onboarded"`
 	Apps  []appView  `json:"apps"`
 	Rules []ruleView `json:"rules"`
 	Auto  *bool      `json:"autostart,omitempty"` // nil = option not available
@@ -167,6 +173,9 @@ func (s *Server) setSysProxy(w http.ResponseWriter, r *http.Request) {
 		err = sysproxy.Enable(s.ProxyAddr)
 	} else {
 		err = sysproxy.Disable()
+		if err == nil && s.ProxyAddr != "" {
+			err = sysproxy.ClearOurs(s.ProxyAddr) // a leftover that has no backup to restore
+		}
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -204,7 +213,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled()}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone()}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {

@@ -159,6 +159,14 @@ form.rule-add input { flex: 1 1 200px; min-width: 0; background: var(--panel2); 
 .info-banner span { flex: 1; }
 .log { margin: 4px 0 0; max-height: 300px; overflow: auto; background: var(--panel2); border: 1px solid var(--border);
   border-radius: 10px; padding: 10px 12px; font: 12px/1.5 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.onboard { margin-bottom: 14px; }
+.chk { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.chk:first-child { border-top: 0; }
+.chk .ico { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+.chk.ok .ico { background: var(--ok); } .chk.info .ico { background: var(--muted); }
+.chk.warn .ico { background: var(--warn); } .chk.fail .ico { background: var(--err); }
+.chk span.txt { flex: 1; min-width: 0; }
+#onbList { margin-top: 6px; }
 .warn-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
 
 /* downloads */
@@ -228,6 +236,17 @@ td.r, th.r { text-align: right; }
     <!-- ================= HOME ================= -->
     <section class="page active" id="page-home">
       <div class="info-banner" id="updBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span id="updText"></span><button class="btn small" id="updBtn" data-i18n="updGet"></button></div>
+      <div class="card onboard" id="onboard" hidden>
+        <div class="chart-head">
+          <h2 data-i18n="onbTitle"></h2>
+          <div class="row">
+            <button class="btn ghost small" id="onbRecheck" data-i18n="onbRecheck"></button>
+            <button class="btn ghost small" id="onbDismiss" data-i18n="onbDismiss"></button>
+          </div>
+        </div>
+        <div class="howto" data-i18n="onbSub"></div>
+        <div id="onbList"></div>
+      </div>
       <div class="warn-banner" id="linksWarn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg><span data-i18n="oneLinkWarn"></span></div>
 
       <div class="card hero" id="hero">
@@ -374,6 +393,11 @@ td.r, th.r { text-align: right; }
             <button class="btn ghost small" id="logFolder" data-i18n="logFolder"></button>
           </div>
         </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="chkTitle"></div><div class="sub" data-i18n="chkSub"></div></div>
+          <button class="btn ghost small" id="chkRun" data-i18n="chkRun"></button>
+        </div>
+        <div id="chkList"></div>
         <pre class="log" id="logView" hidden></pre>
       </div>
     </section>
@@ -687,6 +711,56 @@ $('dl').addEventListener('submit', async e => {
 
 // ---------- settings ----------
 function setSwitch(id, on, disabled) { const s = $(id); if (document.activeElement !== s) s.checked = !!on; s.disabled = !!disabled; }
+// ---------- installation check ----------
+let doctorChecks = null, doctorBusy = false;
+const FIX = {
+  simultaneous: () => post('/api/system?do=simultaneous&on=1'),
+  'clear-proxy': () => post('/api/sysproxy?on=0'),
+  power: () => post('/api/power?on=1'),
+  autostart: () => post('/api/autostart?on=1'),
+};
+const CHK_ICON = { ok: '✓', info: 'i', warn: '!', fail: '✕' };
+function checkText(c) {
+  const k = 'chk.' + c.msg, s = t(k, c.args || {});
+  return s === k ? c.text : s; // no translation: the English sentence
+}
+function checkRows(list) {
+  return list.map(c => `<div class="chk ${c.level}"><span class="ico">${CHK_ICON[c.level] || ''}</span><span class="txt">${esc(checkText(c))}</span>` +
+    (c.fix && c.level !== 'ok' ? `<button class="btn small" data-fix="${esc(c.fix)}" onclick="doFix(this.dataset.fix)">${esc(t('fix.' + c.fix))}</button>` : '') + '</div>').join('');
+}
+async function loadDoctor() {
+  if (doctorBusy) return;
+  doctorBusy = true;
+  try { doctorChecks = await (await fetch('/api/doctor')).json(); } catch (e) { /* server not ready */ }
+  doctorBusy = false;
+  renderDoctor();
+}
+function renderDoctor() {
+  if (!doctorChecks) return;
+  $('chkList').innerHTML = checkRows(doctorChecks);
+  const todo = doctorChecks.filter(c => c.core && c.level !== 'ok');
+  const show = !(snapLast && snapLast.onboarded) && todo.length > 0;
+  $('onboard').hidden = !show;
+  if (show) $('onbList').innerHTML = checkRows(todo);
+}
+async function doFix(id) {
+  if (FIX[id]) await FIX[id]();
+  await new Promise(r => setTimeout(r, 900)); // let Windows apply it
+  loadDoctor();
+}
+$('chkRun').addEventListener('click', async () => {
+  const b = $('chkRun'); b.disabled = true; b.textContent = t('chkRunning');
+  await loadDoctor();
+  b.disabled = false; b.textContent = t('chkRun');
+});
+$('onbRecheck').addEventListener('click', loadDoctor);
+$('onbDismiss').addEventListener('click', async () => { await post('/api/onboarding?done=1'); $('onboard').hidden = true; });
+loadDoctor();
+setInterval(() => {
+  const settingsOpen = $('page-settings').classList.contains('active');
+  if (settingsOpen || (snapLast && !snapLast.onboarded)) loadDoctor();
+}, 60000);
+
 // ---------- diagnostics ----------
 async function copyDiag() {
   const text = await (await fetch('/api/diagnostics')).text();

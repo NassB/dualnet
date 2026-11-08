@@ -27,6 +27,8 @@ type Settings struct {
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
 	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
 	UpdateCheck *bool `json:"updateCheck,omitempty"`
+	// OnboardingDone: the first-run checklist was dismissed.
+	OnboardingDone *bool `json:"onboardingDone,omitempty"`
 	// Rules: applications restricted to one link (transparent mode).
 	Rules []Rule `json:"rules,omitempty"`
 	// Budgets: monthly data budget per link in GB (absent = none).
@@ -240,4 +242,19 @@ func (s *Store) Run(ctx context.Context, pool *links.Pool) {
 			}
 		}
 	}
+}
+
+// OnboardingDone reports whether the first-run checklist was dismissed.
+func (s *Store) OnboardingDone() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.OnboardingDone != nil && *s.settings.OnboardingDone
+}
+
+// SetOnboardingDone saves whether the first-run checklist is dismissed.
+func (s *Store) SetOnboardingDone(done bool) {
+	s.mu.Lock()
+	s.settings.OnboardingDone = &done
+	s.mu.Unlock()
+	s.Save()
 }

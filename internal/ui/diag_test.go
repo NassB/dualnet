@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NassB/dualnet/internal/doctor"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/store"
 )
@@ -189,5 +191,63 @@ func TestRuleEndpoint(t *testing.T) {
 	}
 	if v := srv.appViews(srv.Pool.All(), time.Second, map[string]int64{}); v == nil || len(v) != 0 {
 		t.Errorf("appViews = %#v, want a non-nil empty list (JSON [])", v)
+	}
+}
+
+func TestDoctorEndpointAndOnboarding(t *testing.T) {
+	st := store.Open(t.TempDir())
+	wifi := links.New("Wi-Fi", net.IPv4(192, 168, 1, 2))
+	srv := &Server{Store: st, Pool: links.PoolOf(wifi), Tun: &TunControl{}, Version: "v9",
+		DoctorEnv: func() doctor.Env {
+			return doctor.Env{Pool: links.PoolOf(wifi), Admin: true, SimultaneousAllowed: func() bool { return false }}
+		}}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/doctor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var checks []doctor.Check
+	if err := json.NewDecoder(resp.Body).Decode(&checks); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	resp.Body.Close()
+	by := map[string]doctor.Check{}
+	for _, c := range checks {
+		by[c.ID] = c
+	}
+	if by["links"].Msg != "links.one" || by["wifi"].Fix != "simultaneous" || !by["wifi"].Core {
+		t.Fatalf("checks = %+v", by)
+	}
+
+	// the report people paste into bug reports includes the checks
+	if d := srv.diagnostics(); !strings.Contains(d, "checks:") || !strings.Contains(d, "[warn] Only one usable link") {
+		t.Fatalf("diagnostics lacks the checks:\n%s", d)
+	}
+
+	post := func(path string, header bool) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		if header {
+			req.Header.Set(CSRFHeader, "1")
+		}
+		r, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+	if st.OnboardingDone() {
+		t.Fatal("the checklist must show on a fresh install")
+	}
+	if post("/api/onboarding?done=1", false) != 403 || st.OnboardingDone() {
+		t.Fatal("onboarding changed without the header")
+	}
+	if post("/api/onboarding?done=1", true) != 204 || !st.OnboardingDone() {
+		t.Fatal("dismissing the checklist did not stick")
+	}
+	if post("/api/onboarding?done=0", true) != 204 || st.OnboardingDone() {
+		t.Fatal("the checklist could not be shown again")
 	}
 }
