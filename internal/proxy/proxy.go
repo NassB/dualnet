@@ -92,7 +92,7 @@ func (s *Server) pick(host string) []*links.Link {
 	} else {
 		bestScore := -1.0
 		for _, l := range up {
-			score := (s.rate[l] + 1) / float64(l.Active.Load()+1)
+			score := s.score(l)
 			if score > bestScore {
 				first, bestScore = l, score
 			}
@@ -250,19 +250,21 @@ func closeWrite(c net.Conn) {
 	c.SetReadDeadline(time.Now())
 }
 
+// stats estimates each link's capacity once a second (peak throughput, slowly
+// decaying) and logs a summary every 5 s.
 func (s *Server) stats() {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(time.Second)
 	prev := map[*links.Link]int64{}
-	for range t.C {
+	for tick := 1; ; tick++ {
+		<-t.C
 		var parts []string
 		s.mu.Lock()
 		for _, l := range s.Pool.Up() {
 			cur := l.BytesIn.Load() + l.BytesOut.Load()
-			r := links.Mbps(cur-prev[l], 5*time.Second)
+			r := links.Mbps(cur-prev[l], time.Second)
 			prev[l] = cur
-			// keep the best recent rate as capacity estimate, decaying slowly
-			s.rate[l] = maxf(r, s.rate[l]*0.9)
-			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s, %d conn", l.Name, r, l.Active.Load()))
+			s.rate[l] = maxf(r, s.rate[l]*0.98)
+			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacité ~%.0f), %d conn", l.Name, r, s.rate[l], l.Active.Load()))
 		}
 		for h, e := range s.sticky {
 			if time.Since(e.seen) > s.Sticky {
@@ -270,8 +272,18 @@ func (s *Server) stats() {
 			}
 		}
 		s.mu.Unlock()
-		log.Println(strings.Join(parts, "  |  "))
+		if tick%5 == 0 && len(parts) > 0 {
+			log.Println(strings.Join(parts, "  |  "))
+		}
 	}
+}
+
+// score is how attractive a link is for one more connection: its estimated
+// capacity divided among its open connections. Unmeasured links get a floor so
+// they still receive connections and get measured.
+func (s *Server) score(l *links.Link) float64 {
+	capacity := maxf(s.rate[l], 10)
+	return capacity / float64(l.Active.Load()+1)
 }
 
 func maxf(a, b float64) float64 {

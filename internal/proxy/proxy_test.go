@@ -62,3 +62,24 @@ func TestPickFollowsLinkState(t *testing.T) {
 	}
 	_ = time.Second
 }
+
+// Connections are spread in proportion to the links' measured capacity.
+func TestPickWeightsByCapacity(t *testing.T) {
+	fast := links.New("fast", net.IPv4(127, 0, 0, 1))
+	slow := links.New("slow", net.IPv4(127, 0, 0, 2))
+	s := &Server{Pool: links.PoolOf(fast, slow)}
+	s.init()
+	s.mu.Lock()
+	s.rate[fast], s.rate[slow] = 400, 80
+	s.mu.Unlock()
+	got := map[string]int{}
+	for i := 0; i < 24; i++ {
+		l := s.pick("h")[0]
+		l.Active.Add(1)
+		got[l.Name]++
+	}
+	// 400:80 = 5:1 -> 20 / 4
+	if got["fast"] < 19 || got["fast"] > 21 {
+		t.Fatalf("want ~20/4 split, got %v", got)
+	}
+}
