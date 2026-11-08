@@ -27,6 +27,19 @@ go build -o dualnet.exe .
 
 Pour le proxy, configurez l'application (navigateur, qBittorrent…) en SOCKS5 `127.0.0.1:1080` ou HTTP `127.0.0.1:1080`.
 
+## Mode transparent (Steam, jeux, tout le PC)
+
+Certaines applications (Steam notamment) ignorent le proxy. Le mode transparent crée une carte réseau virtuelle (Wintun) qui capte tout le trafic IPv4 du PC et le répartit sur les liens, sans aucun réglage dans les applications.
+
+```powershell
+# PowerShell en administrateur
+.\dualnet.exe ui -sticky 0 -transparent
+```
+
+Ou bouton « Mode transparent » dans l'interface (dualnet lancé en administrateur). La carte et ses routes disparaissent à la fermeture de dualnet, même en cas de plantage. L'IPv6 est refusé dans ce mode : les applications basculent en IPv4.
+
+`wintun.dll` (0.14.1, signée par WireGuard LLC, voir `internal/transparent/WINTUN-LICENSE.txt`) est intégrée à l'exécutable et extraite à côté au premier lancement.
+
 ## Le Wi‑Fi se coupe quand le téléphone est branché ?
 
 Windows limite par défaut les connexions simultanées : le partage USB est vu comme une connexion filaire, et le Wi‑Fi est déconnecté. Pour l'autoriser (PowerShell administrateur) :

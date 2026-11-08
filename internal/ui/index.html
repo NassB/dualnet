@@ -90,6 +90,7 @@ td:last-child { text-align: right; }
 .sys-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .sys.on .sys-sub { color: var(--ok); }
 .sys.other .sys-sub { color: var(--warn); }
+button:disabled { opacity: .45; cursor: not-allowed; }
 button.off { background: transparent; color: var(--text); border-color: var(--border); }
 </style>
 </head>
@@ -133,7 +134,14 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
 
     <div class="panel">
       <h2>Proxy (navigation, torrents…)</h2>
-      <div class="sys">
+      <div class="sys" id="tunBox">
+        <div>
+          <div class="sys-title">Mode transparent (Steam, jeux, tout le PC)</div>
+          <div class="sys-sub" id="tunText">—</div>
+        </div>
+        <button id="tunBtn" type="button">Activer</button>
+      </div>
+      <div class="sys" id="sysBox">
         <div>
           <div class="sys-title">Proxy Windows</div>
           <div class="sys-sub" id="sysText">—</div>
@@ -332,7 +340,7 @@ document.getElementById('dl').addEventListener('submit', async e => {
 
 let sysOn = false;
 function renderSys(snap) {
-  const v = snap.sys || {}, box = document.querySelector('.sys'), btn = document.getElementById('sysBtn'), t = document.getElementById('sysText');
+  const v = snap.sys || {}, box = document.getElementById('sysBox'), btn = document.getElementById('sysBtn'), t = document.getElementById('sysText');
   sysOn = v.ours;
   box.classList.toggle('on', !!v.ours);
   box.classList.toggle('other', v.on && !v.ours);
@@ -344,6 +352,24 @@ function renderSys(snap) {
   btn.classList.toggle('off', !!v.ours);
   btn.disabled = !snap.proxy;
 }
+let tunOn = false;
+function renderTun(snap) {
+  const v = snap.tun || {}, box = document.getElementById('tunBox'), btn = document.getElementById('tunBtn'), t = document.getElementById('tunText');
+  tunOn = !!v.on;
+  box.classList.toggle('on', tunOn);
+  box.classList.toggle('other', !v.on && (!v.admin || !!v.err));
+  if (v.on) t.textContent = 'Activé : tout le trafic IPv4 du PC est réparti, sans réglage dans les applis';
+  else if (v.err) t.textContent = v.err;
+  else if (!v.admin) t.textContent = 'Nécessite de lancer dualnet en administrateur';
+  else t.textContent = 'Désactivé';
+  btn.textContent = v.on ? 'Désactiver' : 'Activer';
+  btn.classList.toggle('off', tunOn);
+  btn.disabled = !v.on && !v.admin;
+}
+document.getElementById('tunBtn').addEventListener('click', async () => {
+  const r = await fetch('/api/transparent?on=' + (tunOn ? 0 : 1), { method: 'POST' });
+  if (!r.ok) alert(await r.text());
+});
 document.getElementById('sysBtn').addEventListener('click', async () => {
   const r = await fetch('/api/sysproxy?on=' + (sysOn ? 0 : 1), { method: 'POST' });
   if (!r.ok) alert(await r.text());
@@ -370,7 +396,7 @@ function connect() {
     links = snap.links;
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
-    renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); draw();
+    renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); renderTun(snap); draw();
     for (const id of ['proxyAddr', 'p2']) document.getElementById(id).textContent = snap.proxy || '—';
     document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : 'proxy désactivé';
     document.getElementById('dir').textContent = snap.dir ? 'Dossier de destination : ' + snap.dir : '';

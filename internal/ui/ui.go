@@ -28,6 +28,7 @@ type Server struct {
 	Pool      *links.Pool
 	ProxyAddr string
 	OutDir    string
+	Tun       *TunControl
 
 	mu     sync.Mutex
 	jobs   []*job
@@ -57,6 +58,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
+	mux.HandleFunc("POST /api/transparent", s.setTun)
 	return localOnly(mux)
 }
 
@@ -107,6 +109,7 @@ type snapshot struct {
 	Proxy string     `json:"proxy"`
 	Dir   string     `json:"dir"`
 	Sys   sysView    `json:"sys"`
+	Tun   tunView    `json:"tun"`
 }
 
 // sysView is the Windows proxy state: on/off, its address, and whether it points to us.
@@ -173,7 +176,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState()}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view()}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {

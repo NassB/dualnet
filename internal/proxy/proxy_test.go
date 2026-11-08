@@ -27,7 +27,7 @@ func TestPickFollowsLinkState(t *testing.T) {
 
 	a := links.New("a", net.IPv4(127, 0, 0, 1))
 	b := links.New("b", net.IPv4(127, 0, 0, 2))
-	s := &Server{Pool: links.PoolOf(a, b), Sticky: 0, sticky: map[string]stickyEntry{}, rate: map[*links.Link]float64{}}
+	s := &Server{Pool: links.PoolOf(a, b), Sticky: 0}
 
 	count := func(n int) map[string]int {
 		got := map[string]int{}

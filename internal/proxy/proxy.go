@@ -26,9 +26,10 @@ type Server struct {
 	// that dislike IP changes (logins, banks) keep seeing one IP.
 	Sticky time.Duration
 
-	mu     sync.Mutex
-	sticky map[string]stickyEntry
-	rate   map[*links.Link]float64 // recent Mb/s per link, used for weighting
+	initOnce sync.Once
+	mu       sync.Mutex
+	sticky   map[string]stickyEntry
+	rate     map[*links.Link]float64 // recent Mb/s per link, used for weighting
 }
 
 type stickyEntry struct {
@@ -36,15 +37,21 @@ type stickyEntry struct {
 	seen time.Time
 }
 
+func (s *Server) init() {
+	s.initOnce.Do(func() {
+		s.sticky = map[string]stickyEntry{}
+		s.rate = map[*links.Link]float64{}
+		go s.stats()
+	})
+}
+
 func (s *Server) ListenAndServe(addr string) error {
-	s.sticky = map[string]stickyEntry{}
-	s.rate = map[*links.Link]float64{}
+	s.init()
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 	log.Printf("Proxy SOCKS5/HTTP à l'écoute sur %s", addr)
-	go s.stats()
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -72,6 +79,7 @@ func (s *Server) handle(c net.Conn) {
 // host if still up, otherwise the one with the most spare capacity
 // (measured rate / active connections) first.
 func (s *Server) pick(host string) []*links.Link {
+	s.init()
 	up := s.Pool.Up()
 	if len(up) == 0 {
 		return nil

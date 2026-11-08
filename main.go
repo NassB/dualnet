@@ -31,7 +31,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine plusieurs connexions internet
 
 Usage :
-  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0] [-system-proxy]
+  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0] [-system-proxy] [-transparent]
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o fichier] [-chunk 4] [-workers 4] <url>
   dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy]`)
@@ -103,17 +103,23 @@ func main() {
 		open := fs.Bool("open", true, "ouvrir le navigateur")
 		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
 		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
+		transp := fs.Bool("transparent", false, "capter tout le trafic du PC via une carte virtuelle (administrateur)")
 		fs.Parse(os.Args[2:])
 		restoreStale()
 		pool := watchPool(ctx, *ifs)
+		p := &proxy.Server{Pool: pool, Sticky: *sticky}
 		if *proxyAddr != "" {
-			p := &proxy.Server{Pool: pool, Sticky: *sticky}
 			go func() { check(p.ListenAndServe(*proxyAddr)) }()
+		}
+		tun := &ui.TunControl{Proxy: p}
+		if *transp {
+			check(tun.Set(true))
+			fmt.Println("Mode transparent activé : tout le trafic IPv4 passe par dualnet.")
 		}
 		if *sys && *proxyAddr != "" {
 			check(sysproxy.Enable(*proxyAddr))
 		}
-		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir}
+		srv := &ui.Server{Pool: pool, ProxyAddr: *proxyAddr, OutDir: *dir, Tun: tun}
 		ln, err := net.Listen("tcp", *listen)
 		check(err)
 		url := "http://" + ln.Addr().String()
@@ -121,6 +127,7 @@ func main() {
 		if *open {
 			ui.OpenBrowser(url)
 		}
+		cleanup = tun.Stop
 		go exitRestoring(ctx)
 		check(http.Serve(ln, srv.Handler()))
 
@@ -178,6 +185,7 @@ func restoreStale() {
 // exitRestoring waits for Ctrl+C / window close, restores the proxy, then exits.
 func exitRestoring(ctx context.Context) {
 	<-ctx.Done()
+	cleanup()
 	if sysproxy.Pending() {
 		if err := sysproxy.Disable(); err != nil {
 			fmt.Fprintln(os.Stderr, "Impossible de restaurer le proxy Windows :", err)
@@ -188,8 +196,12 @@ func exitRestoring(ctx context.Context) {
 	os.Exit(0)
 }
 
+// cleanup undoes system changes on exit (transparent mode adapter).
+var cleanup = func() {}
+
 func check(err error) {
 	if err != nil {
+		cleanup()
 		sysproxy.Disable()
 		fmt.Fprintln(os.Stderr, "Erreur :", err)
 		os.Exit(1)
