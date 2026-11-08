@@ -145,6 +145,8 @@ code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; bac
   color: var(--text); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); border-radius: 12px; padding: 9px 14px; margin-bottom: 14px; font-size: 13px; }
 .info-banner svg { width: 18px; height: 18px; flex: none; color: var(--accent); }
 .info-banner span { flex: 1; }
+.log { margin: 4px 0 0; max-height: 300px; overflow: auto; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; font: 12px/1.5 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .warn-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
 
 /* downloads */
@@ -322,6 +324,19 @@ td.r, th.r { text-align: right; }
           <label class="switch"><input type="checkbox" id="updSw"><span></span></label>
         </div>
       </div>
+
+      <div class="card mt">
+        <h2 data-i18n="diagTitle"></h2>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="diagHead"></div><div class="sub" data-i18n="diagSub"></div></div>
+          <div class="row">
+            <button class="btn ghost small" id="diagCopy" data-i18n="diagCopy"></button>
+            <button class="btn ghost small" id="logToggle" data-i18n="logView"></button>
+            <button class="btn ghost small" id="logFolder" data-i18n="logFolder"></button>
+          </div>
+        </div>
+        <pre class="log" id="logView" hidden></pre>
+      </div>
     </section>
   </main>
 </div>
@@ -387,6 +402,9 @@ const I18N = {
     steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
     appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
     proxyOff: 'proxy disabled', done: 'Done',
+    diagTitle: 'Diagnostics', diagHead: 'Bug reports',
+    diagSub: 'Version, links and the latest log lines. Check it before sharing publicly: it lists your network interface names and addresses.',
+    diagCopy: 'Copy diagnostics', logView: 'View log', logHide: 'Hide log', logFolder: 'Open data folder', copied: 'Copied to the clipboard', noLog: '(the log is empty)',
     updAvail: 'dualnet {v} is available.', updGet: 'Download',
     updTitle: 'Check for updates', updSub: 'Asks GitHub for the latest release once a day. Nothing is downloaded or installed automatically.',
     units: ['B', 'KB', 'MB', 'GB', 'TB'],
@@ -431,6 +449,9 @@ const I18N = {
     steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
     appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
     proxyOff: 'proxy désactivé', done: 'Fait',
+    diagTitle: 'Diagnostic', diagHead: 'Rapports de bug',
+    diagSub: 'Version, liens et dernières lignes du journal. Relisez-le avant de le partager publiquement : il liste les noms et adresses de vos interfaces réseau.',
+    diagCopy: 'Copier le diagnostic', logView: 'Voir le journal', logHide: 'Masquer le journal', logFolder: 'Ouvrir le dossier de données', copied: 'Copié dans le presse-papiers', noLog: '(le journal est vide)',
     updAvail: 'dualnet {v} est disponible.', updGet: 'Télécharger',
     updTitle: 'Rechercher les mises à jour', updSub: 'Demande à GitHub la dernière version une fois par jour. Rien n’est téléchargé ni installé automatiquement.',
     units: ['o', 'Ko', 'Mo', 'Go', 'To'],
@@ -721,6 +742,31 @@ $('dl').addEventListener('submit', async e => {
 
 // ---------- settings ----------
 function setSwitch(id, on, disabled) { const s = $(id); if (document.activeElement !== s) s.checked = !!on; s.disabled = !!disabled; }
+// ---------- diagnostics ----------
+async function copyDiag() {
+  const text = await (await fetch('/api/diagnostics')).text();
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { // clipboard API refused: fall back to a temporary textarea
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  toast(t('copied'), true);
+}
+async function loadLog() {
+  const el = $('logView');
+  const txt = (await (await fetch('/api/log')).text()).trim();
+  el.textContent = txt || t('noLog');
+  el.scrollTop = el.scrollHeight;
+}
+$('diagCopy').addEventListener('click', copyDiag);
+$('logFolder').addEventListener('click', () => post('/api/logfolder'));
+$('logToggle').addEventListener('click', async () => {
+  const el = $('logView');
+  el.hidden = !el.hidden;
+  $('logToggle').textContent = t(el.hidden ? 'logView' : 'logHide');
+  if (!el.hidden) await loadLog();
+});
+setInterval(() => { if (!$('logView').hidden && $('page-settings').classList.contains('active')) loadLog(); }, 5000);
+
 function renderUpdate(snap) {
   const u = snap.update || {};
   $('updBanner').style.display = u.available ? 'flex' : 'none';

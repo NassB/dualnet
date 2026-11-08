@@ -75,6 +75,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
 	mux.HandleFunc("POST /api/update/open", s.openUpdate)
 	mux.HandleFunc("POST /api/updatecheck", s.setUpdateCheck)
+	mux.HandleFunc("GET /api/diagnostics", s.getDiagnostics)
+	mux.HandleFunc("GET /api/log", s.getLog)
+	mux.HandleFunc("POST /api/logfolder", s.openLogFolder)
 	mux.HandleFunc("GET /api/history", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.Store.History(30))
