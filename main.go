@@ -37,6 +37,7 @@ func usage() {
 Usage:
   dualnet       (no argument: notification-area icon, as administrator)
   dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir folder] [-sticky 0] [-system-proxy] [-transparent]
+  dualnet window [http://127.0.0.1:8090]   (window for a running dualnet)
   dualnet version
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
@@ -126,10 +127,18 @@ func main() {
 		go exitRestoring(ctx)
 		check(app.serve())
 
+	case "window":
+		// Opens dualnet's window on an already running instance (no admin needed).
+		url := trayURL
+		if len(os.Args) > 2 {
+			url = os.Args[2]
+		}
+		openWindow(url)
+
 	case "tray":
 		setupLog(false)
 		log.Println("dualnet started (notification area)")
-		runTray(ctx)
+		runTray(ctx, len(os.Args) > 2 && os.Args[2] == "-hidden")
 
 	default:
 		usage()

@@ -15,10 +15,19 @@ Get `dualnet.exe` from the [latest release](https://github.com/NassB/dualnet/rel
 Double-click `dualnet.exe`:
 
 1. Windows asks for administrator rights (needed by transparent mode);
-2. an icon appears in the notification area and the interface opens in your browser (`http://127.0.0.1:8090`);
-3. **transparent mode** is on: all the PC's IPv4 traffic (Steam, games, browser…) is spread over your links.
+2. **dualnet's window opens** (its own app window, no browser) and an icon appears in the notification area;
+3. press the big **power button** to turn dualnet on or off. When on, all the PC's IPv4 traffic (Steam, games, browser…) is spread over your links; when off, Windows uses its normal connection. Your choice is remembered.
 
-Tray menu: open the interface, toggle transparent mode, **start with Windows**, quit (networking goes back to normal).
+Closing the window keeps dualnet running in the notification area; open it again from the icon. **Quit** in the icon's menu stops dualnet and restores normal networking.
+
+The window uses Microsoft Edge WebView2, built into Windows 11 and most up-to-date Windows 10 PCs. Without it, the interface opens in your browser instead.
+
+The interface has four pages:
+
+- **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, speed cap), live chart;
+- **Downloads**: download one file over all links at once;
+- **History**: data per link and per day;
+- **Settings**: transparent mode, Windows proxy, keep Wi‑Fi with USB tethering, link preferred by Windows, restart Steam, start with Windows.
 
 ## What dualnet does
 
@@ -43,6 +52,7 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 .\dualnet.exe ui                            # interface + proxy, no admin rights needed
 .\dualnet.exe get https://example.com/big-file.iso
 .\dualnet.exe proxy -listen 127.0.0.1:1080 -system-proxy
+.\dualnet.exe window                        # dualnet's window for an instance started with "ui"
 .\dualnet.exe interfaces
 ```
 

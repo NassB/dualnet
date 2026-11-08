@@ -34,7 +34,7 @@ func setAutostart(on bool) error {
 			return e
 		}
 		out, err = schtasks("/Create", "/F", "/TN", taskName, "/SC", "ONLOGON", "/RL", "HIGHEST",
-			"/TR", "\""+exe+"\" tray")
+			"/TR", "\""+exe+"\" tray -hidden")
 	} else {
 		out, err = schtasks("/Delete", "/F", "/TN", taskName)
 	}

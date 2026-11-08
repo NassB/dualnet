@@ -6,6 +6,7 @@
 <title>dualnet</title>
 <style>
 :root {
+  color-scheme: light dark;
   --bg: #f4f5f8; --side: #eceef3; --panel: #ffffff; --panel2: #f7f8fa; --border: #e2e5eb; --text: #161a20;
   --muted: #69727f; --grid: #eceef2; --accent: #2f6fed; --accent-2: #5b8ef5; --ok: #1f9d55; --err: #d64545; --warn: #c27c0e;
   --l0: #2f6fed; --l1: #ef7d22; --l2: #1f9d55; --l3: #9b51e0;
@@ -45,7 +46,7 @@ nav { background: var(--side); border-right: 1px solid var(--border); padding: 1
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
 
 /* ---------- main ---------- */
-main { overflow-y: auto; padding: 26px 30px 40px; }
+main { overflow-y: auto; padding: 26px 30px 40px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .page { display: none; max-width: 1120px; margin: 0 auto; animation: fade .18s ease; }
 .page.active { display: block; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

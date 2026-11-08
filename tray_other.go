@@ -7,4 +7,8 @@ import (
 	"fmt"
 )
 
-func runTray(context.Context) { fmt.Println("tray mode: Windows only") }
+func runTray(context.Context, bool) { fmt.Println("tray mode: Windows only") }
+
+const trayURL = "http://127.0.0.1:8090"
+
+func openWindow(string) { fmt.Println("window: Windows only") }
