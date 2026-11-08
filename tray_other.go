@@ -7,4 +7,4 @@ import (
 	"fmt"
 )
 
-func runTray(context.Context) { fmt.Println("mode barre des tâches : Windows uniquement") }
+func runTray(context.Context) { fmt.Println("tray mode: Windows only") }

@@ -14,7 +14,7 @@ import (
 // same link picker as the proxy, without a SOCKS hop.
 type TunDialer struct{ S *Server }
 
-var errIPv6 = errors.New("IPv6 non pris en charge par dualnet")
+var errIPv6 = errors.New("IPv6 is not supported by dualnet")
 
 // DialContext opens a TCP connection to the destination over the best link.
 // IPv6 destinations are refused at once so applications fall back to IPv4.
@@ -39,7 +39,7 @@ func (d TunDialer) DialUDP(md *M.Metadata) (net.PacketConn, error) {
 	}
 	order := d.S.pick(ip.String())
 	if len(order) == 0 {
-		return nil, errors.New("aucun lien connecté")
+		return nil, errNoLink
 	}
 	l := order[0]
 	pc, err := net.ListenUDP("udp4", &net.UDPAddr{IP: l.IP()})

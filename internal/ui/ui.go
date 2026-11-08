@@ -148,7 +148,7 @@ func (s *Server) setSysProxy(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.URL.Query().Get("on") == "1" {
 		if s.ProxyAddr == "" {
-			http.Error(w, "proxy dualnet désactivé", http.StatusBadRequest)
+			http.Error(w, "dualnet proxy is disabled", http.StatusBadRequest)
 			return
 		}
 		err = sysproxy.Enable(s.ProxyAddr)
@@ -245,7 +245,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		Workers int    `json:"workers"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
-		http.Error(w, "url manquante", http.StatusBadRequest)
+		http.Error(w, "missing url", http.StatusBadRequest)
 		return
 	}
 	if req.Workers <= 0 || req.Workers > 32 {
@@ -253,7 +253,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	up := s.Pool.Up()
 	if len(up) == 0 {
-		http.Error(w, "aucun lien connecté", http.StatusServiceUnavailable)
+		http.Error(w, "no connected link", http.StatusServiceUnavailable)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,7 +280,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 			j.state = "done"
 		}
 		if err != nil {
-			log.Printf("téléchargement %d : %v", j.id, err)
+			log.Printf("download %d: %v", j.id, err)
 		}
 	}()
 	w.WriteHeader(http.StatusAccepted)
@@ -327,7 +327,7 @@ func (s *Server) setLimit(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("link")
 	mbps, err := strconv.ParseFloat(r.URL.Query().Get("mbps"), 64)
 	if err != nil || mbps < 0 {
-		http.Error(w, "valeur invalide", http.StatusBadRequest)
+		http.Error(w, "invalid value", http.StatusBadRequest)
 		return
 	}
 	for _, l := range s.Pool.All() {

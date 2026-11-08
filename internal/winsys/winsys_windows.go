@@ -112,12 +112,12 @@ func Prefer(name string, all []string) error {
 func RestartSteam() error {
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Valve\Steam`, registry.QUERY_VALUE)
 	if err != nil {
-		return errors.New("Steam n'est pas installé")
+		return errors.New("Steam is not installed")
 	}
 	exe, _, err := k.GetStringValue("SteamExe")
 	k.Close()
 	if err != nil || exe == "" {
-		return errors.New("Steam n'est pas installé")
+		return errors.New("Steam is not installed")
 	}
 	exec.Command(exe, "-shutdown").Run()
 	for i := 0; i < 40 && steamRunning(); i++ {

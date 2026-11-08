@@ -29,13 +29,13 @@ import (
 )
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `dualnet — combine plusieurs connexions internet
+	fmt.Fprintln(os.Stderr, `dualnet — combine several internet connections
 
-Usage :
-  dualnet       (sans argument : icône dans la barre des tâches, en administrateur)
-  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0] [-system-proxy] [-transparent]
+Usage:
+  dualnet       (no argument: notification-area icon, as administrator)
+  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir folder] [-sticky 0] [-system-proxy] [-transparent]
   dualnet interfaces
-  dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o fichier] [-chunk 4] [-workers 4] <url>
+  dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
   dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy]`)
 	os.Exit(2)
 }
@@ -55,7 +55,7 @@ func main() {
 		check(err)
 		fmt.Println(strings.Join(lines, "\n"))
 		if ls, err := links.Discover(nil); err == nil {
-			fmt.Println("\nSélection automatique :")
+			fmt.Println("\nAutomatic selection:")
 			for _, l := range ls {
 				fmt.Println("  ", l)
 			}
@@ -63,10 +63,10 @@ func main() {
 
 	case "get":
 		fs := flag.NewFlagSet("get", flag.ExitOnError)
-		ifs := fs.String("if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
-		out := fs.String("o", "", "fichier de sortie")
-		chunk := fs.Int("chunk", 2, "taille des morceaux en Mo")
-		workers := fs.Int("workers", 4, "connexions parallèles par lien")
+		ifs := fs.String("if", "", "interfaces to use (names or IPs, comma-separated)")
+		out := fs.String("o", "", "output file")
+		chunk := fs.Int("chunk", 2, "chunk size in MB")
+		workers := fs.Int("workers", 4, "parallel connections per link")
 		fs.Parse(os.Args[2:])
 		if fs.NArg() != 1 {
 			usage()
@@ -81,17 +81,17 @@ func main() {
 
 	case "proxy":
 		fs := flag.NewFlagSet("proxy", flag.ExitOnError)
-		ifs := fs.String("if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
-		listen := fs.String("listen", "127.0.0.1:1080", "adresse d'écoute")
-		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien pendant cette durée")
-		sys := fs.Bool("system-proxy", false, "régler le proxy de Windows sur dualnet (restauré à la fermeture)")
+		ifs := fs.String("if", "", "interfaces to use (names or IPs, comma-separated)")
+		listen := fs.String("listen", "127.0.0.1:1080", "listen address")
+		sticky := fs.Duration("sticky", 10*time.Minute, "keep a site on the same link for this long")
+		sys := fs.Bool("system-proxy", false, "point the Windows proxy to dualnet (restored on exit)")
 		fs.Parse(os.Args[2:])
 		restoreStale()
 		pool := watchPool(ctx, *ifs)
 		s := &proxy.Server{Pool: pool, Sticky: *sticky}
 		if *sys {
 			check(sysproxy.Enable(*listen))
-			fmt.Println("Proxy Windows réglé sur", *listen, "(restauré à la fermeture)")
+			fmt.Println("Windows proxy set to", *listen, "(restored on exit)")
 		}
 		go exitRestoring(ctx)
 		check(s.ListenAndServe(*listen))
@@ -99,20 +99,20 @@ func main() {
 	case "ui":
 		fs := flag.NewFlagSet("ui", flag.ExitOnError)
 		cfg := uiConfig{}
-		fs.StringVar(&cfg.ifs, "if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
-		fs.StringVar(&cfg.listen, "listen", "127.0.0.1:8090", "adresse de l'interface web")
-		fs.StringVar(&cfg.proxyAddr, "proxy", "127.0.0.1:1080", `adresse du proxy ("" pour le désactiver)`)
+		fs.StringVar(&cfg.ifs, "if", "", "interfaces to use (names or IPs, comma-separated)")
+		fs.StringVar(&cfg.listen, "listen", "127.0.0.1:8090", "web interface address")
+		fs.StringVar(&cfg.proxyAddr, "proxy", "127.0.0.1:1080", `proxy address ("" to disable)`)
 		home, _ := os.UserHomeDir()
-		fs.StringVar(&cfg.dir, "dir", filepath.Join(home, "Downloads"), "dossier des téléchargements")
-		open := fs.Bool("open", true, "ouvrir le navigateur")
-		fs.DurationVar(&cfg.sticky, "sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
-		fs.BoolVar(&cfg.systemProxy, "system-proxy", false, "régler le proxy de Windows sur dualnet au démarrage (restauré à la fermeture)")
-		fs.BoolVar(&cfg.transparent, "transparent", false, "capter tout le trafic du PC via une carte virtuelle (administrateur)")
+		fs.StringVar(&cfg.dir, "dir", filepath.Join(home, "Downloads"), "download folder")
+		open := fs.Bool("open", true, "open the browser")
+		fs.DurationVar(&cfg.sticky, "sticky", 10*time.Minute, "keep a site on the same link (0 = spread every connection, best for Steam)")
+		fs.BoolVar(&cfg.systemProxy, "system-proxy", false, "point the Windows proxy to dualnet at startup (restored on exit)")
+		fs.BoolVar(&cfg.transparent, "transparent", false, "capture all PC traffic with a virtual adapter (administrator)")
 		fs.Parse(os.Args[2:])
 		setupLog(true)
 		app, err := startUI(ctx, cfg)
 		check(err)
-		fmt.Println("Interface :", app.url)
+		fmt.Println("Interface:", app.url)
 		if *open {
 			ui.OpenBrowser(app.url)
 		}
@@ -121,7 +121,7 @@ func main() {
 
 	case "tray":
 		setupLog(false)
-		log.Println("dualnet démarré (barre des tâches)")
+		log.Println("dualnet started (notification area)")
 		runTray(ctx)
 
 	default:
@@ -160,7 +160,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 	}
 	prevChange := pool.OnChange
 	pool.OnChange = func(l *links.Link, ev string) {
-		if ev == "ajouté" {
+		if ev == "added" {
 			st.ApplyLimit(l)
 		}
 		prevChange(l, ev)
@@ -176,7 +176,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		if err := tun.Set(true); err != nil {
 			return nil, err
 		}
-		fmt.Println("Mode transparent activé : tout le trafic IPv4 passe par dualnet.")
+		fmt.Println("Transparent mode on: all IPv4 traffic goes through dualnet.")
 	}
 	if cfg.systemProxy && cfg.proxyAddr != "" {
 		if err := sysproxy.Enable(cfg.proxyAddr); err != nil {
@@ -208,14 +208,14 @@ func watchPool(ctx context.Context, sel string) *links.Pool {
 		parts = strings.Split(sel, ",")
 	}
 	pool := links.NewPool(parts)
-	fmt.Println("Liens connectés :")
+	fmt.Println("Connected links:")
 	for _, l := range pool.Up() {
 		fmt.Println("  ", l)
 	}
 	if len(pool.Up()) < 2 {
-		fmt.Println("Un seul lien pour l'instant : les autres seront ajoutés dès qu'ils se connectent.")
+		fmt.Println("Only one link for now: others are added as soon as they connect.")
 	}
-	pool.OnChange = func(l *links.Link, ev string) { log.Printf("Lien %s : %s", l, ev) }
+	pool.OnChange = func(l *links.Link, ev string) { log.Printf("Link %s: %s", l, ev) }
 	go pool.Watch(ctx, 2*time.Second)
 	go pool.Health(ctx, 5*time.Second)
 	return pool
@@ -228,12 +228,12 @@ func discover(sel string) []*links.Link {
 	}
 	ls, err := links.Discover(parts)
 	check(err)
-	fmt.Println("Liens utilisés :")
+	fmt.Println("Links used:")
 	for _, l := range ls {
 		fmt.Println("  ", l)
 	}
 	if len(ls) < 2 {
-		fmt.Println("Attention : un seul lien détecté, pas d'agrégation possible.")
+		fmt.Println("Warning: only one link found, nothing to combine.")
 	}
 	return ls
 }
@@ -243,7 +243,7 @@ func discover(sel string) []*links.Link {
 func restoreStale() {
 	if sysproxy.Pending() {
 		if err := sysproxy.Disable(); err == nil {
-			fmt.Println("Proxy Windows d'une session précédente restauré.")
+			fmt.Println("Restored the Windows proxy left by a previous session.")
 		}
 	}
 }
@@ -251,7 +251,7 @@ func restoreStale() {
 // exitRestoring waits for Ctrl+C / window close, restores the proxy, then exits.
 func exitRestoring(ctx context.Context) {
 	<-ctx.Done()
-	fmt.Println("Arrêt : réglages Windows restaurés.")
+	fmt.Println("Stopping: Windows settings restored.")
 	shutdown(0)
 }
 
@@ -260,10 +260,10 @@ var cleanup = func() {}
 
 func check(err error) {
 	if err != nil {
-		log.Println("Erreur :", err)
+		log.Println("Error:", err)
 		cleanup()
 		sysproxy.Disable()
-		fmt.Fprintln(os.Stderr, "Erreur :", err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }

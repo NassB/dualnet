@@ -54,7 +54,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Proxy SOCKS5/HTTP à l'écoute sur %s", addr)
+	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -115,7 +115,7 @@ func (s *Server) pick(host string) []*links.Link {
 
 func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
 	host, _, _ := net.SplitHostPort(addr)
-	lastErr := errors.New("aucun lien connecté")
+	lastErr := errNoLink
 	for _, l := range s.pick(host) {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		c, err := l.DialContext(ctx, "tcp", addr)
@@ -225,7 +225,7 @@ func (s *Server) forward(c net.Conn, req *http.Request) bool {
 	host := req.URL.Hostname()
 	var resp *http.Response
 	var used *links.Link
-	err := errors.New("aucun lien connecté")
+	err := errNoLink
 	for _, l := range s.pick(host) {
 		l.Active.Add(1)
 		resp, err = s.transport(l).RoundTrip(req)
@@ -316,7 +316,7 @@ func (s *Server) stats() {
 			r := links.Mbps(cur-prev[l], time.Second)
 			prev[l] = cur
 			s.rate[l] = maxf(r, s.rate[l]*0.995) // half-life ~2 min
-			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacité ~%.0f), %d conn dont %d actives", l.Name, r, s.rate[l], l.Active.Load(), l.Busy(10*time.Second)))
+			parts = append(parts, fmt.Sprintf("%s: %.1f Mb/s (capacity ~%.0f), %d conn, %d active", l.Name, r, s.rate[l], l.Active.Load(), l.Busy(10*time.Second)))
 		}
 		for h, e := range s.sticky {
 			if time.Since(e.seen) > s.Sticky {
@@ -357,3 +357,6 @@ func maxf(a, b float64) float64 {
 const badGateway = "HTTP/1.1 502 Bad Gateway" + crlf + "Content-Length: 0" + crlf + crlf
 
 const crlf = "\r\n"
+
+// errNoLink is returned when no link is connected and answering.
+var errNoLink = errors.New("no connected link")

@@ -37,7 +37,7 @@ func (s *Server) setSystem(w http.ResponseWriter, r *http.Request) {
 	case "steam":
 		err = winsys.RestartSteam()
 	default:
-		http.Error(w, "action inconnue", http.StatusBadRequest)
+		http.Error(w, "unknown action", http.StatusBadRequest)
 		return
 	}
 	if err != nil {

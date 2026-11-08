@@ -105,7 +105,7 @@ var skipNames = []string{"dualnet", "wintun", "loopback", "vethernet", "virtualb
 func Discover(selectors []string) ([]*Link, error) {
 	out := NewPool(selectors).Up()
 	if len(out) == 0 {
-		return nil, fmt.Errorf("aucune interface utilisable trouvée (utilisez -if)")
+		return nil, fmt.Errorf("no usable network interface found (use -if)")
 	}
 	return out, nil
 }

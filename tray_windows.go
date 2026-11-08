@@ -27,7 +27,7 @@ func runTray(ctx context.Context) {
 	if !transparent.Admin() {
 		// Relaunch elevated (UAC prompt), hidden; this instance exits.
 		if err := relaunchElevated("tray"); err != nil {
-			messageBox("dualnet", "dualnet a besoin des droits administrateur pour le mode transparent.\n\n"+err.Error())
+			messageBox("dualnet", tr("dualnet needs administrator rights for transparent mode.", "dualnet a besoin des droits administrateur pour le mode transparent.")+"\n\n"+err.Error())
 		}
 		return
 	}
@@ -42,12 +42,13 @@ func runTray(ctx context.Context) {
 	app, err := startUI(ctx, cfg)
 	if err != nil {
 		if strings.Contains(err.Error(), "bind") {
-			messageBox("dualnet", "dualnet est déjà lancé (port 8090 occupé) : son interface va s'ouvrir.\n\n"+
-				"Si c'est une ancienne version lancée depuis PowerShell, fermez-la (Ctrl+C) puis relancez dualnet.exe.")
+			messageBox("dualnet", tr(
+				"dualnet is already running (port 8090 in use): opening its interface.\n\nIf it is an older version started from PowerShell, close it (Ctrl+C) and start dualnet.exe again.",
+				"dualnet est déjà lancé (port 8090 occupé) : son interface va s'ouvrir.\n\nSi c'est une ancienne version lancée depuis PowerShell, fermez-la (Ctrl+C) puis relancez dualnet.exe."))
 			ui.OpenBrowser(trayURL)
 			return
 		}
-		messageBox("dualnet", "Démarrage impossible :\n"+err.Error())
+		messageBox("dualnet", tr("Could not start:", "Démarrage impossible :")+"\n"+err.Error())
 		shutdown(1)
 	}
 	go func() {
@@ -62,13 +63,13 @@ func runTray(ctx context.Context) {
 	systray.Run(func() {
 		systray.SetIcon(trayIcon)
 		systray.SetTitle("dualnet")
-		systray.SetTooltip("dualnet — Wi-Fi + partage combinés")
-		open := systray.AddMenuItem("Ouvrir l'interface", "")
+		systray.SetTooltip(tr("dualnet — combined internet links", "dualnet — connexions internet combinées"))
+		open := systray.AddMenuItem(tr("Open interface", "Ouvrir l'interface"), "")
 		systray.AddSeparator()
-		transp := systray.AddMenuItemCheckbox("Mode transparent (tout le PC)", "", app.tun.On())
-		auto := systray.AddMenuItemCheckbox("Démarrer avec Windows", "", autostartEnabled())
+		transp := systray.AddMenuItemCheckbox(tr("Transparent mode (whole PC)", "Mode transparent (tout le PC)"), "", app.tun.On())
+		auto := systray.AddMenuItemCheckbox(tr("Start with Windows", "Démarrer avec Windows"), "", autostartEnabled())
 		systray.AddSeparator()
-		quit := systray.AddMenuItem("Quitter (rétablit le réseau normal)", "")
+		quit := systray.AddMenuItem(tr("Quit (restores normal networking)", "Quitter (rétablit le réseau normal)"), "")
 		go func() {
 			for {
 				select {
@@ -81,7 +82,7 @@ func runTray(ctx context.Context) {
 					setChecked(transp, app.tun.On())
 				case <-auto.ClickedCh:
 					if err := setAutostart(!auto.Checked()); err != nil {
-						messageBox("dualnet", "Démarrage automatique : "+err.Error())
+						messageBox("dualnet", tr("Start with Windows: ", "Démarrage automatique : ")+err.Error())
 					}
 					setChecked(auto, autostartEnabled())
 				case <-quit.ClickedCh:
@@ -128,3 +129,16 @@ func messageBox(title, text string) {
 	m, _ := syscall.UTF16PtrFromString(text)
 	windows.MessageBox(0, m, t, windows.MB_OK|windows.MB_ICONINFORMATION)
 }
+
+// tr picks the French text when Windows' display language is French, English otherwise.
+func tr(en, fr string) string {
+	if windowsFrench {
+		return fr
+	}
+	return en
+}
+
+var windowsFrench = func() bool {
+	lang, _, _ := syscall.NewLazyDLL("kernel32.dll").NewProc("GetUserDefaultUILanguage").Call()
+	return lang&0x3ff == 0x0c // LANG_FRENCH
+}()

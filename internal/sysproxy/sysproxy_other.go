@@ -4,7 +4,7 @@ package sysproxy
 
 import "errors"
 
-var errUnsupported = errors.New("proxy système : Windows uniquement")
+var errUnsupported = errors.New("system proxy: Windows only")
 
 func Status() (bool, string, error) { return false, "", errUnsupported }
 func Enable(string) error           { return errUnsupported }

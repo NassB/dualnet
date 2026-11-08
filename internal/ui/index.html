@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -103,16 +103,16 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
 <div class="wrap">
   <header>
     <h1>dualnet</h1>
-    <span class="pill"><span class="dot" id="conn"></span><span id="connText">connexion…</span></span>
+    <span class="pill"><span class="dot" id="conn"></span><span id="connText" data-i18n="connecting"></span></span>
     <span class="pill" id="proxyPill">proxy —</span>
   </header>
 
-  <div class="warn" id="linksWarn">Un seul lien connecté : pas de combinaison. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, Windows limite les connexions simultanées (voir le README). dualnet reprendra le lien automatiquement dès qu'il revient.</div>
+  <div class="warn" id="linksWarn" data-i18n="oneLinkWarn"></div>
   <section class="grid kpis" id="kpis"></section>
 
   <section class="panel">
     <div class="chart-head">
-      <h2>Débit descendant — 2 dernières minutes</h2>
+      <h2 data-i18n="chartTitle"></h2>
       <div class="legend" id="legend"></div>
     </div>
     <div class="chart-box">
@@ -123,77 +123,185 @@ button.off { background: transparent; color: var(--text); border-color: var(--bo
 
   <section class="grid cols">
     <div class="panel">
-      <h2>Téléchargements</h2>
+      <h2 data-i18n="downloads"></h2>
       <form id="dl">
-        <input type="url" id="url" placeholder="https://… (fichier à télécharger)" required>
-        <select id="workers" title="Connexions par lien">
-          <option value="2">2 conn./lien</option>
-          <option value="4" selected>4 conn./lien</option>
-          <option value="8">8 conn./lien</option>
+        <input type="url" id="url" data-i18n-ph="urlPlaceholder" required>
+        <select id="workers" data-i18n-title="connPerLink">
+          <option value="2" data-i18n="conn2"></option>
+          <option value="4" selected data-i18n="conn4"></option>
+          <option value="8" data-i18n="conn8"></option>
         </select>
-        <button type="submit">Télécharger</button>
+        <button type="submit" data-i18n="download"></button>
       </form>
-      <div class="jobs" id="jobs"><div class="empty">Aucun téléchargement pour l'instant.</div></div>
+      <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
       <div class="howto" id="dir"></div>
     </div>
 
     <div class="panel">
-      <h2>Proxy (navigation, torrents…)</h2>
+      <h2 data-i18n="proxyTitle"></h2>
       <div class="sys" id="tunBox">
         <div>
-          <div class="sys-title">Mode transparent (Steam, jeux, tout le PC)</div>
+          <div class="sys-title" data-i18n="tunTitle"></div>
           <div class="sys-sub" id="tunText">—</div>
         </div>
-        <button id="tunBtn" type="button">Activer</button>
+        <button id="tunBtn" type="button" data-i18n="enable"></button>
       </div>
       <div class="sys" id="sysBox">
         <div>
-          <div class="sys-title">Proxy Windows</div>
+          <div class="sys-title" data-i18n="sysTitle"></div>
           <div class="sys-sub" id="sysText">—</div>
         </div>
-        <button id="sysBtn" type="button">Activer</button>
+        <button id="sysBtn" type="button" data-i18n="enable"></button>
       </div>
       <div class="howto">
-        <div class="row">Adresse : <code id="proxyAddr">—</code></div>
+        <div class="row"><span data-i18n="address"></span> <code id="proxyAddr">—</code></div>
         <ol>
-          <li><b>Navigateur</b> : Firefox → Paramètres → Réseau → Proxy manuel → SOCKS v5 <code id="p2">—</code>, cocher « DNS via SOCKS ».</li>
-          <li><b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5, même adresse.</li>
-          <li><b>Tout Windows (Steam, Edge, Chrome…)</b> : bouton ci-dessus. Relancez Steam après l'activation. Vos réglages d'origine sont remis à la fermeture de dualnet.</li>
+          <li data-i18n-html="howBrowser"></li>
+          <li data-i18n-html="howTorrent"></li>
+          <li data-i18n-html="howWindows"></li>
         </ol>
-        Chaque connexion part sur le lien le moins chargé ; un même site reste sur le même lien 10 min.
+        <span data-i18n="howSpread"></span>
       </div>
       <table id="totals"></table>
     </div>
   </section>
 
   <section class="panel" style="margin-top:14px">
-    <h2>Réglages Windows</h2>
+    <h2 data-i18n="winSettings"></h2>
     <div class="sysgrid">
       <div class="sys" id="simBox">
-        <div><div class="sys-title">Garder le Wi‑Fi avec le partage USB</div>
+        <div><div class="sys-title" data-i18n="simTitle"></div>
         <div class="sys-sub" id="simText">—</div></div>
-        <button id="simBtn" type="button">Autoriser</button>
+        <button id="simBtn" type="button" data-i18n="allow"></button>
       </div>
       <div class="sys">
-        <div><div class="sys-title">Lien préféré par Windows</div>
-        <div class="sys-sub">Pour le trafic qui ne passe pas par dualnet.</div>
+        <div><div class="sys-title" data-i18n="preferTitle"></div>
+        <div class="sys-sub" data-i18n="preferSub"></div>
         <div class="row" id="prefer" style="margin-top:8px"></div></div>
       </div>
       <div class="sys">
-        <div><div class="sys-title">Relancer Steam</div>
-        <div class="sys-sub">Après avoir activé le mode transparent, pour que Steam rouvre ses connexions.</div></div>
-        <button id="steamBtn" type="button">Relancer</button>
+        <div><div class="sys-title" data-i18n="steamTitle"></div>
+        <div class="sys-sub" data-i18n="steamSub"></div></div>
+        <button id="steamBtn" type="button" data-i18n="restart"></button>
       </div>
     </div>
   </section>
 
   <section class="panel" style="margin-top:14px">
-    <h2>Historique (30 derniers jours)</h2>
-    <div id="history" class="empty">Chargement…</div>
+    <h2 data-i18n="historyTitle"></h2>
+    <div id="history" class="empty" data-i18n="loading"></div>
   </section>
 </div>
 
 <script>
+// ---------- language: French if the browser prefers French, English otherwise ----------
+// ?lang=en or ?lang=fr in the address forces a language.
+const LANG = (() => {
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'en' || q === 'fr') return q;
+  return ((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+})();
+document.documentElement.lang = LANG;
+const I18N = {
+  en: {
+    connecting: 'connecting…', live: 'live', disconnected: 'disconnected — is dualnet running?',
+    oneLinkWarn: 'Only one link connected: nothing to combine. If Wi‑Fi drops when the phone is plugged in over USB, Windows is limiting simultaneous connections (see “Keep Wi‑Fi with USB tethering” below). dualnet picks the link up again automatically as soon as it is back.',
+    chartTitle: 'Download speed — last 2 minutes', now: 'now', agoS: '{n} s ago',
+    downloads: 'Downloads', urlPlaceholder: 'https://… (file to download)', connPerLink: 'Connections per link',
+    conn2: '2 conn./link', conn4: '4 conn./link', conn8: '8 conn./link', download: 'Download',
+    noDownloads: 'No downloads yet.', destFolder: 'Destination folder: {d}',
+    proxyTitle: 'Proxy (browsing, torrents…)',
+    tunTitle: 'Transparent mode (Steam, games, whole PC)', sysTitle: 'Windows proxy',
+    enable: 'Enable', disable: 'Disable', address: 'Address:',
+    howBrowser: '<b>Browser</b>: Firefox → Settings → Network → Manual proxy → SOCKS v5 <code class="paddr"></code>, tick “Proxy DNS when using SOCKS”.',
+    howTorrent: '<b>qBittorrent</b>: Options → Connection → SOCKS5 proxy, same address.',
+    howWindows: '<b>All of Windows (Steam, Edge, Chrome…)</b>: button above. Restart Steam after enabling. Your original settings are restored when dualnet closes.',
+    howSpread: 'Each connection goes to the least loaded link; a given site stays on the same link for 10 min.',
+    winSettings: 'Windows settings', simTitle: 'Keep Wi‑Fi with USB tethering', allow: 'Allow', revert: 'Restore default',
+    simOn: 'Allowed: Windows no longer drops Wi‑Fi when the phone is plugged in',
+    simOff: 'By default, Windows drops Wi‑Fi as soon as a wired connection (USB tethering) is present',
+    needAdmin: 'Run dualnet as administrator to change this setting',
+    preferTitle: 'Link preferred by Windows', preferSub: 'For traffic that does not go through dualnet.', automatic: 'Automatic',
+    steamTitle: 'Restart Steam', steamSub: 'After enabling transparent mode, so Steam reopens its connections.',
+    restart: 'Restart', restarting: 'Restarting…',
+    historyTitle: 'History (last 30 days)', loading: 'Loading…', noHistory: 'No data yet (recorded every 10 s).',
+    day: 'Day', total: 'Total', share: 'Share',
+    combined: 'Combined total', peak: 'peak', received: 'received', conn: 'conn.', cap: 'cap', none: 'none',
+    tagDown: 'disconnected', tagNoAnswer: 'not answering',
+    capPrompt: 'Download speed cap for {n} in Mb/s (0 = none):',
+    stRunning: 'running', stDone: 'done', stError: 'error', stCancelled: 'cancelled',
+    cancel: 'Cancel', openFolder: 'Open folder', left: '{t} left', avgIn: 'average {s} Mb/s in {t}',
+    sysOurs: 'On: all of Windows goes through dualnet',
+    sysOther: 'Another proxy is set ({s}) — Enable replaces it; it is restored on exit',
+    sysOff: 'Off: only apps configured by hand use dualnet',
+    tunOn: 'On: all the PC’s IPv4 traffic is spread, no app settings needed',
+    tunNeedAdmin: 'Requires running dualnet as administrator', off: 'Off',
+    proxyOff: 'proxy disabled',
+    units: ['B', 'KB', 'MB', 'GB', 'TB'],
+  },
+  fr: {
+    connecting: 'connexion…', live: 'en direct', disconnected: 'déconnecté — dualnet est-il lancé ?',
+    oneLinkWarn: 'Un seul lien connecté : pas de combinaison. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, Windows limite les connexions simultanées (voir « Garder le Wi‑Fi avec le partage USB » plus bas). dualnet reprendra le lien automatiquement dès qu’il revient.',
+    chartTitle: 'Débit descendant — 2 dernières minutes', now: 'maintenant', agoS: 'il y a {n} s',
+    downloads: 'Téléchargements', urlPlaceholder: 'https://… (fichier à télécharger)', connPerLink: 'Connexions par lien',
+    conn2: '2 conn./lien', conn4: '4 conn./lien', conn8: '8 conn./lien', download: 'Télécharger',
+    noDownloads: 'Aucun téléchargement pour l’instant.', destFolder: 'Dossier de destination : {d}',
+    proxyTitle: 'Proxy (navigation, torrents…)',
+    tunTitle: 'Mode transparent (Steam, jeux, tout le PC)', sysTitle: 'Proxy Windows',
+    enable: 'Activer', disable: 'Désactiver', address: 'Adresse :',
+    howBrowser: '<b>Navigateur</b> : Firefox → Paramètres → Réseau → Proxy manuel → SOCKS v5 <code class="paddr"></code>, cocher « DNS via SOCKS ».',
+    howTorrent: '<b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5, même adresse.',
+    howWindows: '<b>Tout Windows (Steam, Edge, Chrome…)</b> : bouton ci-dessus. Relancez Steam après l’activation. Vos réglages d’origine sont remis à la fermeture de dualnet.',
+    howSpread: 'Chaque connexion part sur le lien le moins chargé ; un même site reste sur le même lien 10 min.',
+    winSettings: 'Réglages Windows', simTitle: 'Garder le Wi‑Fi avec le partage USB', allow: 'Autoriser', revert: 'Rétablir',
+    simOn: 'Autorisé : Windows ne coupe plus le Wi‑Fi quand le téléphone est branché',
+    simOff: 'Par défaut, Windows coupe le Wi‑Fi dès qu’une connexion filaire (partage USB) est présente',
+    needAdmin: 'Lancez dualnet en administrateur pour modifier ce réglage',
+    preferTitle: 'Lien préféré par Windows', preferSub: 'Pour le trafic qui ne passe pas par dualnet.', automatic: 'Automatique',
+    steamTitle: 'Relancer Steam', steamSub: 'Après avoir activé le mode transparent, pour que Steam rouvre ses connexions.',
+    restart: 'Relancer', restarting: 'Relance…',
+    historyTitle: 'Historique (30 derniers jours)', loading: 'Chargement…', noHistory: 'Pas encore de données (enregistrées toutes les 10 s).',
+    day: 'Jour', total: 'Total', share: 'Part',
+    combined: 'Total combiné', peak: 'pic', received: 'reçus', conn: 'conn.', cap: 'plafond', none: 'aucun',
+    tagDown: 'déconnecté', tagNoAnswer: 'ne répond pas',
+    capPrompt: 'Plafond de débit pour {n} en Mb/s (0 = aucun) :',
+    stRunning: 'en cours', stDone: 'terminé', stError: 'erreur', stCancelled: 'annulé',
+    cancel: 'Annuler', openFolder: 'Ouvrir le dossier', left: 'reste {t}', avgIn: 'moyenne {s} Mb/s en {t}',
+    sysOurs: 'Activé : tout Windows passe par dualnet',
+    sysOther: 'Un autre proxy est réglé ({s}) — Activer le remplacera, il sera remis à la fermeture',
+    sysOff: 'Désactivé : seules les applis réglées à la main utilisent dualnet',
+    tunOn: 'Activé : tout le trafic IPv4 du PC est réparti, sans réglage dans les applis',
+    tunNeedAdmin: 'Nécessite de lancer dualnet en administrateur', off: 'Désactivé',
+    proxyOff: 'proxy désactivé',
+    units: ['o', 'Ko', 'Mo', 'Go', 'To'],
+  },
+};
+// Server messages are in English; translate the known ones for French users.
+const SERVER_FR = {
+  'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
+  'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid value': 'valeur invalide',
+  'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
+  'unknown action': 'action inconnue',
+};
+const t = (k, vars) => {
+  let s = (I18N[LANG][k] ?? I18N.en[k] ?? k);
+  if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace('{' + a + '}', b);
+  return s;
+};
+const srv = msg => {
+  msg = String(msg || '').trim();
+  if (LANG !== 'fr') return msg;
+  for (const [en, fr] of Object.entries(SERVER_FR)) if (msg.startsWith(en)) return fr + msg.slice(en.length);
+  return msg;
+};
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-html]').forEach(e => e.innerHTML = t(e.dataset.i18nHtml));
+  document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
+  document.querySelectorAll('[data-i18n-title]').forEach(e => e.title = t(e.dataset.i18nTitle));
+}
+applyI18n();
+
 const WINDOW = 120;            // seconds of history
 const STEP = 0.5;              // seconds between points
 const MAXPTS = WINDOW / STEP;
@@ -204,7 +312,7 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const color = i => css('--l' + (i % 4));
 const fmtMbps = v => v >= 100 ? v.toFixed(0) : v.toFixed(1);
 function fmtBytes(n) {
-  const u = ['o', 'Ko', 'Mo', 'Go', 'To']; let i = 0;
+  const u = t('units'); let i = 0;
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
   return (i ? n.toFixed(1) : n.toFixed(0)) + ' ' + u[i];
 }
@@ -213,7 +321,8 @@ function fmtDur(s) {
   s = Math.round(s); const m = Math.floor(s / 60);
   return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
 }
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function failAlert(r) { if (!r.ok) alert(srv(await r.text())); }
 
 // ---------- KPIs ----------
 function renderKpis(snap) {
@@ -221,22 +330,22 @@ function renderKpis(snap) {
   peakTotal = Math.max(peakTotal, total);
   const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
   let html = `<div class="panel kpi total">
-      <div class="label">Total combiné</div>
+      <div class="label">${t('combined')}</div>
       <div class="value">${fmtMbps(total)}<small>Mb/s</small></div>
-      <div class="sub">pic ${fmtMbps(peakTotal)} Mb/s · ${fmtBytes(allRx)} reçus</div>
+      <div class="sub">${t('peak')} ${fmtMbps(peakTotal)} Mb/s · ${fmtBytes(allRx)} ${t('received')}</div>
       <div class="bar">${snap.links.map((l, i) =>
         `<span style="width:${(100 * l.rxMbps / (total || 1)).toFixed(1)}%;background:${color(i)}"></span>`).join('')}</div>
     </div>`;
   snap.links.forEach((l, i) => {
     peaks[i] = Math.max(peaks[i] || 0, l.rxMbps);
     const share = 100 * l.totalRx / allRx;
-    const tag = !l.up ? 'déconnecté' : !l.healthy ? 'ne répond pas' : '';
+    const tag = !l.up ? t('tagDown') : !l.healthy ? t('tagNoAnswer') : '';
     html += `<div class="panel kpi${tag ? ' down' : ''}">
       <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}${tag ? ` <span class="tag">${tag}</span>` : ''}</div>
       <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
-      <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn. · ping ${l.ping ? l.ping + ' ms' : '—'}</div>
-      <div class="sub">${fmtBytes(l.totalRx)} reçus (${share.toFixed(0)} %)</div>
-      <div class="sub limit">plafond <button class="ghost" onclick="setLimit('${esc(l.name)}', ${l.limit})">${l.limit ? l.limit + ' Mb/s' : 'aucun'}</button></div>
+      <div class="sub">${t('peak')} ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} ${t('conn')} · ping ${l.ping ? l.ping + ' ms' : '—'}</div>
+      <div class="sub">${fmtBytes(l.totalRx)} ${t('received')} (${share.toFixed(0)} %)</div>
+      <div class="sub limit">${t('cap')} <button class="ghost" data-link="${esc(l.name)}" data-limit="${l.limit}" onclick="setLimit(this.dataset.link, +this.dataset.limit)">${l.limit ? l.limit + ' Mb/s' : t('none')}</button></div>
     </div>`;
   });
   document.getElementById('kpis').innerHTML = html;
@@ -274,11 +383,11 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(g.L, yy); ctx.lineTo(g.W - g.R, yy); ctx.stroke();
     ctx.fillText(v.toFixed(0), g.L - 6, yy);
   }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.textBaseline = 'top';
   for (let s = 0; s <= WINDOW; s += 30) {
     const xx = g.L + g.w * (1 - s / WINDOW);
     ctx.textAlign = s === 0 ? 'right' : s === WINDOW ? 'left' : 'center';
-    ctx.fillText(s ? `-${s}s` : 'maintenant', xx, g.H - g.B + 6);
+    ctx.fillText(s ? `-${s}s` : t('now'), xx, g.H - g.B + 6);
   }
   ctx.save(); ctx.translate(10, g.T + g.h / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
   ctx.fillText('Mb/s', 0, 0); ctx.restore();
@@ -308,10 +417,10 @@ function draw() {
       const xx = x(k), p = hist[k];
       ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.moveTo(xx, g.T); ctx.lineTo(xx, g.T + g.h); ctx.stroke(); ctx.setLineDash([]);
-      const total = p.v.reduce((a, b) => a + b, 0);
+      const total = p.v.reduce((a, b) => a + (b || 0), 0);
       const ago = ((hist[hist.length - 1].t - p.t) / 1000).toFixed(0);
-      tip.innerHTML = `<b>${fmtMbps(total)} Mb/s · il y a ${ago} s</b>` + links.map((l, i) =>
-        `<div><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} : ${fmtMbps(p.v[i] || 0)} Mb/s</div>`).join('');
+      tip.innerHTML = `<b>${fmtMbps(total)} Mb/s · ${t('agoS', { n: ago })}</b>` + links.map((l, i) =>
+        `<div><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}: ${fmtMbps(p.v[i] || 0)} Mb/s</div>`).join('');
       tip.style.display = 'block';
       const tw = tip.offsetWidth;
       tip.style.left = Math.min(xx + 12, g.W - tw - 4) + 'px';
@@ -338,9 +447,9 @@ function renderJobs(snap) {
     const pct = j.size ? 100 * j.done / j.size : 0;
     const avg = j.elapsed ? j.done * 8 / j.elapsed / 1e6 : 0;
     const eta = j.state === 'running' && j.mbps > 0 ? (j.size - j.done) * 8 / (j.mbps * 1e6) : NaN;
-    const stateTxt = { running: 'en cours', done: 'terminé', error: 'erreur', cancelled: 'annulé' }[j.state];
+    const stateTxt = { running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
     const segs = (j.perLink || []).map((b, i) =>
-      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}" title="${esc(links[i] ? links[i].name : '')} : ${fmtBytes(b)}"></span>`).join('');
+      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}" title="${esc(links[i] ? links[i].name : '')}: ${fmtBytes(b)}"></span>`).join('');
     const split = (j.perLink || []).map((b, i) =>
       `<span><span class="swatch" style="background:${color(i)}"></span> ${j.done ? (100 * b / j.done).toFixed(0) : 0} %</span>`).join(' ');
     return `<div class="job">
@@ -348,25 +457,24 @@ function renderJobs(snap) {
         <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
         <div class="actions">
           <span class="state ${j.state}">${stateTxt}</span>
-          ${j.state === 'running' ? `<button class="ghost" onclick="act('cancel',${j.id})">Annuler</button>` : ''}
-          ${j.state === 'done' ? `<button class="ghost" onclick="act('reveal',${j.id})">Ouvrir le dossier</button>` : ''}
+          ${j.state === 'running' ? `<button class="ghost" onclick="act('cancel',${j.id})">${t('cancel')}</button>` : ''}
+          ${j.state === 'done' ? `<button class="ghost" onclick="act('reveal',${j.id})">${t('openFolder')}</button>` : ''}
         </div>
       </div>
       <div class="bar">${segs}</div>
       <div class="meta">
         <span>${pct.toFixed(1)} % · ${fmtBytes(j.done)} / ${fmtBytes(j.size)}</span>
-        ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>reste ${fmtDur(eta)}</span>` : `<span>moyenne ${fmtMbps(avg)} Mb/s en ${fmtDur(j.elapsed)}</span>`}
+        ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>${t('left', { t: fmtDur(eta) })}</span>` : `<span>${t('avgIn', { s: fmtMbps(avg), t: fmtDur(j.elapsed) })}</span>`}
         <span class="legend">${split}</span>
       </div>
-      ${j.err ? `<div class="err">${esc(j.err)}</div>` : ''}
+      ${j.err ? `<div class="err">${esc(srv(j.err))}</div>` : ''}
     </div>`;
   }).join('');
 }
 async function setLimit(name, cur) {
-  const v = prompt(`Plafond de débit pour ${name} en Mb/s (0 = aucun) :`, cur || 0);
+  const v = prompt(t('capPrompt', { n: name }), cur || 0);
   if (v === null) return;
-  const r = await fetch(`/api/limit?link=${encodeURIComponent(name)}&mbps=${encodeURIComponent(v)}`, { method: 'POST' });
-  if (!r.ok) alert(await r.text());
+  failAlert(await fetch(`/api/limit?link=${encodeURIComponent(name)}&mbps=${encodeURIComponent(v)}`, { method: 'POST' }));
 }
 function act(what, id) { fetch(`/api/${what}?id=${id}`, { method: 'POST' }); }
 document.getElementById('dl').addEventListener('submit', async e => {
@@ -374,45 +482,41 @@ document.getElementById('dl').addEventListener('submit', async e => {
   const url = document.getElementById('url').value.trim();
   const workers = +document.getElementById('workers').value;
   const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, workers }) });
-  if (r.ok) document.getElementById('url').value = ''; else alert(await r.text());
+  if (r.ok) document.getElementById('url').value = ''; else failAlert(r);
 });
 
 let sysOn = false;
 function renderSys(snap) {
-  const v = snap.sys || {}, box = document.getElementById('sysBox'), btn = document.getElementById('sysBtn'), t = document.getElementById('sysText');
+  const v = snap.sys || {}, box = document.getElementById('sysBox'), btn = document.getElementById('sysBtn'), el = document.getElementById('sysText');
   sysOn = v.ours;
   box.classList.toggle('on', !!v.ours);
   box.classList.toggle('other', v.on && !v.ours);
-  if (v.err) t.textContent = v.err;
-  else if (v.ours) t.textContent = 'Activé : tout Windows passe par dualnet';
-  else if (v.on) t.textContent = 'Un autre proxy est réglé (' + v.server + ') — Activer le remplacera, il sera remis à la fermeture';
-  else t.textContent = 'Désactivé : seules les applis réglées à la main utilisent dualnet';
-  btn.textContent = v.ours ? 'Désactiver' : 'Activer';
+  if (v.err) el.textContent = srv(v.err);
+  else if (v.ours) el.textContent = t('sysOurs');
+  else if (v.on) el.textContent = t('sysOther', { s: v.server });
+  else el.textContent = t('sysOff');
+  btn.textContent = v.ours ? t('disable') : t('enable');
   btn.classList.toggle('off', !!v.ours);
   btn.disabled = !snap.proxy;
 }
 let tunOn = false;
 function renderTun(snap) {
-  const v = snap.tun || {}, box = document.getElementById('tunBox'), btn = document.getElementById('tunBtn'), t = document.getElementById('tunText');
+  const v = snap.tun || {}, box = document.getElementById('tunBox'), btn = document.getElementById('tunBtn'), el = document.getElementById('tunText');
   tunOn = !!v.on;
   box.classList.toggle('on', tunOn);
   box.classList.toggle('other', !v.on && (!v.admin || !!v.err));
-  if (v.on) t.textContent = 'Activé : tout le trafic IPv4 du PC est réparti, sans réglage dans les applis';
-  else if (v.err) t.textContent = v.err;
-  else if (!v.admin) t.textContent = 'Nécessite de lancer dualnet en administrateur';
-  else t.textContent = 'Désactivé';
-  btn.textContent = v.on ? 'Désactiver' : 'Activer';
+  if (v.on) el.textContent = t('tunOn');
+  else if (v.err) el.textContent = srv(v.err);
+  else if (!v.admin) el.textContent = t('tunNeedAdmin');
+  else el.textContent = t('off');
+  btn.textContent = v.on ? t('disable') : t('enable');
   btn.classList.toggle('off', tunOn);
   btn.disabled = !v.on && !v.admin;
 }
-document.getElementById('tunBtn').addEventListener('click', async () => {
-  const r = await fetch('/api/transparent?on=' + (tunOn ? 0 : 1), { method: 'POST' });
-  if (!r.ok) alert(await r.text());
-});
-document.getElementById('sysBtn').addEventListener('click', async () => {
-  const r = await fetch('/api/sysproxy?on=' + (sysOn ? 0 : 1), { method: 'POST' });
-  if (!r.ok) alert(await r.text());
-});
+document.getElementById('tunBtn').addEventListener('click', async () =>
+  failAlert(await fetch('/api/transparent?on=' + (tunOn ? 0 : 1), { method: 'POST' })));
+document.getElementById('sysBtn').addEventListener('click', async () =>
+  failAlert(await fetch('/api/sysproxy?on=' + (sysOn ? 0 : 1), { method: 'POST' })));
 
 function renderTotals(snap) {
   document.getElementById('totals').innerHTML = snap.links.map((l, i) =>
@@ -425,26 +529,22 @@ function renderSystem(snap) {
   const v = snap.system || {};
   simOn = !!v.simultaneous;
   document.getElementById('simBox').classList.toggle('on', simOn);
-  document.getElementById('simText').textContent = simOn
-    ? 'Autorisé : Windows ne coupe plus le Wi‑Fi quand le téléphone est branché'
-    : (v.admin ? 'Par défaut, Windows coupe le Wi‑Fi dès qu’une connexion filaire (partage USB) est présente'
-               : 'Lancez dualnet en administrateur pour modifier ce réglage');
+  document.getElementById('simText').textContent = simOn ? t('simOn') : (v.admin ? t('simOff') : t('needAdmin'));
   const sb = document.getElementById('simBtn');
-  sb.textContent = simOn ? 'Rétablir' : 'Autoriser'; sb.classList.toggle('off', simOn); sb.disabled = !v.admin;
+  sb.textContent = simOn ? t('revert') : t('allow'); sb.classList.toggle('off', simOn); sb.disabled = !v.admin;
   const m = v.metrics || {};
   const best = Math.min(...snap.links.map(l => m[l.name] ?? 1e9));
   document.getElementById('prefer').innerHTML = snap.links.map(l =>
     `<button class="ghost${m[l.name] === best ? ' chosen' : ''}" ${v.admin ? '' : 'disabled'} onclick="sysAct('prefer','link=${encodeURIComponent(l.name)}')">${esc(l.name)}${m[l.name] !== undefined ? ' · ' + m[l.name] : ''}</button>`).join('') +
-    `<button class="ghost" ${v.admin ? '' : 'disabled'} onclick="sysAct('prefer','link=')">Automatique</button>`;
+    `<button class="ghost" ${v.admin ? '' : 'disabled'} onclick="sysAct('prefer','link=')">${t('automatic')}</button>`;
 }
 async function sysAct(what, extra) {
-  const r = await fetch(`/api/system?do=${what}&${extra || ''}`, { method: 'POST' });
-  if (!r.ok) alert(await r.text());
+  failAlert(await fetch(`/api/system?do=${what}&${extra || ''}`, { method: 'POST' }));
 }
 document.getElementById('simBtn').addEventListener('click', () => sysAct('simultaneous', 'on=' + (simOn ? 0 : 1)));
 document.getElementById('steamBtn').addEventListener('click', async e => {
-  e.target.disabled = true; e.target.textContent = 'Relance…';
-  await sysAct('steam'); e.target.disabled = false; e.target.textContent = 'Relancer';
+  e.target.disabled = true; e.target.textContent = t('restarting');
+  await sysAct('steam'); e.target.disabled = false; e.target.textContent = t('restart');
 });
 
 // ---------- history ----------
@@ -452,12 +552,12 @@ async function loadHistory() {
   try {
     const days = await (await fetch('/api/history')).json();
     const el = document.getElementById('history');
-    if (!days.length) { el.textContent = 'Pas encore de données (enregistrées toutes les 10 s).'; return; }
+    if (!days.length) { el.textContent = t('noHistory'); return; }
     const names = [...new Set(days.flatMap(d => Object.keys(d.links)))];
     const idx = n => { const i = links.findIndex(l => l.name === n); return i < 0 ? names.indexOf(n) : i; };
     el.className = '';
-    el.innerHTML = `<table class="hist"><tr><td>Jour</td>${names.map(n =>
-      `<td><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</td>`).join('')}<td>Total</td><td>Part</td></tr>` +
+    el.innerHTML = `<table class="hist"><tr><td>${t('day')}</td>${names.map(n =>
+      `<td><span class="swatch" style="background:${color(idx(n))}"></span> ${esc(n)}</td>`).join('')}<td>${t('total')}</td><td>${t('share')}</td></tr>` +
       days.map(d => {
         const tot = names.reduce((a, n) => a + ((d.links[n] || {}).rx || 0), 0);
         const bar = names.map(n => `<span style="width:${(100 * ((d.links[n] || {}).rx || 0) / (tot || 1)).toFixed(1)}%;background:${color(idx(n))}"></span>`).join('');
@@ -472,8 +572,8 @@ let started = false;
 function connect() {
   const es = new EventSource('/api/events');
   const dot = document.getElementById('conn'), txt = document.getElementById('connText');
-  es.onopen = () => { dot.classList.add('on'); txt.textContent = 'en direct'; };
-  es.onerror = () => { dot.classList.remove('on'); txt.textContent = 'déconnecté — dualnet est-il lancé ?'; };
+  es.onopen = () => { dot.classList.add('on'); txt.textContent = t('live'); };
+  es.onerror = () => { dot.classList.remove('on'); txt.textContent = t('disconnected'); };
   es.onmessage = ev => {
     const snap = JSON.parse(ev.data);
     snap.links = snap.links || []; snap.jobs = snap.jobs || [];
@@ -484,9 +584,10 @@ function connect() {
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
     renderKpis(snap); renderJobs(snap); renderTotals(snap); renderSys(snap); renderTun(snap); renderSystem(snap); draw();
-    for (const id of ['proxyAddr', 'p2']) document.getElementById(id).textContent = snap.proxy || '—';
-    document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : 'proxy désactivé';
-    document.getElementById('dir').textContent = snap.dir ? 'Dossier de destination : ' + snap.dir : '';
+    document.getElementById('proxyAddr').textContent = snap.proxy || '—';
+    document.querySelectorAll('.paddr').forEach(e => e.textContent = snap.proxy || '—');
+    document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : t('proxyOff');
+    document.getElementById('dir').textContent = snap.dir ? t('destFolder', { d: snap.dir }) : '';
   };
 }
 connect();

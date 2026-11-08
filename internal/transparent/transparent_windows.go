@@ -46,7 +46,7 @@ var wintunDLL []byte
 
 const adapterName = "dualnet"
 
-var ErrNotAdmin = errors.New("le mode transparent doit être lancé en administrateur")
+var ErrNotAdmin = errors.New("transparent mode requires administrator rights")
 
 // Admin reports whether the process runs elevated.
 func Admin() bool { return windows.GetCurrentProcessToken().IsElevated() }
@@ -66,11 +66,11 @@ func Start(d proxy.Dialer) (*Tunnel, error) {
 		return nil, ErrNotAdmin
 	}
 	if err := installDLL(); err != nil {
-		return nil, fmt.Errorf("installation de wintun.dll : %w", err)
+		return nil, fmt.Errorf("installing wintun.dll: %w", err)
 	}
 	dev, err := tun.Open(adapterName, 1500)
 	if err != nil {
-		return nil, fmt.Errorf("création de la carte virtuelle : %w", err)
+		return nil, fmt.Errorf("creating the virtual adapter: %w", err)
 	}
 	t := &Tunnel{dev: dev}
 	t.tun = tunnel.New(d, statistic.DefaultManager)
@@ -79,7 +79,7 @@ func Start(d proxy.Dialer) (*Tunnel, error) {
 	t.stack, err = core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: t.tun})
 	if err != nil {
 		t.Stop()
-		return nil, fmt.Errorf("pile réseau : %w", err)
+		return nil, fmt.Errorf("network stack: %w", err)
 	}
 	if err := configure(); err != nil {
 		t.Stop()

@@ -225,13 +225,13 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	defer f.Close()
 
 	if !rangesOK || size <= 0 {
-		say("Le serveur n'accepte pas les téléchargements par morceaux : un seul lien sera utilisé.\n")
+		say("The server does not accept range requests: only one link will be used.\n")
 		return single(ctx, clients[0], opts.URL, f)
 	}
 	if err := f.Truncate(size); err != nil {
 		return err
 	}
-	say("Fichier : %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
+	say("File: %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -295,7 +295,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 					}
 					fails := failures[li].Add(1)
 					if fails > 8 {
-						say("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
+						say("\n%s: too many errors, link dropped (%v)\n", ls[li], err)
 						return
 					}
 					// Exponential backoff (servers answer 429 to bursts); a server-given
@@ -324,10 +324,10 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	close(stop)
 
 	if done.Load() < size {
-		return fmt.Errorf("téléchargement incomplet (%d/%d octets, reste %d en file, %d actifs)", done.Load(), size, len(sc.todo), len(sc.active))
+		return fmt.Errorf("incomplete download (%d/%d bytes, %d queued, %d active)", done.Load(), size, len(sc.todo), len(sc.active))
 	}
 	el := time.Since(start)
-	say("\nTerminé en %s — moyenne %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
+	say("\nDone in %s — average %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
 	for i, l := range ls {
 		say("  %-30s %s (%.0f%%)\n", l.String(), links.HumanBytes(float64(perLink[i].Load())), 100*float64(perLink[i].Load())/float64(size))
 	}

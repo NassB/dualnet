@@ -4,7 +4,7 @@ package winsys
 
 import "errors"
 
-var errUnsupported = errors.New("Windows uniquement")
+var errUnsupported = errors.New("Windows only")
 
 func SimultaneousAllowed() bool     { return false }
 func SetSimultaneous(bool) error    { return errUnsupported }

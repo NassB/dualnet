@@ -8,7 +8,7 @@ import (
 	"github.com/xjasonlyu/tun2socks/v2/proxy"
 )
 
-var ErrNotAdmin = errors.New("mode transparent : Windows uniquement")
+var ErrNotAdmin = errors.New("transparent mode: Windows only")
 
 type Tunnel struct{}
 
