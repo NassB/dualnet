@@ -37,6 +37,9 @@ func (l *Link) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	return &countingConn{Conn: c, link: l}, nil
 }
 
+// New returns a link bound to ip (used by tests; Discover builds real ones).
+func New(name string, ip net.IP) *Link { return newLink(name, ip) }
+
 func newLink(name string, ip net.IP) *Link {
 	return &Link{
 		Name: name,

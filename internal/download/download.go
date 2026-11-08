@@ -63,17 +63,18 @@ func (t *task) remaining() int64 {
 	return t.end - t.pos + 1
 }
 
-const minSteal = 1 << 20 // don't split ranges smaller than 1 MiB
+const minSteal = 256 << 10 // don't split ranges smaller than 256 KiB
 
 type sched struct {
 	mu     sync.Mutex
 	cond   *sync.Cond
 	todo   []*task
 	active map[*task]bool
+	links  int
 }
 
-func newSched(size, chunk int64) *sched {
-	s := &sched{active: map[*task]bool{}}
+func newSched(size, chunk int64, nLinks int) *sched {
+	s := &sched{active: map[*task]bool{}, links: nLinks}
 	s.cond = sync.NewCond(&s.mu)
 	for p := int64(0); p < size; p += chunk {
 		s.todo = append(s.todo, &task{pos: p, end: min(p+chunk, size) - 1})
@@ -93,7 +94,7 @@ func (s *sched) next(ctx context.Context, li int, rate func(int) float64) *task 
 		if ctx.Err() != nil {
 			return nil
 		}
-		if len(s.todo) > 0 {
+		if len(s.todo) > 0 && s.worthTaking(li, rate, s.todo[0].remaining()) {
 			t := s.todo[0]
 			s.todo = s.todo[1:]
 			t.link = li
@@ -120,11 +121,35 @@ func (s *sched) next(ctx context.Context, li int, rate func(int) float64) *task 
 			s.active[nt] = true
 			return nt
 		}
-		if len(s.active) == 0 {
+		if len(s.active) == 0 && len(s.todo) == 0 {
 			return nil
 		}
 		s.cond.Wait()
 	}
+}
+
+// worthTaking reports whether link li should start n more bytes: near the end, a
+// slow link that would still be busy after the others finished everything must
+// leave the bytes to them (otherwise the whole download waits for it).
+// Caller holds s.mu.
+func (s *sched) worthTaking(li int, rate func(int) float64, n int64) bool {
+	my, total, fastest := rate(li), 0.0, 0.0
+	for i := 0; i < s.links; i++ {
+		r := rate(i)
+		total += r
+		fastest = max(fastest, r)
+	}
+	if my <= 0 || my >= fastest {
+		return true // no measurement yet, or we are the fastest link
+	}
+	var left int64
+	for _, t := range s.todo {
+		left += t.remaining()
+	}
+	for t := range s.active {
+		left += t.remaining()
+	}
+	return float64(n)/my < float64(left)/total
 }
 
 // finish releases a task; any unfinished part goes back to the queue.
@@ -176,29 +201,53 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	sc := newSched(size, opts.ChunkSize)
-	go func() { <-ctx.Done(); sc.cond.Broadcast() }()
+	sc := newSched(size, opts.ChunkSize, len(ls))
+	// Periodic wake-up: waiting workers re-evaluate (rates change, links die).
+	go func() {
+		tk := time.NewTicker(200 * time.Millisecond)
+		defer tk.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				sc.cond.Broadcast()
+				return
+			case <-tk.C:
+				sc.cond.Broadcast()
+			}
+		}
+	}()
 
 	var done atomic.Int64
 	perLink := make([]atomic.Int64, len(ls))
 	failures := make([]atomic.Int32, len(ls))
+	alive := make([]atomic.Int32, len(ls))
 	t0 := time.Now()
-	rate := func(i int) float64 { return float64(perLink[i].Load()) / time.Since(t0).Seconds() }
+	// Bytes/s per link; 0 until there is a meaningful measurement (avoids 0/0 = NaN).
+	rate := func(i int) float64 {
+		el := time.Since(t0).Seconds()
+		if el < 0.3 || alive[i].Load() == 0 {
+			return 0 // a dead link must not make others wait for it
+		}
+		return float64(perLink[i].Load()) / el
+	}
 
 	var workers sync.WaitGroup
 	for li := range ls {
 		for w := 0; w < opts.WorkersPerLnk; w++ {
 			workers.Add(1)
+			alive[li].Add(1)
 			go func(li int) {
 				defer workers.Done()
+				defer alive[li].Add(-1)
 				for {
 					t := sc.next(ctx, li, rate)
 					if t == nil {
 						return
 					}
-					n, err := fetchTask(ctx, clients[li], opts.URL, t, f)
-					done.Add(n)
-					perLink[li].Add(n)
+					_, err := fetchTask(ctx, clients[li], opts.URL, t, f, func(n int64) {
+						done.Add(n)
+						perLink[li].Add(n)
+					})
 					sc.finish(t)
 					if err == nil {
 						failures[li].Store(0)
@@ -236,7 +285,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	close(stop)
 
 	if done.Load() < size {
-		return errors.New("téléchargement incomplet")
+		return fmt.Errorf("téléchargement incomplet (%d/%d octets, reste %d en file, %d actifs)", done.Load(), size, len(sc.todo), len(sc.active))
 	}
 	el := time.Since(start)
 	fmt.Printf("\nTerminé en %s — moyenne %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
@@ -291,7 +340,7 @@ func fileName(resp *http.Response, rawURL string) string {
 
 // fetchTask downloads t from t.pos until t.end (which a stealer may lower meanwhile).
 // It returns the number of bytes written.
-func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *os.File) (int64, error) {
+func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *os.File, count func(int64)) (int64, error) {
 	// A stalled range is abandoned and requeued instead of blocking forever.
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
@@ -328,6 +377,7 @@ func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *o
 			}
 			t.pos += int64(n)
 			written += int64(n)
+			count(int64(n))
 		}
 		finished, pos := t.pos > t.end, t.pos
 		t.mu.Unlock()
