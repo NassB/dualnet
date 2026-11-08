@@ -28,7 +28,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine plusieurs connexions internet
 
 Usage :
-  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier]
+  dualnet ui    [-if ...] [-listen 127.0.0.1:8090] [-proxy 127.0.0.1:1080] [-dir dossier] [-sticky 0]
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o fichier] [-chunk 4] [-workers 4] <url>
   dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m]`)
@@ -91,10 +91,11 @@ func main() {
 		home, _ := os.UserHomeDir()
 		dir := fs.String("dir", filepath.Join(home, "Downloads"), "dossier des téléchargements")
 		open := fs.Bool("open", true, "ouvrir le navigateur")
+		sticky := fs.Duration("sticky", 10*time.Minute, "garder un même site sur le même lien (0 = répartir chaque connexion, idéal pour Steam)")
 		fs.Parse(os.Args[2:])
 		ls := discover(*ifs)
 		if *proxyAddr != "" {
-			p := &proxy.Server{Links: ls, Sticky: 10 * time.Minute}
+			p := &proxy.Server{Links: ls, Sticky: *sticky}
 			go func() { check(p.ListenAndServe(*proxyAddr)) }()
 		}
 		srv := &ui.Server{Links: ls, ProxyAddr: *proxyAddr, OutDir: *dir}
