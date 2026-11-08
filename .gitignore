@@ -1,3 +1,4 @@
 *.exe
 /dist/
 /wintun.dll
+*.exe~
