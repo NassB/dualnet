@@ -30,15 +30,33 @@ type Options struct {
 
 func clientFor(l *links.Link) *http.Client {
 	tr := &http.Transport{
-		DialContext:         l.DialContext,
-		MaxIdleConnsPerHost: 16,
-		ForceAttemptHTTP2:   false, // one TCP connection per worker keeps links independent
-		TLSHandshakeTimeout: 15 * time.Second,
+		DialContext:           l.DialContext,
+		MaxIdleConnsPerHost:   16,
+		ForceAttemptHTTP2:     false, // one TCP connection per worker keeps links independent
+		TLSHandshakeTimeout:   15 * time.Second,
+		ResponseHeaderTimeout: 20 * time.Second,
 	}
-	return &http.Client{Transport: tr}
+	return &http.Client{Transport: uaTransport{tr}}
+}
+
+// Some servers reject Go's default "Go-http-client" User-Agent.
+type uaTransport struct{ rt http.RoundTripper }
+
+func (u uaTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Header.Get("User-Agent") == "" {
+		r.Header.Set("User-Agent", "dualnet/0.1")
+	}
+	return u.rt.RoundTrip(r)
 }
 
 type chunk struct{ start, end int64 } // inclusive
+
+type rateLimited struct {
+	status string
+	after  time.Duration
+}
+
+func (r *rateLimited) Error() string { return "HTTP " + r.status }
 
 // Run downloads opts.URL using all links.
 func Run(ctx context.Context, ls []*links.Link, opts Options) error {
@@ -107,15 +125,28 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 						// Return the remaining part of the chunk to the queue so another worker
 						// (possibly on the other link) picks it up.
 						rest := chunk{c.start + n, c.end}
-						if failures[li].Add(1) > 20 {
+						fails := failures[li].Add(1)
+						if fails > 8 {
 							fmt.Printf("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
 							queue <- rest
 							return
 						}
-						time.Sleep(500 * time.Millisecond)
 						queue <- rest
+						// Exponential backoff (servers answer 429 to bursts); a server-given
+						// Retry-After wins.
+						wait := time.Duration(1<<min(fails, 5)) * 500 * time.Millisecond
+						var rl *rateLimited
+						if errors.As(err, &rl) && rl.after > 0 {
+							wait = rl.after
+						}
+						select {
+						case <-time.After(wait):
+						case <-ctx.Done():
+							return
+						}
 						continue
 					}
+					failures[li].Store(0)
 					pending.Done()
 				}
 			}(li)
@@ -186,6 +217,9 @@ func fileName(resp *http.Response, rawURL string) string {
 }
 
 func fetchChunk(ctx context.Context, c *http.Client, rawURL string, ch chunk, f *os.File) (int64, error) {
+	// A stalled chunk is abandoned and requeued instead of blocking forever.
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", ch.start, ch.end))
 	resp, err := c.Do(req)
@@ -194,6 +228,10 @@ func fetchChunk(ctx context.Context, c *http.Client, rawURL string, ch chunk, f 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusPartialContent {
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			secs, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+			return 0, &rateLimited{status: resp.Status, after: time.Duration(secs) * time.Second}
+		}
 		return 0, fmt.Errorf("HTTP %s", resp.Status)
 	}
 	buf := make([]byte, 64*1024)
@@ -219,6 +257,9 @@ func fetchChunk(ctx context.Context, c *http.Client, rawURL string, ch chunk, f 
 	if off <= ch.end {
 		return off - ch.start, io.ErrUnexpectedEOF
 	}
+	// Drain to EOF so the keep-alive connection is reused instead of reopened
+	// (servers throttle bursts of new TLS connections).
+	io.CopyN(io.Discard, resp.Body, 64*1024)
 	return off - ch.start, nil
 }
 
