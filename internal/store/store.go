@@ -25,6 +25,23 @@ type Usage struct {
 type Settings struct {
 	Limits  map[string]float64 `json:"limits"`            // link name -> Mb/s cap
 	Enabled *bool              `json:"enabled,omitempty"` // main switch; nil = on
+	// UpdateCheck: ask GitHub for new releases once a day; nil = yes.
+	UpdateCheck *bool `json:"updateCheck,omitempty"`
+}
+
+// UpdateCheckEnabled reports whether the daily update check is on (default).
+func (s *Store) UpdateCheckEnabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.UpdateCheck == nil || *s.settings.UpdateCheck
+}
+
+// SetUpdateCheck saves the update-check choice.
+func (s *Store) SetUpdateCheck(on bool) {
+	s.mu.Lock()
+	s.settings.UpdateCheck = &on
+	s.mu.Unlock()
+	s.Save()
 }
 
 // Enabled reports the saved main-switch position (on by default).

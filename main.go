@@ -26,6 +26,7 @@ import (
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/ui"
+	"github.com/NassB/dualnet/internal/update"
 )
 
 // version is set at build time: go build -ldflags "-X main.version=v1.2.3".
@@ -189,6 +190,8 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		prevChange(l, ev)
 	}
 	go st.Run(ctx, pool)
+	checker := &update.Checker{Current: version, Repo: "NassB/dualnet", Enabled: st.UpdateCheckEnabled}
+	go checker.Run(ctx, 24*time.Hour)
 	tun := &ui.TunControl{Proxy: p}
 	cleanup = func() {
 		tun.Stop()
@@ -206,7 +209,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Autostart: autostartHooks(),
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Autostart: autostartHooks(),
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),

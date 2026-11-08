@@ -141,6 +141,10 @@ code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; bac
 
 .warn-banner { display: none; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
   color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); border-radius: 12px; padding: 11px 14px; margin-bottom: 14px; font-size: 13px; }
+.info-banner { display: none; align-items: center; gap: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--text); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); border-radius: 12px; padding: 9px 14px; margin-bottom: 14px; font-size: 13px; }
+.info-banner svg { width: 18px; height: 18px; flex: none; color: var(--accent); }
+.info-banner span { flex: 1; }
 .warn-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
 
 /* downloads */
@@ -209,6 +213,7 @@ td.r, th.r { text-align: right; }
   <main>
     <!-- ================= HOME ================= -->
     <section class="page active" id="page-home">
+      <div class="info-banner" id="updBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span id="updText"></span><button class="btn small" id="updBtn" data-i18n="updGet"></button></div>
       <div class="warn-banner" id="linksWarn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg><span data-i18n="oneLinkWarn"></span></div>
 
       <div class="card hero" id="hero">
@@ -312,6 +317,10 @@ td.r, th.r { text-align: right; }
           <div class="txt"><div class="title" data-i18n="autoTitle"></div><div class="sub" data-i18n="autoSub"></div></div>
           <label class="switch"><input type="checkbox" id="autoSw"><span></span></label>
         </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="updTitle"></div><div class="sub" data-i18n="updSub"></div></div>
+          <label class="switch"><input type="checkbox" id="updSw"><span></span></label>
+        </div>
       </div>
     </section>
   </main>
@@ -378,6 +387,8 @@ const I18N = {
     steamTitle: 'Restart Steam', steamSub: 'So Steam reopens its connections through dualnet.', restart: 'Restart', restarting: 'Restarting…',
     appTitle: 'Application', autoTitle: 'Start with Windows', autoSub: 'Opens dualnet in the notification area when you sign in, without a UAC prompt.',
     proxyOff: 'proxy disabled', done: 'Done',
+    updAvail: 'dualnet {v} is available.', updGet: 'Download',
+    updTitle: 'Check for updates', updSub: 'Asks GitHub for the latest release once a day. Nothing is downloaded or installed automatically.',
     units: ['B', 'KB', 'MB', 'GB', 'TB'],
   },
   fr: {
@@ -420,6 +431,8 @@ const I18N = {
     steamTitle: 'Relancer Steam', steamSub: 'Pour que Steam rouvre ses connexions à travers dualnet.', restart: 'Relancer', restarting: 'Relance…',
     appTitle: 'Application', autoTitle: 'Démarrer avec Windows', autoSub: 'Ouvre dualnet près de l’horloge à l’ouverture de session, sans demande UAC.',
     proxyOff: 'proxy désactivé', done: 'Fait',
+    updAvail: 'dualnet {v} est disponible.', updGet: 'Télécharger',
+    updTitle: 'Rechercher les mises à jour', updSub: 'Demande à GitHub la dernière version une fois par jour. Rien n’est téléchargé ni installé automatiquement.',
     units: ['o', 'Ko', 'Mo', 'Go', 'To'],
   },
 };
@@ -428,7 +441,7 @@ const SERVER_FR = {
   'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
   'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid url': 'URL invalide', 'invalid value': 'valeur invalide',
   'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
-  'unknown action': 'action inconnue', 'not available': 'non disponible',
+  'unknown action': 'action inconnue', 'not available': 'non disponible', 'no update': 'aucune mise à jour',
 };
 const t = (k, vars) => {
   let s = (I18N[LANG][k] ?? I18N.en[k] ?? k);
@@ -708,6 +721,15 @@ $('dl').addEventListener('submit', async e => {
 
 // ---------- settings ----------
 function setSwitch(id, on, disabled) { const s = $(id); if (document.activeElement !== s) s.checked = !!on; s.disabled = !!disabled; }
+function renderUpdate(snap) {
+  const u = snap.update || {};
+  $('updBanner').style.display = u.available ? 'flex' : 'none';
+  if (u.available) $('updText').textContent = t('updAvail', { v: u.latest });
+  setSwitch('updSw', u.check, false);
+}
+$('updBtn').addEventListener('click', () => post('/api/update/open'));
+$('updSw').addEventListener('change', e => post('/api/updatecheck?on=' + (e.target.checked ? 1 : 0)));
+
 function renderSettings(snap) {
   const tun = snap.tun || {}, sys = snap.sys || {}, sy = snap.system || {};
   setSwitch('tunSw', tun.on, !tun.on && !tun.admin);
@@ -772,7 +794,7 @@ function connect() {
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
     if (hist.length > MAXPTS) hist.shift();
     $('ver').textContent = snap.version || '';
-    renderHome(snap); renderJobs(snap); renderSettings(snap);
+    renderHome(snap); renderJobs(snap); renderSettings(snap); renderUpdate(snap);
     if ($('page-home').classList.contains('active')) draw();
   };
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
+	"github.com/NassB/dualnet/internal/update"
 )
 
 //go:embed index.html
@@ -33,6 +34,7 @@ type Server struct {
 	Store     *store.Store
 	Version   string
 	Autostart *Autostart
+	Update    *update.Checker
 	// Native is true when the page is shown in dualnet's own window.
 	Native bool
 	// OnSettings is called after a setting changed in the UI (to save it).
@@ -71,6 +73,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
+	mux.HandleFunc("POST /api/update/open", s.openUpdate)
+	mux.HandleFunc("POST /api/updatecheck", s.setUpdateCheck)
 	mux.HandleFunc("GET /api/history", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.Store.History(30))
@@ -116,6 +120,7 @@ type snapshot struct {
 	Sys2  systemView `json:"system"`
 	Ver   string     `json:"version"`
 	Power powerView  `json:"power"`
+	Upd   updateView `json:"update"`
 	Auto  *bool      `json:"autostart,omitempty"` // nil = option not available
 }
 
@@ -183,7 +188,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState()}
+			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState()}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {
