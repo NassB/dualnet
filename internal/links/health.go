@@ -34,6 +34,9 @@ func (l *Link) probe(ctx context.Context) {
 	}
 }
 
+// SetLatencyMs sets the measured ping (tests).
+func (l *Link) SetLatencyMs(ms int64) { l.latency.Store(ms) }
+
 // Health probes every connected link every interval until ctx is done, and
 // calls OnChange when a link stops or starts answering.
 func (p *Pool) Health(ctx context.Context, every time.Duration) {

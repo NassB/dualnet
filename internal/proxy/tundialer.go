@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/NassB/dualnet/internal/links"
@@ -38,6 +39,9 @@ func (d TunDialer) DialUDP(md *M.Metadata) (net.PacketConn, error) {
 		return nil, errIPv6
 	}
 	order := d.S.pick(ip.String())
+	if isDNSPort(strconv.Itoa(int(md.DstPort))) {
+		order = d.S.pickLowestLatency()
+	}
 	if len(order) == 0 {
 		return nil, errNoLink
 	}

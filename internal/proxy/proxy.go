@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,9 +79,10 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-// pick returns the connected links in the order to try: the sticky one for this
-// host if still up, otherwise the one with the most spare capacity
-// (measured rate / active connections) first.
+// pick returns the usable links in the order to try: the sticky one for this
+// host if it is still usable, otherwise the one with the most spare capacity
+// (measured rate / busy connections) first. Links whose score is within 10 % of
+// the best are considered equal: among them the lowest ping wins.
 func (s *Server) pick(host string) []*links.Link {
 	s.init()
 	up := s.Pool.Up()
@@ -90,16 +92,10 @@ func (s *Server) pick(host string) []*links.Link {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var first *links.Link
-	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky && e.link.Up() {
+	if e, ok := s.sticky[host]; ok && time.Since(e.seen) < s.Sticky && e.link.Usable() {
 		first = e.link
 	} else {
-		bestScore := -1.0
-		for _, l := range up {
-			score := s.score(l)
-			if score > bestScore {
-				first, bestScore = l, score
-			}
-		}
+		first = s.bestLink(up)
 	}
 	if s.Sticky > 0 {
 		s.sticky[host] = stickyEntry{first, time.Now()}
@@ -113,10 +109,57 @@ func (s *Server) pick(host string) []*links.Link {
 	return order
 }
 
+// bestLink returns the link with the best score; among the links within 10 % of
+// that score (a tie, for all practical purposes) the one with the lowest ping.
+func (s *Server) bestLink(up []*links.Link) *links.Link {
+	scores := make([]float64, len(up))
+	best := 0.0
+	for i, l := range up {
+		scores[i] = s.score(l)
+		if scores[i] > best {
+			best = scores[i]
+		}
+	}
+	var pick *links.Link
+	for i, l := range up {
+		if scores[i] < best*0.9 {
+			continue
+		}
+		if pick == nil || lowerPing(l, pick) {
+			pick = l
+		}
+	}
+	return pick
+}
+
+// lowerPing reports whether a answers faster than b; an unknown ping (0) is worst.
+func lowerPing(a, b *links.Link) bool {
+	pa, pb := a.LatencyMs(), b.LatencyMs()
+	if pa == 0 {
+		return false
+	}
+	return pb == 0 || pa < pb
+}
+
+// pickLowestLatency returns the usable links, lowest ping first. DNS lookups use
+// it: they are tiny, and their delay is added to every new connection.
+func (s *Server) pickLowestLatency() []*links.Link {
+	up := s.Pool.Up()
+	sort.SliceStable(up, func(i, j int) bool { return lowerPing(up[i], up[j]) })
+	return up
+}
+
+// isDNSPort: DNS (53) and DNS over TLS (853).
+func isDNSPort(port string) bool { return port == "53" || port == "853" }
+
 func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
-	host, _, _ := net.SplitHostPort(addr)
+	host, port, _ := net.SplitHostPort(addr)
+	order := s.pick(host)
+	if isDNSPort(port) {
+		order = s.pickLowestLatency()
+	}
 	lastErr := errNoLink
-	for _, l := range s.pick(host) {
+	for _, l := range order {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		c, err := l.DialContext(ctx, "tcp", addr)
 		cancel()
