@@ -49,7 +49,94 @@ func (u uaTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return u.rt.RoundTrip(r)
 }
 
-type chunk struct{ start, end int64 } // inclusive
+// task is a byte range being downloaded. Its end can shrink while it runs:
+// an idle worker steals the second half (see sched.next).
+type task struct {
+	mu       sync.Mutex
+	pos, end int64 // next byte to write, last byte (inclusive)
+	link     int   // index of the link downloading it
+}
+
+func (t *task) remaining() int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.end - t.pos + 1
+}
+
+const minSteal = 1 << 20 // don't split ranges smaller than 1 MiB
+
+type sched struct {
+	mu     sync.Mutex
+	cond   *sync.Cond
+	todo   []*task
+	active map[*task]bool
+}
+
+func newSched(size, chunk int64) *sched {
+	s := &sched{active: map[*task]bool{}}
+	s.cond = sync.NewCond(&s.mu)
+	for p := int64(0); p < size; p += chunk {
+		s.todo = append(s.todo, &task{pos: p, end: min(p+chunk, size) - 1})
+	}
+	return s
+}
+
+// next returns a range to download: a queued one, or else the second half of the
+// in-flight range with the most bytes left (so a fast link finishes the job of a
+// slow one instead of idling). Returns nil when everything is done.
+// rate(i) is link i's measured throughput; a link only steals from slower links,
+// otherwise a slow link would grab work back from a fast one.
+func (s *sched) next(ctx context.Context, li int, rate func(int) float64) *task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+		if len(s.todo) > 0 {
+			t := s.todo[0]
+			s.todo = s.todo[1:]
+			t.link = li
+			s.active[t] = true
+			return t
+		}
+		var victim *task
+		var best int64
+		myRate := rate(li)
+		for t := range s.active {
+			if t.link != li && rate(t.link) >= myRate*0.8 {
+				continue
+			}
+			if r := t.remaining(); r > best {
+				victim, best = t, r
+			}
+		}
+		if victim != nil && best >= 2*minSteal {
+			victim.mu.Lock()
+			mid := victim.pos + (victim.end-victim.pos+1)/2
+			nt := &task{pos: mid, end: victim.end, link: li}
+			victim.end = mid - 1
+			victim.mu.Unlock()
+			s.active[nt] = true
+			return nt
+		}
+		if len(s.active) == 0 {
+			return nil
+		}
+		s.cond.Wait()
+	}
+}
+
+// finish releases a task; any unfinished part goes back to the queue.
+func (s *sched) finish(t *task) {
+	s.mu.Lock()
+	delete(s.active, t)
+	if t.remaining() > 0 {
+		s.todo = append(s.todo, t)
+	}
+	s.mu.Unlock()
+	s.cond.Broadcast()
+}
 
 type rateLimited struct {
 	status string
@@ -87,25 +174,16 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	}
 	fmt.Printf("Fichier : %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
 
-	queue := make(chan chunk, int(size/opts.ChunkSize)+2)
-	var pending sync.WaitGroup
-	for s := int64(0); s < size; s += opts.ChunkSize {
-		e := s + opts.ChunkSize - 1
-		if e >= size {
-			e = size - 1
-		}
-		pending.Add(1)
-		queue <- chunk{s, e}
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	sc := newSched(size, opts.ChunkSize)
+	go func() { <-ctx.Done(); sc.cond.Broadcast() }()
+
 	var done atomic.Int64
-	var fatal atomic.Value
 	perLink := make([]atomic.Int64, len(ls))
 	failures := make([]atomic.Int32, len(ls))
-
-	go func() { pending.Wait(); close(queue) }()
+	t0 := time.Now()
+	rate := func(i int) float64 { return float64(perLink[i].Load()) / time.Since(t0).Seconds() }
 
 	var workers sync.WaitGroup
 	for li := range ls {
@@ -113,41 +191,39 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 			workers.Add(1)
 			go func(li int) {
 				defer workers.Done()
-				for c := range queue {
-					n, err := fetchChunk(ctx, clients[li], opts.URL, c, f)
+				for {
+					t := sc.next(ctx, li, rate)
+					if t == nil {
+						return
+					}
+					n, err := fetchTask(ctx, clients[li], opts.URL, t, f)
 					done.Add(n)
 					perLink[li].Add(n)
-					if err != nil {
-						if ctx.Err() != nil {
-							pending.Done()
-							return
-						}
-						// Return the remaining part of the chunk to the queue so another worker
-						// (possibly on the other link) picks it up.
-						rest := chunk{c.start + n, c.end}
-						fails := failures[li].Add(1)
-						if fails > 8 {
-							fmt.Printf("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
-							queue <- rest
-							return
-						}
-						queue <- rest
-						// Exponential backoff (servers answer 429 to bursts); a server-given
-						// Retry-After wins.
-						wait := time.Duration(1<<min(fails, 5)) * 500 * time.Millisecond
-						var rl *rateLimited
-						if errors.As(err, &rl) && rl.after > 0 {
-							wait = rl.after
-						}
-						select {
-						case <-time.After(wait):
-						case <-ctx.Done():
-							return
-						}
+					sc.finish(t)
+					if err == nil {
+						failures[li].Store(0)
 						continue
 					}
-					failures[li].Store(0)
-					pending.Done()
+					if ctx.Err() != nil {
+						return
+					}
+					fails := failures[li].Add(1)
+					if fails > 8 {
+						fmt.Printf("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
+						return
+					}
+					// Exponential backoff (servers answer 429 to bursts); a server-given
+					// Retry-After wins.
+					wait := time.Duration(1<<min(fails, 5)) * 500 * time.Millisecond
+					var rl *rateLimited
+					if errors.As(err, &rl) && rl.after > 0 {
+						wait = rl.after
+					}
+					select {
+					case <-time.After(wait):
+					case <-ctx.Done():
+						return
+					}
 				}
 			}(li)
 		}
@@ -159,9 +235,6 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	workers.Wait()
 	close(stop)
 
-	if v := fatal.Load(); v != nil {
-		return v.(error)
-	}
 	if done.Load() < size {
 		return errors.New("téléchargement incomplet")
 	}
@@ -216,12 +289,17 @@ func fileName(resp *http.Response, rawURL string) string {
 	return "download.bin"
 }
 
-func fetchChunk(ctx context.Context, c *http.Client, rawURL string, ch chunk, f *os.File) (int64, error) {
-	// A stalled chunk is abandoned and requeued instead of blocking forever.
+// fetchTask downloads t from t.pos until t.end (which a stealer may lower meanwhile).
+// It returns the number of bytes written.
+func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *os.File) (int64, error) {
+	// A stalled range is abandoned and requeued instead of blocking forever.
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
+	t.mu.Lock()
+	start, reqEnd := t.pos, t.end
+	t.mu.Unlock()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", ch.start, ch.end))
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, reqEnd))
 	resp, err := c.Do(req)
 	if err != nil {
 		return 0, err
@@ -235,32 +313,39 @@ func fetchChunk(ctx context.Context, c *http.Client, rawURL string, ch chunk, f 
 		return 0, fmt.Errorf("HTTP %s", resp.Status)
 	}
 	buf := make([]byte, 64*1024)
-	off := ch.start
-	for off <= ch.end {
+	var written int64
+	for {
 		n, rerr := resp.Body.Read(buf)
+		t.mu.Lock()
+		if left := t.end - t.pos + 1; int64(n) > left {
+			n = int(left)
+		}
 		if n > 0 {
-			if int64(n) > ch.end-off+1 {
-				n = int(ch.end - off + 1)
+			// Written under the lock so a concurrent steal never overlaps these bytes.
+			if _, err := f.WriteAt(buf[:n], t.pos); err != nil {
+				t.mu.Unlock()
+				return written, err
 			}
-			if _, err := f.WriteAt(buf[:n], off); err != nil {
-				return off - ch.start, err
+			t.pos += int64(n)
+			written += int64(n)
+		}
+		finished, pos := t.pos > t.end, t.pos
+		t.mu.Unlock()
+		if finished {
+			if pos > reqEnd {
+				// Whole requested range read: drain so the keep-alive connection is
+				// reused (servers throttle bursts of new TLS connections).
+				io.CopyN(io.Discard, resp.Body, 64*1024)
 			}
-			off += int64(n)
+			return written, nil
 		}
 		if rerr == io.EOF {
-			break
+			return written, io.ErrUnexpectedEOF
 		}
 		if rerr != nil {
-			return off - ch.start, rerr
+			return written, rerr
 		}
 	}
-	if off <= ch.end {
-		return off - ch.start, io.ErrUnexpectedEOF
-	}
-	// Drain to EOF so the keep-alive connection is reused instead of reopened
-	// (servers throttle bursts of new TLS connections).
-	io.CopyN(io.Discard, resp.Body, 64*1024)
-	return off - ch.start, nil
 }
 
 func single(ctx context.Context, c *http.Client, rawURL string, f *os.File) error {

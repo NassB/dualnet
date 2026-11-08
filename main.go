@@ -53,7 +53,7 @@ func main() {
 		fs := flag.NewFlagSet("get", flag.ExitOnError)
 		ifs := fs.String("if", "", "interfaces à utiliser (noms ou IP, séparés par des virgules)")
 		out := fs.String("o", "", "fichier de sortie")
-		chunk := fs.Int("chunk", 8, "taille des morceaux en Mo")
+		chunk := fs.Int("chunk", 2, "taille des morceaux en Mo")
 		workers := fs.Int("workers", 4, "connexions parallèles par lien")
 		fs.Parse(os.Args[2:])
 		if fs.NArg() != 1 {
