@@ -393,11 +393,13 @@ td.r, th.r { text-align: right; }
 </div>
 
 <script>
-// ---------- language: French if the browser/Windows prefers French, English otherwise (?lang=en|fr forces it) ----------
+// ---------- language: the browser's if we have it (French, Spanish, German), English otherwise (?lang=en|fr|es|de forces it) ----------
+const LANGS = ['en', 'fr', 'es', 'de'];
 const LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
-  if (q === 'en' || q === 'fr') return q;
-  return ((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  if (LANGS.includes(q)) return q;
+  const l = ((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase().slice(0, 2);
+  return LANGS.includes(l) ? l : 'en';
 })();
 document.documentElement.lang = LANG;
 const I18N = {
@@ -515,13 +517,141 @@ const I18N = {
     updTitle: 'Rechercher les mises à jour', updSub: 'Demande à GitHub la dernière version une fois par jour. Rien n’est téléchargé ni installé automatiquement.',
     units: ['o', 'Ko', 'Mo', 'Go', 'To'],
   },
+  es: {
+    navHome: 'Panel', navDownloads: 'Descargas', navHistory: 'Historial', navSettings: 'Ajustes',
+    connecting: 'conectando…', live: 'En directo', disconnected: 'Desconectado',
+    heroOn: 'dualnet está activado', heroOff: 'dualnet está desactivado',
+    heroOnTransparent: 'Combinando {n} enlaces para todo el PC (modo transparente)',
+    heroOnProxy: 'Combinando {n} enlaces para las aplicaciones que usan el proxy de Windows',
+    heroOffSub: 'Windows usa su conexión habitual. Pulsa el botón para combinar tus enlaces.',
+    powerOn: 'Desactivar dualnet', powerOff: 'Activar dualnet',
+    oneLinkWarn: 'Solo hay un enlace conectado, así que no hay nada que combinar. Si el Wi‑Fi se corta al conectar el teléfono por USB, activa «Mantener el Wi‑Fi con la conexión USB» en Ajustes.',
+    chartTitle: 'Velocidad de descarga — últimos 2 minutos', now: 'ahora', agoS: 'hace {n} s', peak: 'pico {s} Mb/s', today: '{b} hoy',
+    received: 'recibidos', share: 'parte', ping: 'ping', conns: 'conexiones', cap: 'Límite', capNone: 'Sin límite',
+    tagUp: 'En línea', tagDown: 'Desconectado', tagNoAnswer: 'No responde',
+    capPrompt: 'Límite de velocidad de descarga para {n} (Mb/s, 0 = ninguno)', save: 'Guardar', cancel: 'Cancelar',
+    dlLead: 'Descarga un archivo por todos los enlaces a la vez: sus velocidades se suman.',
+    urlPlaceholder: 'https://… (archivo a descargar)', connPerLink: 'Conexiones por enlace',
+    conn2: '2 conex./enlace', conn4: '4 conex./enlace', conn8: '8 conex./enlace', download: 'Descargar',
+    noDownloads: 'Aún no hay descargas.', destFolder: 'Guardado en {d}',
+    stRunning: 'en curso', stDone: 'terminada', stError: 'error', stCancelled: 'cancelada',
+    openFolder: 'Mostrar en la carpeta', left: 'faltan {t}', avgIn: 'media {s} Mb/s en {t}',
+    historyLead: 'Datos recibidos por cada enlace, por día.', loading: 'Cargando…', noHistory: 'Aún no hay datos (se registran cada 10 s).',
+    day: 'Día', total: 'Total', split: 'Reparto',
+    settingsLead: 'Cómo captura dualnet el tráfico y los ajustes de Windows que le ayudan.',
+    captureTitle: 'Captura del tráfico',
+    tunTitle: 'Modo transparente', tunOn: 'Captura todo el tráfico IPv4 del PC (Steam, juegos, navegador…) con un adaptador de red virtual.',
+    tunOff: 'Desactivado. Captura todo el tráfico del PC con un adaptador de red virtual, sin ajustes en las aplicaciones.',
+    tunNeedAdmin: 'Requiere ejecutar dualnet como administrador.',
+    sysTitle: 'Proxy de Windows', sysOurs: 'Activado: las aplicaciones que siguen el proxy de Windows (Edge, Chrome…) pasan por dualnet.',
+    sysOther: 'Hay otro proxy configurado ({s}); activarlo lo sustituye hasta que se cierre dualnet.',
+    sysOff: 'Desactivado. Apunta el proxy de Windows a dualnet; se restaura al cerrar dualnet.',
+    proxyManual: 'Dirección del proxy para otras aplicaciones',
+    howBrowser: '<b>Firefox</b>: Ajustes → General → Configuración de red → Proxy manual → SOCKS v5, marca «Proxy DNS al usar SOCKS v5».',
+    howTorrent: '<b>qBittorrent</b>: Opciones → Conexión → Proxy SOCKS5.',
+    winSettings: 'Windows', simTitle: 'Mantener el Wi‑Fi con la conexión USB',
+    simOn: 'Windows mantiene el Wi‑Fi conectado cuando el teléfono está enchufado.',
+    simOff: 'Por defecto, Windows desconecta el Wi‑Fi en cuanto aparece una conexión por cable (USB).',
+    needAdmin: 'Requiere ejecutar dualnet como administrador.',
+    preferTitle: 'Enlace preferido por Windows', preferSub: 'Para el tráfico que no pasa por dualnet.', automatic: 'Automático',
+    steamTitle: 'Reiniciar Steam', steamSub: 'Para que Steam vuelva a abrir sus conexiones a través de dualnet.', restart: 'Reiniciar', restarting: 'Reiniciando…',
+    appTitle: 'Aplicación', autoTitle: 'Iniciar con Windows', autoSub: 'Abre dualnet en el área de notificación al iniciar sesión, sin aviso de UAC.',
+    proxyOff: 'proxy desactivado', done: 'Hecho',
+    appsTitle: 'Aplicaciones', appsNeedTun: 'Las estadísticas y reglas por aplicación requieren el modo transparente (ejecuta dualnet como administrador y actívalo).',
+    appsNone: 'Aún no hay tráfico de aplicaciones.', colApp: 'Aplicación', colConns: 'Conex.', colSpeed: 'Velocidad', colData: 'Recibido', colLinks: 'Enlaces', colRoute: 'Usa',
+    routeAll: 'Todos los enlaces', routeOnly: 'Solo {n}',
+    rulesTitle: 'Reglas por aplicación', rulesHead: 'Limitar una aplicación a un enlace',
+    rulesSub: 'Ejemplo: mantener un juego en línea en el Wi‑Fi para un ping estable mientras Steam usa todos los enlaces. Si el enlace elegido está caído, la aplicación usa los demás. Solo en modo transparente.',
+    rulesNone: 'Sin reglas.', ruleAppPh: 'Programa, p. ej. game.exe', ruleAdd: 'Añadir regla', ruleRemove: 'Quitar',
+    thisMonth: 'Este mes', budget: 'Presupuesto', noBudget: 'Sin presupuesto', tagOver: 'Presupuesto agotado',
+    budgetPrompt: 'Presupuesto mensual de datos para {n} en GB (0 = ninguno). Cuenta los datos que pasan por dualnet en este enlace; cuando se agota, dualnet deja de enviarle conexiones nuevas hasta el mes siguiente.',
+    notifTitle: 'Notificaciones', notifSub: 'Una notificación de Windows cuando un enlace se corta, vuelve o aparece, aunque esta ventana esté cerrada.',
+    notifTest: 'Enviar prueba', notifSent: 'Notificación de prueba enviada',
+    diagTitle: 'Diagnóstico', diagHead: 'Informes de errores',
+    diagSub: 'Versión, enlaces y últimas líneas del registro. Revísalo antes de compartirlo públicamente: incluye los nombres y direcciones de tus interfaces de red.',
+    diagCopy: 'Copiar diagnóstico', logView: 'Ver registro', logHide: 'Ocultar registro', logFolder: 'Abrir carpeta de datos', copied: 'Copiado al portapapeles', noLog: '(el registro está vacío)',
+    updAvail: 'dualnet {v} está disponible.', updGet: 'Descargar',
+    updTitle: 'Buscar actualizaciones', updSub: 'Pregunta a GitHub por la última versión una vez al día. No se descarga ni instala nada automáticamente.',
+    units: ['B', 'KB', 'MB', 'GB', 'TB'],
+  },
+  de: {
+    navHome: 'Übersicht', navDownloads: 'Downloads', navHistory: 'Verlauf', navSettings: 'Einstellungen',
+    connecting: 'verbinde…', live: 'Live', disconnected: 'Getrennt',
+    heroOn: 'dualnet ist aktiv', heroOff: 'dualnet ist aus',
+    heroOnTransparent: '{n} Verbindungen werden für den ganzen PC kombiniert (transparenter Modus)',
+    heroOnProxy: '{n} Verbindungen werden für Apps mit Windows-Proxy kombiniert',
+    heroOffSub: 'Windows nutzt seine normale Verbindung. Mit der Schaltfläche kombinierst du deine Verbindungen.',
+    powerOn: 'dualnet ausschalten', powerOff: 'dualnet einschalten',
+    oneLinkWarn: 'Es ist nur eine Verbindung aktiv, also gibt es nichts zu kombinieren. Wenn das WLAN beim Anstecken des Handys per USB getrennt wird, aktiviere in den Einstellungen „WLAN trotz USB-Tethering behalten“.',
+    chartTitle: 'Download-Geschwindigkeit — letzte 2 Minuten', now: 'jetzt', agoS: 'vor {n} s', peak: 'Spitze {s} Mb/s', today: '{b} heute',
+    received: 'empfangen', share: 'Anteil', ping: 'Ping', conns: 'Sitzungen', cap: 'Limit', capNone: 'Kein Limit',
+    tagUp: 'Online', tagDown: 'Getrennt', tagNoAnswer: 'Antwortet nicht',
+    capPrompt: 'Download-Limit für {n} (Mb/s, 0 = keins)', save: 'Speichern', cancel: 'Abbrechen',
+    dlLead: 'Lädt eine Datei über alle Verbindungen gleichzeitig: ihre Geschwindigkeiten addieren sich.',
+    urlPlaceholder: 'https://… (Datei zum Herunterladen)', connPerLink: 'Sitzungen pro Verbindung',
+    conn2: '2 Sitz./Verbindung', conn4: '4 Sitz./Verbindung', conn8: '8 Sitz./Verbindung', download: 'Herunterladen',
+    noDownloads: 'Noch keine Downloads.', destFolder: 'Gespeichert in {d}',
+    stRunning: 'läuft', stDone: 'fertig', stError: 'Fehler', stCancelled: 'abgebrochen',
+    openFolder: 'Im Ordner anzeigen', left: 'noch {t}', avgIn: 'Ø {s} Mb/s in {t}',
+    historyLead: 'Über jede Verbindung empfangene Daten, pro Tag.', loading: 'Lade…', noHistory: 'Noch keine Daten (Aufzeichnung alle 10 s).',
+    day: 'Tag', total: 'Gesamt', split: 'Aufteilung',
+    settingsLead: 'Wie dualnet den Datenverkehr erfasst, und die Windows-Einstellungen, die dabei helfen.',
+    captureTitle: 'Datenverkehr erfassen',
+    tunTitle: 'Transparenter Modus', tunOn: 'Erfasst den gesamten IPv4-Verkehr des PCs (Steam, Spiele, Browser…) mit einem virtuellen Netzwerkadapter.',
+    tunOff: 'Aus. Erfasst den gesamten Verkehr des PCs mit einem virtuellen Netzwerkadapter, ganz ohne App-Einstellungen.',
+    tunNeedAdmin: 'dualnet muss als Administrator laufen.',
+    sysTitle: 'Windows-Proxy', sysOurs: 'An: Apps, die dem Windows-Proxy folgen (Edge, Chrome…), laufen über dualnet.',
+    sysOther: 'Ein anderer Proxy ist eingestellt ({s}); Einschalten ersetzt ihn, bis dualnet beendet wird.',
+    sysOff: 'Aus. Setzt den Windows-Proxy auf dualnet; wird beim Beenden von dualnet zurückgesetzt.',
+    proxyManual: 'Proxy-Adresse für andere Apps',
+    howBrowser: '<b>Firefox</b>: Einstellungen → Allgemein → Netzwerkeinstellungen → Manuelle Proxy-Konfiguration → SOCKS v5, „Proxy-DNS beim Verwenden von SOCKS v5“ aktivieren.',
+    howTorrent: '<b>qBittorrent</b>: Optionen → Verbindung → SOCKS5-Proxy.',
+    winSettings: 'Windows', simTitle: 'WLAN trotz USB-Tethering behalten',
+    simOn: 'Windows lässt das WLAN verbunden, wenn das Handy angesteckt ist.',
+    simOff: 'Standardmäßig trennt Windows das WLAN, sobald eine kabelgebundene Verbindung (USB-Tethering) erscheint.',
+    needAdmin: 'dualnet muss als Administrator laufen.',
+    preferTitle: 'Von Windows bevorzugte Verbindung', preferSub: 'Für Datenverkehr, der nicht über dualnet läuft.', automatic: 'Automatisch',
+    steamTitle: 'Steam neu starten', steamSub: 'Damit Steam seine Verbindungen neu über dualnet aufbaut.', restart: 'Neu starten', restarting: 'Starte neu…',
+    appTitle: 'Anwendung', autoTitle: 'Mit Windows starten', autoSub: 'Öffnet dualnet beim Anmelden im Infobereich, ohne UAC-Abfrage.',
+    proxyOff: 'Proxy deaktiviert', done: 'Fertig',
+    appsTitle: 'Anwendungen', appsNeedTun: 'Statistiken und Regeln pro Anwendung benötigen den transparenten Modus (dualnet als Administrator starten und einschalten).',
+    appsNone: 'Noch kein Anwendungsverkehr.', colApp: 'Anwendung', colConns: 'Sitz.', colSpeed: 'Tempo', colData: 'Empfangen', colLinks: 'Verbindungen', colRoute: 'Nutzt',
+    routeAll: 'Alle Verbindungen', routeOnly: 'Nur {n}',
+    rulesTitle: 'Regeln pro Anwendung', rulesHead: 'Eine Anwendung auf eine Verbindung beschränken',
+    rulesSub: 'Beispiel: Ein Online-Spiel bleibt für einen stabilen Ping im WLAN, während Steam alle Verbindungen nutzt. Ist die gewählte Verbindung getrennt, nutzt die Anwendung die anderen. Nur im transparenten Modus.',
+    rulesNone: 'Keine Regeln.', ruleAppPh: 'Programm, z. B. game.exe', ruleAdd: 'Regel hinzufügen', ruleRemove: 'Entfernen',
+    thisMonth: 'Diesen Monat', budget: 'Budget', noBudget: 'Kein Budget', tagOver: 'Budget aufgebraucht',
+    budgetPrompt: 'Monatliches Datenbudget für {n} in GB (0 = keins). Zählt die Daten, die über dualnet auf dieser Verbindung laufen; ist es aufgebraucht, schickt dualnet bis zum nächsten Monat keine neuen Sitzungen mehr darüber.',
+    notifTitle: 'Benachrichtigungen', notifSub: 'Eine Windows-Benachrichtigung, wenn eine Verbindung ausfällt, zurückkommt oder neu erscheint, auch bei geschlossenem Fenster.',
+    notifTest: 'Test senden', notifSent: 'Testbenachrichtigung gesendet',
+    diagTitle: 'Diagnose', diagHead: 'Fehlerberichte',
+    diagSub: 'Version, Verbindungen und die letzten Protokollzeilen. Vor dem öffentlichen Teilen prüfen: Sie enthält die Namen und Adressen deiner Netzwerkschnittstellen.',
+    diagCopy: 'Diagnose kopieren', logView: 'Protokoll anzeigen', logHide: 'Protokoll ausblenden', logFolder: 'Datenordner öffnen', copied: 'In die Zwischenablage kopiert', noLog: '(das Protokoll ist leer)',
+    updAvail: 'dualnet {v} ist verfügbar.', updGet: 'Herunterladen',
+    updTitle: 'Nach Updates suchen', updSub: 'Fragt GitHub einmal täglich nach der neuesten Version. Es wird nichts automatisch heruntergeladen oder installiert.',
+    units: ['B', 'KB', 'MB', 'GB', 'TB'],
+  },
 };
-// Server messages are in English; translate the known ones for French users.
-const SERVER_FR = {
-  'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
-  'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid url': 'URL invalide', 'invalid value': 'valeur invalide',
-  'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
-  'unknown action': 'action inconnue', 'not available': 'non disponible', 'no update': 'aucune mise à jour',
+// Server messages are in English; translate the known ones.
+const SERVER_MSG = {
+  fr: {
+    'transparent mode requires administrator rights': 'le mode transparent doit être lancé en administrateur',
+    'no connected link': 'aucun lien connecté', 'missing url': 'URL manquante', 'invalid url': 'URL invalide', 'invalid value': 'valeur invalide',
+    'dualnet proxy is disabled': 'proxy dualnet désactivé', 'Steam is not installed': 'Steam n’est pas installé',
+    'unknown action': 'action inconnue', 'not available': 'non disponible', 'no update': 'aucune mise à jour',
+  },
+  es: {
+    'transparent mode requires administrator rights': 'el modo transparente requiere derechos de administrador',
+    'no connected link': 'ningún enlace conectado', 'missing url': 'falta la URL', 'invalid url': 'URL no válida', 'invalid value': 'valor no válido',
+    'dualnet proxy is disabled': 'el proxy de dualnet está desactivado', 'Steam is not installed': 'Steam no está instalado',
+    'unknown action': 'acción desconocida', 'not available': 'no disponible', 'no update': 'no hay actualización',
+  },
+  de: {
+    'transparent mode requires administrator rights': 'Der transparente Modus benötigt Administratorrechte',
+    'no connected link': 'keine Verbindung aktiv', 'missing url': 'URL fehlt', 'invalid url': 'ungültige URL', 'invalid value': 'ungültiger Wert',
+    'dualnet proxy is disabled': 'dualnet-Proxy ist deaktiviert', 'Steam is not installed': 'Steam ist nicht installiert',
+    'unknown action': 'unbekannte Aktion', 'not available': 'nicht verfügbar', 'no update': 'kein Update',
+  },
 };
 const t = (k, vars) => {
   let s = (I18N[LANG][k] ?? I18N.en[k] ?? k);
@@ -530,8 +660,9 @@ const t = (k, vars) => {
 };
 const srv = msg => {
   msg = String(msg || '').trim();
-  if (LANG !== 'fr') return msg;
-  for (const [en, fr] of Object.entries(SERVER_FR)) if (msg.startsWith(en)) return fr + msg.slice(en.length);
+  const table = SERVER_MSG[LANG];
+  if (!table) return msg;
+  for (const [en, local] of Object.entries(table)) if (msg.startsWith(en)) return local + msg.slice(en.length);
   return msg;
 };
 document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
