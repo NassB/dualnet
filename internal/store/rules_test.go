@@ -51,6 +51,12 @@ func TestRuleLimit(t *testing.T) {
 	if Open(dir).RuleLimit("game.exe") != 20 {
 		t.Fatal("cap not persisted")
 	}
+	s.SetRule("game.exe", "Phone")
+	s.RemoveRule("Game.EXE") // removes link and cap together
+	if len(s.Rules()) != 0 {
+		t.Fatalf("RemoveRule left %+v", s.Rules())
+	}
+	s.SetRuleLimit("game.exe", 5)
 	s.SetRuleLimit("game.exe", -5) // nothing left: the rule disappears
 	if len(s.Rules()) != 0 {
 		t.Fatalf("empty rule kept: %+v", s.Rules())

@@ -32,11 +32,11 @@ func (d TunDialer) app(md *M.Metadata) (string, *AppStats) {
 	if name == "" {
 		name = UnknownApp
 	}
-	st := d.S.Apps.Get(name)
-	if d.S.AppLimit != nil && name != UnknownApp {
-		st.bindLimit(func() int { return d.S.AppLimit(name) })
+	var capOf func(string) int
+	if name != UnknownApp {
+		capOf = d.S.AppLimit
 	}
-	return name, st
+	return name, d.S.Apps.get(name, capOf)
 }
 
 // DialContext opens a TCP connection to the destination over the best link the

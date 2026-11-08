@@ -74,6 +74,11 @@ func (s *Store) SetRuleLimit(app string, mbps int) {
 	s.update(app, func(r *Rule) { r.Limit = mbps })
 }
 
+// RemoveRule deletes an application's rule: its link restriction and its cap.
+func (s *Store) RemoveRule(app string) {
+	s.update(app, func(r *Rule) { *r = Rule{App: r.App} })
+}
+
 // update edits (or creates) an application's rule, keeping its place in the
 // list, and drops the rule when nothing is left in it.
 func (s *Store) update(app string, edit func(*Rule)) {

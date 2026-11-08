@@ -61,13 +61,24 @@ func (s *Server) ruleViews() []ruleView {
 	return out
 }
 
+// validApp reports whether name can be an application's executable name.
+func validApp(name string) bool {
+	return name != "" && len(name) <= 128 && !strings.ContainsAny(name, `/\:*?"<>|`)
+}
+
 // setRule restricts an application to a link: ?app=<exe name>&link=<link name>.
-// An empty link removes the rule.
+// An empty link removes the restriction but keeps the application's speed cap;
+// all=1 removes the whole rule, cap included.
 func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
 	app := strings.TrimSpace(r.URL.Query().Get("app"))
 	link := r.URL.Query().Get("link")
-	if app == "" || len(app) > 128 || strings.ContainsAny(app, `/\:*?"<>|`) {
+	if !validApp(app) {
 		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	if r.URL.Query().Get("all") == "1" {
+		s.Store.RemoveRule(app)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if link != "" {
@@ -91,7 +102,7 @@ func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
 func (s *Server) setAppLimit(w http.ResponseWriter, r *http.Request) {
 	app := strings.TrimSpace(r.URL.Query().Get("app"))
 	mbps, err := strconv.Atoi(r.URL.Query().Get("mbps"))
-	if app == "" || len(app) > 128 || strings.ContainsAny(app, `/\:*?"<>|`) || err != nil || mbps < 0 || mbps > 100000 {
+	if !validApp(app) || err != nil || mbps < 0 || mbps > 100000 {
 		http.Error(w, "invalid value", http.StatusBadRequest)
 		return
 	}

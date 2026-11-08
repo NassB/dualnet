@@ -201,7 +201,10 @@ func TestRuleEndpoint(t *testing.T) {
 	if v := srv.ruleViews(); len(v) != 1 || v[0].Limit != 20 {
 		t.Errorf("ruleViews = %v", v)
 	}
-	post("/api/applimit?app=game.exe&mbps=0", true)
+	st.SetRule("game.exe", "Wi-Fi")
+	if post("/api/rule?app=game.exe&link=&all=1", true) != 204 || len(st.Rules()) != 0 {
+		t.Errorf("all=1 must remove the link and the cap: %+v", st.Rules())
+	}
 	if v := srv.ruleViews(); len(v) != 0 {
 		t.Errorf("ruleViews = %v", v)
 	}

@@ -22,40 +22,26 @@ type AppStats struct {
 	mu                          sync.Mutex
 	rxByLink                    map[string]int64
 
-	// download cap shared by all the application's connections
+	// download cap shared by all the application's connections: capOf gives the
+	// cap of an application in Mb/s (nil = no caps at all) and is asked again every second
+	capOf   func(app string) int
 	lim     ratelimit.Bucket
-	limFn   func() int // current cap in Mb/s, asked again every second
 	limAt   atomic.Int64
 	limMbps atomic.Int64
-	limitMu sync.Mutex
-}
-
-// bindLimit tells the application where to read its cap from.
-func (a *AppStats) bindLimit(fn func() int) {
-	if fn == nil {
-		return
-	}
-	a.limitMu.Lock()
-	a.limFn = fn
-	a.limitMu.Unlock()
-	a.refreshLimit()
 }
 
 func (a *AppStats) refreshLimit() {
 	a.limAt.Store(time.Now().UnixNano())
-	a.limitMu.Lock()
-	fn := a.limFn
-	a.limitMu.Unlock()
-	if fn == nil {
-		return
-	}
-	if m := int64(fn()); m != a.limMbps.Swap(m) {
+	if m := int64(a.capOf(a.Name)); m != a.limMbps.Swap(m) {
 		a.lim.Set(float64(m) * 1e6 / 8)
 	}
 }
 
 // throttle accounts n received bytes against the application's cap.
 func (a *AppStats) throttle(n int) {
+	if a.capOf == nil {
+		return
+	}
 	if time.Since(time.Unix(0, a.limAt.Load())) > time.Second {
 		a.refreshLimit()
 	}
@@ -98,12 +84,17 @@ func NewAppRegistry() *AppRegistry { return &AppRegistry{apps: map[string]*AppSt
 // Get returns (creating it if needed) the counters of an application. Names are
 // compared without regard to case; the first spelling seen is displayed.
 func (r *AppRegistry) Get(name string) *AppStats {
+	return r.get(name, nil)
+}
+
+// get is Get, giving a new application the function that reads its cap.
+func (r *AppRegistry) get(name string, capOf func(string) int) *AppStats {
 	key := strings.ToLower(name)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a := r.apps[key]
 	if a == nil {
-		a = &AppStats{Name: name, rxByLink: map[string]int64{}}
+		a = &AppStats{Name: name, rxByLink: map[string]int64{}, capOf: capOf}
 		a.touch()
 		r.apps[key] = a
 	}

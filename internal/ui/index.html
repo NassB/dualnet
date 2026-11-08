@@ -874,7 +874,7 @@ function renderRules(snap) {
   if (key === rulesKey) return;
   rulesKey = key;
   $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc([r.link ? t('routeOnly', { n: r.link }) : '', r.limit ? t('limitMax', { n: r.limit }) : ''].filter(Boolean).join(' · '))}</span>
-      <button class="btn ghost small" data-app="${esc(r.app)}" onclick="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=')">${t('ruleRemove')}</button></div>`).join('')
+      <button class="btn ghost small" data-app="${esc(r.app)}" onclick="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=&all=1')">${t('ruleRemove')}</button></div>`).join('')
     : `<div class="empty">${t('rulesNone')}</div>`;
   const sel = $('ruleLink'), cur = sel.value;
   sel.innerHTML = snap.links.map(l => `<option value="${esc(l.name)}">${esc(t('routeOnly', { n: l.name }))}</option>`).join('');

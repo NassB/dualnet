@@ -27,8 +27,19 @@ func isAdmin() bool {
 	return true
 }
 
+// inCI is true on GitHub Actions. The tests stop every running dualnet and
+// change the network, so on a developer's machine they only run if asked
+// (DUALNET_IT=1).
+func inCI() bool { return os.Getenv("GITHUB_ACTIONS") != "" }
+
+func allowed() bool { return inCI() || os.Getenv("DUALNET_IT") == "1" }
+
 func TestMain(m *testing.M) {
 	if !isAdmin() {
+		if inCI() {
+			fmt.Println("FAIL: the CI runner is not an administrator: nothing was tested")
+			os.Exit(1)
+		}
 		fmt.Println("integration tests need an administrator shell: skipped")
 		os.Exit(0)
 	}
@@ -78,6 +89,9 @@ func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // install -> files, shortcut and registry entry exist -> uninstall -purge -> all gone.
 func TestInstallUninstall(t *testing.T) {
+	if !allowed() {
+		t.Skip("stops every running dualnet: set DUALNET_IT=1 to run it on this machine")
+	}
 	if regKeyExists() {
 		t.Skip("dualnet is already installed on this machine")
 	}
@@ -191,6 +205,9 @@ func download(t *testing.T, size int) time.Duration {
 // download is attributed to this program, a per-application cap slows it, and
 // switching it off removes the adapter.
 func TestTransparentMode(t *testing.T) {
+	if !allowed() {
+		t.Skip("changes the machine's routes: set DUALNET_IT=1 to run it on this machine")
+	}
 	base := t.TempDir()
 	data := filepath.Join(base, "data")
 	exe := filepath.Join(base, "dualnet.exe")
@@ -207,6 +224,13 @@ func TestTransparentMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
+		// switch the mode off first so a failed test never leaves routes behind
+		req, _ := http.NewRequest("POST", "http://"+ui+"/api/transparent?on=0", nil)
+		req.Header.Set("X-Dualnet", "1")
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+			time.Sleep(2 * time.Second)
+		}
 		cmd.Process.Kill()
 		cmd.Wait()
 		t.Log("dualnet output:\n" + logs.String())
