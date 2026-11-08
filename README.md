@@ -7,7 +7,15 @@ Combine plusieurs connexions internet sur un PC Windows (ex. Wi‑Fi de la box +
 - **`get`** : télécharge un fichier par morceaux (HTTP Range) répartis sur tous les liens. Les débits **s'additionnent** pour ce fichier.
 - **`proxy`** : proxy local SOCKS5 + HTTP qui répartit les **connexions** entre les liens (navigation, torrents, téléchargements multiples). Une connexion donnée reste sur un seul lien.
 
-## Utilisation
+## Interface
+
+```powershell
+.\dualnet.exe ui
+```
+
+Ouvre un tableau de bord dans le navigateur (`http://127.0.0.1:8090`) : débit de chaque lien en direct (courbes sur 2 min), lancement de téléchargements combinés (dans `Téléchargements`), et proxy sur `127.0.0.1:1080`.
+
+## Utilisation en ligne de commande
 
 ```powershell
 go build -o dualnet.exe .

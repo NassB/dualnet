@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,34 @@ type Options struct {
 	Output        string
 	ChunkSize     int64
 	WorkersPerLnk int
+	OutDir        string // used when Output is empty
+	Quiet         bool   // no console output (UI mode)
+	Stats         *Stats // optional live progress for the UI
+}
+
+// Stats exposes a running download's progress to another goroutine (the UI).
+type Stats struct {
+	mu      sync.Mutex
+	file    string
+	size    int64
+	perLink []atomic.Int64
+}
+
+func (s *Stats) set(file string, size int64, perLink []atomic.Int64) {
+	s.mu.Lock()
+	s.file, s.size, s.perLink = file, size, perLink
+	s.mu.Unlock()
+}
+
+// Snapshot returns the output file, total size and bytes received per link.
+func (s *Stats) Snapshot() (file string, size int64, perLink []int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	perLink = make([]int64, len(s.perLink))
+	for i := range s.perLink {
+		perLink[i] = s.perLink[i].Load()
+	}
+	return s.file, s.size, perLink
 }
 
 func clientFor(l *links.Link) *http.Client {
@@ -172,6 +201,11 @@ func (r *rateLimited) Error() string { return "HTTP " + r.status }
 
 // Run downloads opts.URL using all links.
 func Run(ctx context.Context, ls []*links.Link, opts Options) error {
+	say := func(format string, a ...any) {
+		if !opts.Quiet {
+			fmt.Printf(format, a...)
+		}
+	}
 	clients := make([]*http.Client, len(ls))
 	for i, l := range ls {
 		clients[i] = clientFor(l)
@@ -182,7 +216,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 		return err
 	}
 	if opts.Output == "" {
-		opts.Output = name
+		opts.Output = filepath.Join(opts.OutDir, name)
 	}
 	f, err := os.Create(opts.Output)
 	if err != nil {
@@ -191,13 +225,13 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	defer f.Close()
 
 	if !rangesOK || size <= 0 {
-		fmt.Println("Le serveur n'accepte pas les téléchargements par morceaux : un seul lien sera utilisé.")
+		say("Le serveur n'accepte pas les téléchargements par morceaux : un seul lien sera utilisé.\n")
 		return single(ctx, clients[0], opts.URL, f)
 	}
 	if err := f.Truncate(size); err != nil {
 		return err
 	}
-	fmt.Printf("Fichier : %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
+	say("Fichier : %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -219,6 +253,9 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 
 	var done atomic.Int64
 	perLink := make([]atomic.Int64, len(ls))
+	if opts.Stats != nil {
+		opts.Stats.set(opts.Output, size, perLink)
+	}
 	failures := make([]atomic.Int32, len(ls))
 	alive := make([]atomic.Int32, len(ls))
 	t0 := time.Now()
@@ -258,7 +295,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 					}
 					fails := failures[li].Add(1)
 					if fails > 8 {
-						fmt.Printf("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
+						say("\n%s : trop d'erreurs, lien abandonné (%v)\n", ls[li], err)
 						return
 					}
 					// Exponential backoff (servers answer 429 to bursts); a server-given
@@ -280,7 +317,9 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 
 	start := time.Now()
 	stop := make(chan struct{})
-	go progress(ls, perLink, &done, size, start, stop)
+	if !opts.Quiet {
+		go progress(ls, perLink, &done, size, start, stop)
+	}
 	workers.Wait()
 	close(stop)
 
@@ -288,9 +327,9 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 		return fmt.Errorf("téléchargement incomplet (%d/%d octets, reste %d en file, %d actifs)", done.Load(), size, len(sc.todo), len(sc.active))
 	}
 	el := time.Since(start)
-	fmt.Printf("\nTerminé en %s — moyenne %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
+	say("\nTerminé en %s — moyenne %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
 	for i, l := range ls {
-		fmt.Printf("  %-30s %s (%.0f%%)\n", l.String(), links.HumanBytes(float64(perLink[i].Load())), 100*float64(perLink[i].Load())/float64(size))
+		say("  %-30s %s (%.0f%%)\n", l.String(), links.HumanBytes(float64(perLink[i].Load())), 100*float64(perLink[i].Load())/float64(size))
 	}
 	return nil
 }

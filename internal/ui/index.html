@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dualnet</title>
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #667080;
+  --grid: #eceef2; --accent: #2f6fed; --ok: #1f9d55; --err: #d64545; --warn: #c27c0e;
+  --l0: #2f6fed; --l1: #ef7d22; --l2: #1f9d55; --l3: #9b51e0;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --panel: #171b21; --border: #262c35; --text: #e7eaee; --muted: #8b95a5;
+    --grid: #222831; --accent: #5b8ef5; --ok: #3cc47c; --err: #f06a6a; --warn: #e3a33a;
+    --l0: #5b8ef5; --l1: #f39a4c; --l2: #3cc47c; --l3: #b67cf0;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.grid { display: grid; gap: 14px; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 14px; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.kpi .label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 8px; }
+.kpi .value { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; margin: 4px 0 2px; letter-spacing: -.02em; }
+.kpi .value small { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.kpi .sub { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.kpi.total { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: flex; margin-top: 10px; }
+.bar > span { display: block; height: 100%; }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-box { position: relative; height: 280px; }
+canvas { width: 100%; height: 100%; display: block; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; display: none; white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15); font-variant-numeric: tabular-nums; }
+.tip b { display: block; margin-bottom: 3px; }
+.tip div { display: flex; align-items: center; gap: 6px; }
+.cols { grid-template-columns: 1.6fr 1fr; margin-top: 14px; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+input[type=url] { flex: 1 1 260px; min-width: 0; }
+input, select, button { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; }
+input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 0; }
+button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; padding: 8px 14px; }
+button.ghost { background: transparent; color: var(--muted); border-color: var(--border); font-weight: 500; padding: 4px 10px; font-size: 12px; }
+button.ghost:hover { color: var(--text); }
+.jobs { display: grid; gap: 10px; }
+.job { border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.job .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.job .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.job .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.job .actions { display: flex; gap: 6px; flex: none; }
+.state { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.state.running { color: var(--accent); } .state.done { color: var(--ok); }
+.state.error { color: var(--err); } .state.cancelled { color: var(--muted); }
+.empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.err { color: var(--err); font-size: 12px; margin-top: 6px; word-break: break-word; }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.howto { color: var(--muted); font-size: 13px; }
+.howto ol { padding-left: 18px; margin: 8px 0 0; }
+.howto li { margin-bottom: 6px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 12px; }
+td { padding: 6px 0; border-top: 1px solid var(--border); }
+td:last-child { text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>dualnet</h1>
+    <span class="pill"><span class="dot" id="conn"></span><span id="connText">connexion…</span></span>
+    <span class="pill" id="proxyPill">proxy —</span>
+  </header>
+
+  <section class="grid kpis" id="kpis"></section>
+
+  <section class="panel">
+    <div class="chart-head">
+      <h2>Débit descendant — 2 dernières minutes</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="chart-box">
+      <canvas id="chart"></canvas>
+      <div class="tip" id="tip"></div>
+    </div>
+  </section>
+
+  <section class="grid cols">
+    <div class="panel">
+      <h2>Téléchargements</h2>
+      <form id="dl">
+        <input type="url" id="url" placeholder="https://… (fichier à télécharger)" required>
+        <select id="workers" title="Connexions par lien">
+          <option value="2">2 conn./lien</option>
+          <option value="4" selected>4 conn./lien</option>
+          <option value="8">8 conn./lien</option>
+        </select>
+        <button type="submit">Télécharger</button>
+      </form>
+      <div class="jobs" id="jobs"><div class="empty">Aucun téléchargement pour l'instant.</div></div>
+      <div class="howto" id="dir"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Proxy (navigation, torrents…)</h2>
+      <div class="howto">
+        <div class="row">Adresse : <code id="proxyAddr">—</code></div>
+        <ol>
+          <li><b>Navigateur</b> : Firefox → Paramètres → Réseau → Proxy manuel → SOCKS v5 <code id="p2">—</code>, cocher « DNS via SOCKS ».</li>
+          <li><b>qBittorrent</b> : Options → Connexion → Proxy SOCKS5, même adresse.</li>
+          <li><b>Tout Windows</b> : Paramètres → Réseau → Proxy → manuel, HTTP <code id="p3">—</code>.</li>
+        </ol>
+        Chaque connexion part sur le lien le moins chargé ; un même site reste sur le même lien 10 min.
+      </div>
+      <table id="totals"></table>
+    </div>
+  </section>
+</div>
+
+<script>
+const WINDOW = 120;            // seconds of history
+const STEP = 0.5;              // seconds between points
+const MAXPTS = WINDOW / STEP;
+const hist = [];               // {t, v:[rx per link]}
+let links = [], peaks = [], peakTotal = 0;
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const color = i => css('--l' + (i % 4));
+const fmtMbps = v => v >= 100 ? v.toFixed(0) : v.toFixed(1);
+function fmtBytes(n) {
+  const u = ['o', 'Ko', 'Mo', 'Go', 'To']; let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i ? n.toFixed(1) : n.toFixed(0)) + ' ' + u[i];
+}
+function fmtDur(s) {
+  if (!isFinite(s)) return '—';
+  s = Math.round(s); const m = Math.floor(s / 60);
+  return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- KPIs ----------
+function renderKpis(snap) {
+  const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
+  peakTotal = Math.max(peakTotal, total);
+  const allRx = snap.links.reduce((a, l) => a + l.totalRx, 0) || 1;
+  let html = `<div class="panel kpi total">
+      <div class="label">Total combiné</div>
+      <div class="value">${fmtMbps(total)}<small>Mb/s</small></div>
+      <div class="sub">pic ${fmtMbps(peakTotal)} Mb/s · ${fmtBytes(allRx)} reçus</div>
+      <div class="bar">${snap.links.map((l, i) =>
+        `<span style="width:${(100 * l.rxMbps / (total || 1)).toFixed(1)}%;background:${color(i)}"></span>`).join('')}</div>
+    </div>`;
+  snap.links.forEach((l, i) => {
+    peaks[i] = Math.max(peaks[i] || 0, l.rxMbps);
+    const share = 100 * l.totalRx / allRx;
+    html += `<div class="panel kpi">
+      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}</div>
+      <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
+      <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn.</div>
+      <div class="sub">${fmtBytes(l.totalRx)} reçus (${share.toFixed(0)} %)</div>
+    </div>`;
+  });
+  document.getElementById('kpis').innerHTML = html;
+}
+
+// ---------- chart (stacked areas, one per link) ----------
+const cv = document.getElementById('chart'), ctx = cv.getContext('2d'), tip = document.getElementById('tip');
+let hoverX = null;
+function resize() {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); draw();
+}
+new ResizeObserver(resize).observe(cv);
+function niceMax(v) {
+  if (v <= 10) return 10;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+  return (n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+function geom() {
+  const W = cv.clientWidth, H = cv.clientHeight, L = 44, R = 8, T = 10, B = 22;
+  return { W, H, L, R, T, B, w: W - L - R, h: H - T - B };
+}
+function draw() {
+  const g = geom();
+  ctx.clearRect(0, 0, g.W, g.H);
+  const maxTotal = hist.reduce((m, p) => Math.max(m, p.v.reduce((a, b) => a + b, 0)), 0);
+  const ymax = niceMax(maxTotal * 1.1);
+  const x = k => g.L + g.w * (k + MAXPTS - hist.length) / (MAXPTS - 1);
+  const y = v => g.T + g.h * (1 - v / ymax);
+  // grid + labels
+  ctx.font = '11px Segoe UI, system-ui, sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const v = ymax * i / 4, yy = Math.round(y(v)) + .5;
+    ctx.beginPath(); ctx.moveTo(g.L, yy); ctx.lineTo(g.W - g.R, yy); ctx.stroke();
+    ctx.fillText(v.toFixed(0), g.L - 6, yy);
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let s = 0; s <= WINDOW; s += 30) {
+    const xx = g.L + g.w * (1 - s / WINDOW);
+    ctx.textAlign = s === 0 ? 'right' : s === WINDOW ? 'left' : 'center';
+    ctx.fillText(s ? `-${s}s` : 'maintenant', xx, g.H - g.B + 6);
+  }
+  ctx.save(); ctx.translate(10, g.T + g.h / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
+  ctx.fillText('Mb/s', 0, 0); ctx.restore();
+  if (hist.length < 2) return;
+  // stacked areas, bottom link first
+  const n = links.length;
+  for (let li = n - 1; li >= 0; li--) {
+    ctx.beginPath();
+    hist.forEach((p, k) => {
+      const top = p.v.slice(0, li + 1).reduce((a, b) => a + b, 0);
+      k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
+    });
+    ctx.lineTo(x(hist.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
+    const c = color(li);
+    ctx.fillStyle = c + '55'; ctx.fill();
+    ctx.beginPath();
+    hist.forEach((p, k) => {
+      const top = p.v.slice(0, li + 1).reduce((a, b) => a + b, 0);
+      k ? ctx.lineTo(x(k), y(top)) : ctx.moveTo(x(k), y(top));
+    });
+    ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.stroke();
+  }
+  // hover
+  if (hoverX !== null) {
+    const k = Math.round((hoverX - g.L) / g.w * (MAXPTS - 1)) - (MAXPTS - hist.length);
+    if (k >= 0 && k < hist.length) {
+      const xx = x(k), p = hist[k];
+      ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(xx, g.T); ctx.lineTo(xx, g.T + g.h); ctx.stroke(); ctx.setLineDash([]);
+      const total = p.v.reduce((a, b) => a + b, 0);
+      const ago = ((hist[hist.length - 1].t - p.t) / 1000).toFixed(0);
+      tip.innerHTML = `<b>${fmtMbps(total)} Mb/s · il y a ${ago} s</b>` + links.map((l, i) =>
+        `<div><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} : ${fmtMbps(p.v[i] || 0)} Mb/s</div>`).join('');
+      tip.style.display = 'block';
+      const tw = tip.offsetWidth;
+      tip.style.left = Math.min(xx + 12, g.W - tw - 4) + 'px';
+      tip.style.top = (g.T + 6) + 'px';
+      return;
+    }
+  }
+  tip.style.display = 'none';
+}
+cv.addEventListener('mousemove', e => { hoverX = e.offsetX; draw(); });
+cv.addEventListener('mouseleave', () => { hoverX = null; draw(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+
+function renderLegend() {
+  document.getElementById('legend').innerHTML = links.map((l, i) =>
+    `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
+}
+
+// ---------- jobs ----------
+function renderJobs(snap) {
+  const el = document.getElementById('jobs');
+  if (!snap.jobs.length) return;
+  el.innerHTML = snap.jobs.slice().reverse().map(j => {
+    const pct = j.size ? 100 * j.done / j.size : 0;
+    const avg = j.elapsed ? j.done * 8 / j.elapsed / 1e6 : 0;
+    const eta = j.state === 'running' && j.mbps > 0 ? (j.size - j.done) * 8 / (j.mbps * 1e6) : NaN;
+    const stateTxt = { running: 'en cours', done: 'terminé', error: 'erreur', cancelled: 'annulé' }[j.state];
+    const segs = (j.perLink || []).map((b, i) =>
+      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}" title="${esc(links[i] ? links[i].name : '')} : ${fmtBytes(b)}"></span>`).join('');
+    const split = (j.perLink || []).map((b, i) =>
+      `<span><span class="swatch" style="background:${color(i)}"></span> ${j.done ? (100 * b / j.done).toFixed(0) : 0} %</span>`).join(' ');
+    return `<div class="job">
+      <div class="top">
+        <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
+        <div class="actions">
+          <span class="state ${j.state}">${stateTxt}</span>
+          ${j.state === 'running' ? `<button class="ghost" onclick="act('cancel',${j.id})">Annuler</button>` : ''}
+          ${j.state === 'done' ? `<button class="ghost" onclick="act('reveal',${j.id})">Ouvrir le dossier</button>` : ''}
+        </div>
+      </div>
+      <div class="bar">${segs}</div>
+      <div class="meta">
+        <span>${pct.toFixed(1)} % · ${fmtBytes(j.done)} / ${fmtBytes(j.size)}</span>
+        ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>reste ${fmtDur(eta)}</span>` : `<span>moyenne ${fmtMbps(avg)} Mb/s en ${fmtDur(j.elapsed)}</span>`}
+        <span class="legend">${split}</span>
+      </div>
+      ${j.err ? `<div class="err">${esc(j.err)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+function act(what, id) { fetch(`/api/${what}?id=${id}`, { method: 'POST' }); }
+document.getElementById('dl').addEventListener('submit', async e => {
+  e.preventDefault();
+  const url = document.getElementById('url').value.trim();
+  const workers = +document.getElementById('workers').value;
+  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, workers }) });
+  if (r.ok) document.getElementById('url').value = '';
+});
+
+function renderTotals(snap) {
+  document.getElementById('totals').innerHTML = snap.links.map((l, i) =>
+    `<tr><td><span class="swatch" style="background:${color(i)}"></span> ${esc(l.name)}</td><td>↓ ${fmtBytes(l.totalRx)} · ↑ ${fmtBytes(l.totalTx)}</td></tr>`).join('');
+}
+
+// ---------- live stream ----------
+let started = false;
+function connect() {
+  const es = new EventSource('/api/events');
+  const dot = document.getElementById('conn'), txt = document.getElementById('connText');
+  es.onopen = () => { dot.classList.add('on'); txt.textContent = 'en direct'; };
+  es.onerror = () => { dot.classList.remove('on'); txt.textContent = 'déconnecté — dualnet est-il lancé ?'; };
+  es.onmessage = ev => {
+    const snap = JSON.parse(ev.data);
+    snap.links = snap.links || []; snap.jobs = snap.jobs || [];
+    if (!started || snap.links.length !== links.length) { links = snap.links; renderLegend(); started = true; }
+    links = snap.links;
+    hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
+    if (hist.length > MAXPTS) hist.shift();
+    renderKpis(snap); renderJobs(snap); renderTotals(snap); draw();
+    for (const id of ['proxyAddr', 'p2', 'p3']) document.getElementById(id).textContent = snap.proxy || '—';
+    document.getElementById('proxyPill').textContent = snap.proxy ? 'proxy ' + snap.proxy : 'proxy désactivé';
+    document.getElementById('dir').textContent = snap.dir ? 'Dossier de destination : ' + snap.dir : '';
+  };
+}
+connect();
+</script>
+</body>
+</html>
