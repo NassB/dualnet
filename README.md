@@ -2,7 +2,7 @@
 
 Combine several internet connections on one Windows PC — for example your home Wi‑Fi and your phone's USB tethering — **without any remote server**.
 
-The interface is in English, or in French when your browser prefers French.
+The interface follows your language: English, French, Spanish or German (English otherwise). The Spanish and German texts were written without a native-speaker review: corrections are welcome.
 
 ## Download
 
@@ -24,10 +24,10 @@ The window uses Microsoft Edge WebView2, built into Windows 11 and most up-to-da
 
 The interface has four pages:
 
-- **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, speed cap), live chart;
+- **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live chart;
 - **Downloads**: download one file over all links at once;
 - **History**: data per link and per day;
-- **Settings**: transparent mode, Windows proxy, keep Wi‑Fi with USB tethering, link preferred by Windows, restart Steam, start with Windows.
+- **Settings**: transparent mode, Windows proxy, keep Wi‑Fi with USB tethering, link preferred by Windows, restart Steam, application rules, start with Windows, notifications, update check, diagnostics.
 
 ## What dualnet does
 
@@ -39,11 +39,17 @@ The interface has four pages:
 
 - **Spreads by measured speed**: each new connection goes to the link with the most free capacity (measured capacity ÷ busy connections; idle sockets do not count).
 - **Link monitoring**: every 2 s (plugged / unplugged / IP change) plus an internet check every 5 s; a link that stops answering is skipped until it comes back. Ping is shown.
+- **Smarter choice**: links whose score is within 10 % are a tie, broken by the lowest ping; DNS lookups (port 53/853) always use the lowest-ping link.
 - **Per-link speed cap** (Mb/s), remembered.
+- **Monthly data budget per link** (GB): when a link has used its budget, it gets no new connections until next month (warning at 80 %). Only data that goes through dualnet counts. The last usable link is never excluded, so the internet keeps working.
+- **Applications and rules** (transparent mode): the dashboard lists which programs use the network and through which links. A rule restricts a program to one link (for example an online game on Wi‑Fi for a steady ping while Steam uses every link); if that link is down, the program uses the others.
+- **Notifications**: a Windows notification when a link drops, comes back or appears (and for budget events), even if the window is closed. The toast appears under Windows PowerShell's name. The Settings page has a "send a test" button.
+- **Update check**: once a day dualnet asks GitHub for the latest release and shows a banner. Nothing is downloaded or installed automatically; it can be turned off in Settings.
+- **Diagnostics**: Settings can show the log live and copy a bug-report text (version, links, last log lines). Check it before sharing: it lists your network interface names and addresses.
 - **History**: data per link and per day (30 days shown, one year kept).
 - **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows, restart Steam.
 
-Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`).
+Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`). Set the `DUALNET_DATA` environment variable to use another folder.
 
 ## Command line
 
@@ -58,7 +64,7 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 
 `-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for Steam).
 
-Add `?lang=en` or `?lang=fr` to the interface address to force a language.
+Add `?lang=en`, `?lang=fr`, `?lang=es` or `?lang=de` to the interface address to force a language. The notification-area menu and the Windows notifications are in English or French (Windows' language).
 
 ## Wi‑Fi drops when the phone is plugged in?
 
@@ -81,6 +87,8 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPo
 
 - Without a server in between, **a single connection** (one video stream, one online game) cannot use two links at once: the gain comes from apps that open several connections (Steam, downloads, browsing).
 - IPv6 is not used in transparent mode.
+- Per-application statistics and rules work in transparent mode only: in proxy mode dualnet cannot tell which program a connection comes from.
+- An already open connection cannot move to another link: if its link drops it ends, and the application reconnects over the remaining links.
 
 ## Development
 
@@ -93,8 +101,8 @@ go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resource
 GitHub Actions builds and tests every push. To publish a release, push a version tag:
 
 ```powershell
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The workflow builds `dualnet.exe` with that version and attaches it to a GitHub release with generated notes.
