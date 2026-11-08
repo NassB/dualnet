@@ -199,10 +199,11 @@ function renderKpis(snap) {
   snap.links.forEach((l, i) => {
     peaks[i] = Math.max(peaks[i] || 0, l.rxMbps);
     const share = 100 * l.totalRx / allRx;
-    html += `<div class="panel kpi${l.up ? '' : ' down'}">
-      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}${l.up ? '' : ' <span class="tag">déconnecté</span>'}</div>
+    const tag = !l.up ? 'déconnecté' : !l.healthy ? 'ne répond pas' : '';
+    html += `<div class="panel kpi${tag ? ' down' : ''}">
+      <div class="label"><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)} · ${esc(l.ip)}${tag ? ` <span class="tag">${tag}</span>` : ''}</div>
       <div class="value">${fmtMbps(l.rxMbps)}<small>Mb/s</small></div>
-      <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn.</div>
+      <div class="sub">pic ${fmtMbps(peaks[i])} · ↑ ${fmtMbps(l.txMbps)} Mb/s · ${l.active} conn. · ping ${l.ping ? l.ping + ' ms' : '—'}</div>
       <div class="sub">${fmtBytes(l.totalRx)} reçus (${share.toFixed(0)} %)</div>
     </div>`;
   });
@@ -391,7 +392,7 @@ function connect() {
     const snap = JSON.parse(ev.data);
     snap.links = snap.links || []; snap.jobs = snap.jobs || [];
     if (!started || snap.links.length !== links.length) { links = snap.links; renderLegend(); started = true; }
-    const up = snap.links.filter(l => l.up).length;
+    const up = snap.links.filter(l => l.up && l.healthy).length;
     document.getElementById('linksWarn').style.display = up < 2 ? 'block' : 'none';
     links = snap.links;
     hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });

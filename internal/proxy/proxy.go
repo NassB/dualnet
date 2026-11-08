@@ -114,7 +114,7 @@ func (s *Server) dial(addr string) (net.Conn, *links.Link, error) {
 	host, _, _ := net.SplitHostPort(addr)
 	lastErr := errors.New("aucun lien connecté")
 	for _, l := range s.pick(host) {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		c, err := l.DialContext(ctx, "tcp", addr)
 		cancel()
 		if err == nil {

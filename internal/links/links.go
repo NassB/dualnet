@@ -23,6 +23,10 @@ type Link struct {
 	dialer *net.Dialer
 	up     atomic.Bool
 
+	unhealthy atomic.Bool  // internet checks failing
+	fails     atomic.Int32 // consecutive failed checks
+	latency   atomic.Int64 // ms
+
 	BytesIn  atomic.Int64
 	BytesOut atomic.Int64
 	Active   atomic.Int64
@@ -193,3 +197,12 @@ func Mbps(bytes int64, d time.Duration) float64 {
 	}
 	return float64(bytes) * 8 / d.Seconds() / 1e6
 }
+
+// Healthy reports whether the last internet checks through this link succeeded.
+func (l *Link) Healthy() bool { return !l.unhealthy.Load() }
+
+// Usable reports whether new connections may use this link.
+func (l *Link) Usable() bool { return l.Up() && l.Healthy() }
+
+// LatencyMs is the last measured TCP connect time to the internet (0 = unknown).
+func (l *Link) LatencyMs() int64 { return l.latency.Load() }

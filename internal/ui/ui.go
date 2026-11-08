@@ -82,6 +82,8 @@ type linkView struct {
 	Name    string  `json:"name"`
 	IP      string  `json:"ip"`
 	Up      bool    `json:"up"`
+	Healthy bool    `json:"healthy"`
+	Ping    int64   `json:"ping"`
 	RxMbps  float64 `json:"rxMbps"`
 	TxMbps  float64 `json:"txMbps"`
 	Active  int64   `json:"active"`
@@ -187,7 +189,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					pr, prevTx[l] = rx, tx
 				}
 				snap.Links = append(snap.Links, linkView{
-					Name: l.Name, IP: l.IP().String(), Up: l.Up(),
+					Name: l.Name, IP: l.IP().String(), Up: l.Up(), Healthy: l.Healthy(), Ping: l.LatencyMs(),
 					RxMbps: links.Mbps(rx-pr, dt), TxMbps: links.Mbps(tx-prevTx[l], dt),
 					Active: l.Active.Load(), TotalRx: rx, TotalTx: tx,
 				})

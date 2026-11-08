@@ -152,6 +152,7 @@ func watchPool(ctx context.Context, sel string) *links.Pool {
 	}
 	pool.OnChange = func(l *links.Link, ev string) { log.Printf("Lien %s : %s", l, ev) }
 	go pool.Watch(ctx, 2*time.Second)
+	go pool.Health(ctx, 5*time.Second)
 	return pool
 }
 

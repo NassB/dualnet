@@ -35,13 +35,13 @@ func (p *Pool) All() []*Link {
 	return append([]*Link(nil), p.all...)
 }
 
-// Up returns the links currently usable.
+// Up returns the links currently usable (connected and answering).
 func (p *Pool) Up() []*Link {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var out []*Link
 	for _, l := range p.all {
-		if l.Up() {
+		if l.Usable() {
 			out = append(out, l)
 		}
 	}
