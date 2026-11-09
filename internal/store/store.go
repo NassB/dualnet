@@ -6,6 +6,8 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -121,9 +123,30 @@ func DefaultDir() string {
 	return filepath.Join(d, "dualnet")
 }
 
+const maxJSONSize = 16 << 20
+
+// readJSON loads path into v. A missing file is normal; anything else (too big,
+// unreadable, corrupt) is logged and v is left as it was.
 func readJSON(path string, v any) {
-	if b, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(b, v)
+	f, err := os.Open(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("store: %v", err)
+		}
+		return
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, maxJSONSize+1))
+	if err != nil {
+		log.Printf("store: reading %s: %v", path, err)
+		return
+	}
+	if len(b) > maxJSONSize {
+		log.Printf("store: %s is larger than %d bytes, ignored", path, maxJSONSize)
+		return
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		log.Printf("store: %s is not valid JSON, ignored: %v", path, err)
 	}
 }
 
