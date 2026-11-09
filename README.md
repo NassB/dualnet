@@ -16,7 +16,7 @@ Home Wi‑Fi + phone USB tethering + Ethernet: use them all at once.
 
 <br>
 
-<img src="assets/screenshot-dashboard.png" alt="dualnet's dashboard: on/off switch, one card per link, applications and the speed chart" width="640">
+<img src="assets/screenshot-dashboard.png" alt="dualnet's dashboard during a download: Wi-Fi at 323 Mb/s and a phone on USB at 186 Mb/s, 508 Mb/s together" width="720">
 
 </div>
 
@@ -26,13 +26,19 @@ Home Wi‑Fi + phone USB tethering + Ethernet: use them all at once.
 - 🖥️ **Transparent mode**: a virtual adapter (Wintun) captures the whole PC's IPv4 traffic, no per-app settings.
 - ⚡ **Faster downloads**: one big file is fetched over all links at once, so speeds add up.
 - 📱 **Overflow, caps and budgets**: keep your phone's mobile data idle until it is needed, cap speeds, set a monthly budget per link.
-- 🎯 **Per-application rules**: pin a game to Wi‑Fi, limit a download's speed.
+- 🎯 **Per-application rules**: pin a game to Wi‑Fi or to whichever link has the lowest ping, limit a download's speed.
+- 🛟 **Failover**: a link that stops answering is set aside within seconds, and a new connection never waits for it: the next link is tried after a fraction of a second.
 - 🔒 **Local only**: no account, no server, no telemetry. The dashboard is bound to `127.0.0.1` and protected against CSRF and DNS rebinding.
 - 🌍 **Interface in English, French, Spanish and German.** The Spanish and German texts have not been reviewed by native speakers: corrections and new languages are welcome (see [CONTRIBUTING](CONTRIBUTING.md#translating)).
 
 ## How it works
 
 dualnet needs no server: it runs on your PC and decides, connection by connection, which of your links (Wi‑Fi, USB tethering, Ethernet) carries it. Each new connection goes to the link with the most free capacity, so *several* connections (a download, a game launcher, a browser with many tabs) end up using *all* your links at once. A big file can even be split over every link, so the speeds add up.
+
+<div align="center">
+<img src="assets/screenshot-downloads.png" alt="The Downloads page: one file fetched over two links at once, 65 % by Wi-Fi and 35 % by the phone" width="720"><br>
+<sub>A real run: a 6.2 GB file at about 500 Mb/s, home Wi‑Fi (about 320 Mb/s) plus a phone on USB tethering (about 190 Mb/s).</sub>
+</div>
 
 What to expect: because there is no server that merges the links back into one, **a single connection** (one video stream, one online game) still uses one link at a time. dualnet makes everything that opens many connections faster, and keeps working if one link drops. See [Limits](#limits).
 
