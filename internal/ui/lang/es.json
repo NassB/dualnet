@@ -135,8 +135,10 @@
   "noLog": "(el registro está vacío)",
   "updAvail": "dualnet {v} está disponible.",
   "updGet": "Descargar",
+  "updInstall": "Instalar",
+  "updInstalling": "Descargando y comprobando la actualización: dualnet se reinicia en un momento…",
   "updTitle": "Buscar actualizaciones",
-  "updSub": "Pregunta a GitHub por la última versión una vez al día. No se descarga ni instala nada automáticamente.",
+  "updSub": "Pregunta a GitHub por la última versión una vez al día. No se descarga ni instala nada hasta que lo pidas.",
   "units": [
     "B",
     "KB",

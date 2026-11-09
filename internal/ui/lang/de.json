@@ -135,8 +135,10 @@
   "noLog": "(das Protokoll ist leer)",
   "updAvail": "dualnet {v} ist verfügbar.",
   "updGet": "Herunterladen",
+  "updInstall": "Installieren",
+  "updInstalling": "Update wird heruntergeladen und geprüft: dualnet startet gleich neu…",
   "updTitle": "Nach Updates suchen",
-  "updSub": "Fragt GitHub einmal täglich nach der neuesten Version. Es wird nichts automatisch heruntergeladen oder installiert.",
+  "updSub": "Fragt GitHub einmal täglich nach der neuesten Version. Nichts wird heruntergeladen oder installiert, bevor du es verlangst.",
   "units": [
     "B",
     "KB",

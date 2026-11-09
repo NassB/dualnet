@@ -1,6 +1,7 @@
 // Package update asks GitHub whether a newer dualnet release exists. It only
 // reads the public "latest release" of the project; nothing is downloaded or
-// installed automatically.
+// installed automatically. Installing is a separate step the user asks for
+// (see install.go).
 package update
 
 import (
@@ -27,7 +28,10 @@ type Checker struct {
 	Current string // this build's version, e.g. "v0.2.2" ("dev…" never reports updates)
 	Repo    string // "owner/name"
 	API     string // base URL, default https://api.github.com
-	Enabled func() bool
+	// Download is the base URL release files are fetched from when the user
+	// installs an update (default https://github.com; tests point it elsewhere).
+	Download string
+	Enabled  func() bool
 
 	mu   sync.Mutex
 	info Info

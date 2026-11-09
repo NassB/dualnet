@@ -71,7 +71,7 @@ On a first run, the dashboard shows a **Getting started** card with what still n
 The interface has four pages:
 
 - **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live chart;
-- **Downloads**: download one file over all links at once;
+- **Downloads**: download one file over all links at once, and resume it if it was interrupted (start the same address again; the unfinished file is kept as `name.part`);
 - **History**: data per link and per day;
 - **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, application rules (link and speed cap), domain rules, **profiles**, budget warning level, start with Windows, notifications, update check, diagnostics and the installation check.
 
@@ -94,7 +94,7 @@ The interface has four pages:
 - **Applications and rules** (transparent mode): the dashboard lists which programs use the network and through which links. A rule restricts a program to one link (for example an online game on Wi‑Fi for a steady ping while your downloads use every link); if that link is down, the program uses the others. Or choose **Lowest ping**: each new connection of the program takes whichever link answers fastest at that moment (games, calls). A program can also get a **maximum download speed** (column "Max speed" of the applications table), shared by all its connections: handy to keep a big download from starving a call or a game.
 - **Profiles**: save the current speed caps, overflow links, budgets and rules under a name ("Home", "Travel") and switch back in one click in Settings.
 - **Notifications**: a Windows notification when a link drops, comes back or appears (and for budget events), even if the window is closed. The toast appears under Windows PowerShell's name. The Settings page has a "send a test" button.
-- **Update check**: once a day dualnet asks GitHub for the latest release and shows a banner. Nothing is downloaded or installed automatically; it can be turned off in Settings.
+- **Updates**: once a day dualnet asks GitHub for the latest release and shows a banner (it can be turned off in Settings). Nothing is downloaded or installed until you press **Install**: dualnet then downloads the release, checks it against its published SHA-256, replaces itself and restarts. Started from a console (`dualnet ui`), the button opens the release page instead.
 - **Installation check**: `dualnet doctor`, or Settings → Diagnostics → *Run checks*. It looks at administrator rights, each link and its internet access, Windows' Wi‑Fi policy, the virtual adapter, a Windows proxy left pointing at a stopped dualnet, DNS, WebView2 and where the elevated program lives. Fixable problems get a button; nothing is changed without a click.
 - **Diagnostics**: Settings can show the log live and copy a bug-report text (version, checks, links, last log lines). Check it before sharing: it lists your network interface names and addresses.
 - **History**: data per link and per day (30 days shown, one year kept). Export CSV or JSON from the History page.

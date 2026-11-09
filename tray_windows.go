@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/transparent"
 	"github.com/NassB/dualnet/internal/ui"
+	"github.com/NassB/dualnet/internal/update"
 )
 
 //go:embed assets/icon.ico
@@ -69,7 +71,17 @@ func runTray(ctx context.Context, hidden bool) {
 		transparent: true,
 		app:         true,
 	}
+	exe, _ := os.Executable()
 	app, err := startUI(ctx, cfg)
+	// Restarted after an update: the previous instance may need a moment to let go
+	// of the address.
+	for end := time.Now().Add(20 * time.Second); err != nil && os.Getenv(restartEnv) != "" && strings.Contains(err.Error(), "bind") && time.Now().Before(end); {
+		time.Sleep(500 * time.Millisecond)
+		app, err = startUI(ctx, cfg)
+	}
+	if err == nil && exe != "" {
+		update.RemoveOld(exe) // the program an update replaced
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "bind") {
 			// Already running: ask it to show its window (its UI is the window).
@@ -86,6 +98,7 @@ func runTray(ctx context.Context, hidden bool) {
 		}
 	}()
 	go func() { <-ctx.Done(); shutdown(0) }()
+	app.srv.Restart = restartApp
 
 	win := &appWindow{url: app.url, show: make(chan struct{}, 1)}
 	go runTrayIcon(app, win)
@@ -272,6 +285,25 @@ func darkTitleBar(hwnd uintptr) {
 	on := int32(1)
 	const dwmwaUseImmersiveDarkMode = 20
 	dwmapi.NewProc("DwmSetWindowAttribute").Call(hwnd, dwmwaUseImmersiveDarkMode, uintptr(unsafe.Pointer(&on)), 4)
+}
+
+const restartEnv = "DUALNET_RESTART"
+
+// restartApp starts dualnet again (the executable was just replaced by an
+// update) and stops this instance; the new one waits for the address to be free.
+func restartApp() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(exe, "tray")
+	cmd.Env = append(os.Environ(), restartEnv+"=1")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000} // CREATE_NO_WINDOW: no console flash
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go shutdown(0)
+	return nil
 }
 
 func relaunchElevated(args string) error {

@@ -38,6 +38,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | `POST /api/domainrule?domain=<name>&link=<name>` | send a domain (and subdomains) over a link (empty `link` removes the rule) |
 | `POST /api/profile?name=<name>&action=save\|apply\|delete` | save, apply or delete a profile |
 | `POST /api/speedtest?link=<name>` | measure one link |
+| `POST /api/update/install` | download the newer release found by the daily check, verify its checksum, replace the program and restart (app mode on Windows only; `501` otherwise) |
 | `POST /api/download` (JSON body `{"url": "...", "workers": 4}`), `/api/cancel?id=<n>`, `/api/reveal?id=<n>` | multi-link downloads |
 | `POST /api/system?do=simultaneous\|prefer&...` | Windows network settings (administrator) |
 

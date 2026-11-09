@@ -238,7 +238,7 @@ td.r, th.r { text-align: right; }
   <main>
     <!-- ================= HOME ================= -->
     <section class="page active" id="page-home">
-      <div class="info-banner" id="updBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span id="updText"></span><button class="btn small" id="updBtn" data-i18n="updGet"></button></div>
+      <div class="info-banner" id="updBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span id="updText"></span><button class="btn small" id="updBtn"></button></div>
       <div class="card onboard" id="onboard" hidden>
         <div class="chart-head">
           <h2 data-i18n="onbTitle"></h2>
@@ -931,12 +931,17 @@ function renderUpdate(snap) {
   const u = snap.update || {};
   $('updBanner').style.display = u.available ? 'flex' : 'none';
   if (u.available) $('updText').textContent = t('updAvail', { v: u.latest });
+  $('updBtn').textContent = t(u.install ? 'updInstall' : 'updGet');
   setSwitch('updSw', u.check, false);
   setSwitch('notifSw', snap.notify, false);
 }
 $('notifSw').addEventListener('change', e => post('/api/notify?on=' + (e.target.checked ? 1 : 0)));
 $('notifTest').addEventListener('click', async () => { if (await post('/api/notify/test')) toast(t('notifSent'), true); });
-$('updBtn').addEventListener('click', () => post('/api/update/open'));
+$('updBtn').addEventListener('click', async e => {
+  if (!(snapLast.update && snapLast.update.install)) return post('/api/update/open');
+  e.target.disabled = true; toast(t('updInstalling'), true);
+  if (!await post('/api/update/install')) e.target.disabled = false; // on success dualnet restarts
+});
 $('updSw').addEventListener('change', e => post('/api/updatecheck?on=' + (e.target.checked ? 1 : 0)));
 
 function renderSettings(snap) {

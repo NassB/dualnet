@@ -135,8 +135,10 @@
   "noLog": "(le journal est vide)",
   "updAvail": "dualnet {v} est disponible.",
   "updGet": "Télécharger",
+  "updInstall": "Installer",
+  "updInstalling": "Téléchargement et vérification de la mise à jour : dualnet redémarre dans un instant…",
   "updTitle": "Rechercher les mises à jour",
-  "updSub": "Demande à GitHub la dernière version une fois par jour. Rien n’est téléchargé ni installé automatiquement.",
+  "updSub": "Demande à GitHub la dernière version une fois par jour. Rien n’est téléchargé ni installé sans votre accord.",
   "units": [
     "o",
     "Ko",

@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NassB/dualnet/internal/doctor"
@@ -46,6 +47,10 @@ type Server struct {
 	speedMu      sync.Mutex
 	// Native is true when the page is shown in dualnet's own window.
 	Native bool
+	// Restart starts the program again and stops this one, after an update
+	// replaced the executable (nil = the interface cannot install updates).
+	Restart  func() error
+	updating atomic.Bool
 	// OnSettings is called after a setting changed in the UI (to save it).
 	OnSettings func()
 
@@ -96,6 +101,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
 	mux.HandleFunc("POST /api/update/open", s.openUpdate)
+	mux.HandleFunc("POST /api/update/install", s.installUpdate)
 	mux.HandleFunc("POST /api/updatecheck", s.setUpdateCheck)
 	mux.HandleFunc("POST /api/notify", s.setNotify)
 	mux.HandleFunc("POST /api/notify/test", s.testNotify)
