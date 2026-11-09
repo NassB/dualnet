@@ -64,6 +64,7 @@ type job struct {
 	stats   *download.Stats
 	links   []*links.Link // links used, in the order of stats' per-link counters
 	cancel  context.CancelFunc
+	dropped bool // cancelled by the user: the partial file is deleted
 }
 
 func (s *Server) Handler() http.Handler {
@@ -258,7 +259,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				file, size, used := j.stats.Snapshot()
 				// Re-index per-link bytes on the pool order so colors match the UI.
 				per := make([]int64, len(all))
-				var done int64
+				done := j.stats.Resumed() // already on disk from an interrupted run
 				for i, b := range used {
 					if i < len(j.links) {
 						per[index[j.links[i]]] += b
@@ -272,7 +273,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				v := jobView{ID: j.id, URL: j.url, File: filepath.Base(file), Size: size, Done: done,
 					PerLink: per, State: j.state, Err: j.err, Elapsed: end.Sub(j.started).Seconds()}
 				if j.state == "running" {
-					v.Mbps = links.Mbps(done-prevJob[j.id], dt)
+					if last, seen := prevJob[j.id]; seen { // no speed on a page's first tick
+						v.Mbps = links.Mbps(done-last, dt)
+					}
 				}
 				prevJob[j.id] = done
 				snap.Jobs = append(snap.Jobs, v)
@@ -310,6 +313,14 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
+	for _, j := range s.jobs {
+		if j.state == "running" && j.url == req.URL {
+			s.mu.Unlock()
+			cancel()
+			http.Error(w, "already downloading", http.StatusConflict)
+			return
+		}
+	}
 	s.nextID++
 	j := &job{id: s.nextID, url: req.URL, state: "running", started: time.Now(), stats: &download.Stats{}, links: up, cancel: cancel}
 	s.jobs = append(s.jobs, j)
@@ -326,6 +337,9 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case ctx.Err() != nil:
 			j.state = "cancelled"
+			if file, _, _ := j.stats.Snapshot(); j.dropped {
+				download.RemovePartial(file) // cancelled by the user: nothing to resume
+			}
 		case err != nil:
 			j.state, j.err = "error", err.Error()
 		default:
@@ -352,6 +366,9 @@ func (s *Server) find(r *http.Request) *job {
 
 func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	if j := s.find(r); j != nil {
+		s.mu.Lock()
+		j.dropped = true
+		s.mu.Unlock()
 		j.cancel()
 	}
 	w.WriteHeader(http.StatusNoContent)

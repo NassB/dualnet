@@ -37,13 +37,22 @@ type Stats struct {
 	mu      sync.Mutex
 	file    string
 	size    int64
+	resumed int64
 	perLink []atomic.Int64
 }
 
-func (s *Stats) set(file string, size int64, perLink []atomic.Int64) {
+func (s *Stats) set(file string, size, resumed int64, perLink []atomic.Int64) {
 	s.mu.Lock()
-	s.file, s.size, s.perLink = file, size, perLink
+	s.file, s.size, s.resumed, s.perLink = file, size, resumed, perLink
 	s.mu.Unlock()
+}
+
+// Resumed returns the bytes that were already on disk when the download
+// started (an earlier, interrupted run); they belong to no link.
+func (s *Stats) Resumed() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resumed
 }
 
 // Snapshot returns the output file, total size and bytes received per link.
@@ -82,6 +91,7 @@ func (u uaTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 // an idle worker steals the second half (see sched.next).
 type task struct {
 	mu       sync.Mutex
+	start    int64 // first byte of the range: start..pos-1 is on disk
 	pos, end int64 // next byte to write, last byte (inclusive)
 	link     int   // index of the link downloading it
 }
@@ -99,16 +109,39 @@ type sched struct {
 	cond   *sync.Cond
 	todo   []*task
 	active map[*task]bool
+	all    []*task // every range ever handed out, to know what is on disk
+	have   []span  // what was on disk before this run
 	links  int
 }
 
-func newSched(size, chunk int64, nLinks int) *sched {
-	s := &sched{active: map[*task]bool{}, links: nLinks}
+// newSched queues what is missing from [0, size), in chunks; have is what an
+// earlier run already wrote (merged spans, nil for a new download).
+func newSched(size, chunk int64, nLinks int, have []span) *sched {
+	s := &sched{active: map[*task]bool{}, links: nLinks, have: have}
 	s.cond = sync.NewCond(&s.mu)
-	for p := int64(0); p < size; p += chunk {
-		s.todo = append(s.todo, &task{pos: p, end: min(p+chunk, size) - 1})
+	for _, g := range gaps(size, have) {
+		for p := g[0]; p <= g[1]; p += chunk {
+			t := &task{start: p, pos: p, end: min(p+chunk-1, g[1])}
+			s.todo = append(s.todo, t)
+			s.all = append(s.all, t)
+		}
 	}
 	return s
+}
+
+// written returns the byte ranges that are on disk now.
+func (s *sched) written() []span {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]span(nil), s.have...)
+	for _, t := range s.all {
+		t.mu.Lock()
+		if t.pos > t.start {
+			out = append(out, span{t.start, t.pos - 1})
+		}
+		t.mu.Unlock()
+	}
+	return merge(out)
 }
 
 // next returns a range to download: a queued one, or else the second half of the
@@ -144,10 +177,11 @@ func (s *sched) next(ctx context.Context, li int, rate func(int) float64) *task 
 		if victim != nil && best >= 2*minSteal {
 			victim.mu.Lock()
 			mid := victim.pos + (victim.end-victim.pos+1)/2
-			nt := &task{pos: mid, end: victim.end, link: li}
+			nt := &task{start: mid, pos: mid, end: victim.end, link: li}
 			victim.end = mid - 1
 			victim.mu.Unlock()
 			s.active[nt] = true
+			s.all = append(s.all, nt)
 			return nt
 		}
 		if len(s.active) == 0 && len(s.todo) == 0 {
@@ -211,31 +245,79 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 		clients[i] = clientFor(l)
 	}
 
-	size, rangesOK, name, err := probe(ctx, ls, clients, opts.URL)
+	size, rangesOK, name, valid, err := probe(ctx, ls, clients, opts.URL)
 	if err != nil {
 		return err
 	}
 	if opts.Output == "" {
-		opts.Output = filepath.Join(opts.OutDir, name)
+		opts.Output = filepath.Join(opts.OutDir, safeName(name))
 	}
-	f, err := os.Create(opts.Output)
+	release, err := claim(opts.Output)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer release()
+	part := opts.Output + partSuffix
 
 	if !rangesOK || size <= 0 {
 		say("The server does not accept range requests: only one link will be used.\n")
-		return single(ctx, clients[0], opts.URL, f)
+		f, err := os.Create(part)
+		if err != nil {
+			return err
+		}
+		err = single(ctx, clients[0], opts.URL, f)
+		f.Close()
+		if err != nil {
+			return err
+		}
+		return os.Rename(part, opts.Output)
 	}
-	if err := f.Truncate(size); err != nil {
+	// What an interrupted run left, if the server still offers the same file.
+	have := resumable(opts.Output, opts.URL, size, valid)
+	var f *os.File
+	if have != nil {
+		f, err = os.OpenFile(part, os.O_RDWR, 0o644)
+	} else {
+		os.Remove(opts.Output + stateSuffix)
+		if f, err = os.Create(part); err == nil {
+			err = f.Truncate(size)
+		}
+	}
+	if err != nil {
+		if f != nil {
+			f.Close()
+		}
 		return err
 	}
+	defer f.Close()
+	resumed := total(have)
 	say("File: %s (%s)\n", opts.Output, links.HumanBytes(float64(size)))
+	if resumed > 0 {
+		say("Resuming: %s already downloaded.\n", links.HumanBytes(float64(resumed)))
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	sc := newSched(size, opts.ChunkSize, len(ls))
+	sc := newSched(size, opts.ChunkSize, len(ls), have)
+	save := func() {
+		if valid != "" {
+			saveState(opts.Output, state{URL: opts.URL, Size: size, Validator: valid, Done: sc.written()})
+		}
+	}
+	saved := make(chan struct{})
+	go func() { // remember regularly what is on disk, to resume after a crash too
+		defer close(saved)
+		tk := time.NewTicker(2 * time.Second)
+		defer tk.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tk.C:
+				save()
+			}
+		}
+	}()
 	// Periodic wake-up: waiting workers re-evaluate (rates change, links die).
 	go func() {
 		tk := time.NewTicker(200 * time.Millisecond)
@@ -252,9 +334,10 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	}()
 
 	var done atomic.Int64
+	done.Store(resumed)
 	perLink := make([]atomic.Int64, len(ls))
 	if opts.Stats != nil {
-		opts.Stats.set(opts.Output, size, perLink)
+		opts.Stats.set(opts.Output, size, resumed, perLink)
 	}
 	failures := make([]atomic.Int32, len(ls))
 	alive := make([]atomic.Int32, len(ls))
@@ -322,19 +405,31 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	}
 	workers.Wait()
 	close(stop)
+	cancel()
+	<-saved
 
 	if done.Load() < size {
+		save() // the next run of the same URL continues from here
 		return fmt.Errorf("incomplete download (%d/%d bytes, %d queued, %d active)", done.Load(), size, len(sc.todo), len(sc.active))
 	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	os.Remove(opts.Output + stateSuffix)
+	if err := os.Rename(part, opts.Output); err != nil {
+		return err
+	}
 	el := time.Since(start)
-	say("\nDone in %s — average %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size, el))
+	say("\nDone in %s — average %.1f Mb/s\n", el.Round(time.Second), links.Mbps(size-resumed, el))
 	for i, l := range ls {
 		say("  %-30s %s (%.0f%%)\n", l.String(), links.HumanBytes(float64(perLink[i].Load())), 100*float64(perLink[i].Load())/float64(size))
 	}
 	return nil
 }
 
-func probe(ctx context.Context, ls []*links.Link, clients []*http.Client, rawURL string) (int64, bool, string, error) {
+// probe asks for the first byte to learn the size, whether ranges work, the
+// file name and the validator of this version of the file.
+func probe(ctx context.Context, ls []*links.Link, clients []*http.Client, rawURL string) (int64, bool, string, string, error) {
 	var lastErr error
 	for i, c := range clients {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -350,16 +445,16 @@ func probe(ctx context.Context, ls []*links.Link, clients []*http.Client, rawURL
 			cr := resp.Header.Get("Content-Range") // bytes 0-0/12345
 			if idx := strings.LastIndex(cr, "/"); idx >= 0 {
 				if n, err := strconv.ParseInt(cr[idx+1:], 10, 64); err == nil {
-					return n, true, name, nil
+					return n, true, name, validator(resp.Header), nil
 				}
 			}
 		}
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return resp.ContentLength, false, name, nil
+			return resp.ContentLength, false, name, "", nil
 		}
 		lastErr = fmt.Errorf("HTTP %s", resp.Status)
 	}
-	return 0, false, "", lastErr
+	return 0, false, "", "", lastErr
 }
 
 func fileName(resp *http.Response, rawURL string) string {
