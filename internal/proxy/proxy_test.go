@@ -255,14 +255,21 @@ func TestDNSUsesLowestPing(t *testing.T) {
 	if ip := pc.LocalAddr().(*net.UDPAddr).IP; !ip.Equal(near.IP()) {
 		t.Fatalf("UDP DNS left through %s, want the near link %s", ip, near.IP())
 	}
-	other, err := d.DialUDP(&M.Metadata{Network: M.UDP, DstIP: netip.MustParseAddr("1.1.1.1"), DstPort: 3478})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer other.Close()
-	if ip := other.LocalAddr().(*net.UDPAddr).IP; !ip.Equal(far.IP()) {
-		t.Fatalf("other UDP left through %s, want the high-capacity link %s", ip, far.IP())
-	}
+	t.Run("non-DNS UDP", func(t *testing.T) {
+		probe, err := net.ListenUDP("udp4", &net.UDPAddr{IP: far.IP()})
+		if err != nil {
+			t.Skipf("second loopback address unavailable for UDP: %v", err)
+		}
+		probe.Close()
+		other, err := d.DialUDP(&M.Metadata{Network: M.UDP, DstIP: netip.MustParseAddr("1.1.1.1"), DstPort: 3478})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer other.Close()
+		if ip := other.LocalAddr().(*net.UDPAddr).IP; !ip.Equal(far.IP()) {
+			t.Fatalf("other UDP left through %s, want the high-capacity link %s", ip, far.IP())
+		}
+	})
 }
 
 // A sticky host must not stay on a link that became unusable (over budget, down…).
