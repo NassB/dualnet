@@ -98,10 +98,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/diagnostics", s.getDiagnostics)
 	mux.HandleFunc("GET /api/log", s.getLog)
 	mux.HandleFunc("POST /api/logfolder", s.openLogFolder)
-	mux.HandleFunc("GET /api/history", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.Store.History(30))
-	})
+	mux.HandleFunc("GET /api/history", s.getHistory)
 	return guard(mux)
 }
 
