@@ -268,20 +268,12 @@ func (s *Server) linksFor(host, port, app string) []*links.Link {
 }
 
 // dialFor connects over the best link for app's rule ("" = no application),
-// falling back to the other links when none of the accepted ones can be used.
+// falling back to the other links when it fails or is late (see dial.go).
 func (s *Server) dialFor(addr, app string) (net.Conn, *links.Link, error) {
 	host, port, _ := net.SplitHostPort(addr)
-	lastErr := errNoLink
-	for _, l := range s.linksFor(host, port, app) {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		c, err := l.DialContext(ctx, "tcp", addr)
-		cancel()
-		if err == nil {
-			return c, l, nil
-		}
-		lastErr = err
-	}
-	return nil, nil, lastErr
+	return raceDial(s.linksFor(host, port, app), func(ctx context.Context, l *links.Link) (net.Conn, error) {
+		return l.DialContext(ctx, "tcp", addr)
+	}, s.Standby)
 }
 
 func (s *Server) socks5(c net.Conn, br *bufio.Reader) {
