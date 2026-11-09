@@ -127,6 +127,7 @@ func copyBuf(dst io.Writer, src io.Reader) {
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
+	s.init()
 	if !s.allowed(c.RemoteAddr()) {
 		return
 	}
