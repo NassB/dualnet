@@ -28,7 +28,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | Request | Effect |
 |---|---|
 | `POST /api/transparent?on=1\|0` | transparent mode on/off |
-| `POST /api/power`, `/api/sysproxy`, `/api/autostart` | main switch, Windows proxy, start with Windows (`on=1|0`)\|0`) |
+| `POST /api/power`, `/api/sysproxy`, `/api/autostart` | main switch, Windows proxy, start with Windows (`on=1\|0`) |
 | `POST /api/limit?link=<name>&mbps=<n>` | speed cap of a link (0 = none) |
 | `POST /api/budget?link=<name>&gb=<n>` | monthly budget of a link (0 = none) |
 | `POST /api/budgetwarn?percent=<50-99>` | share of a budget at which dualnet warns |
