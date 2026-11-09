@@ -239,7 +239,8 @@ func (l *Link) OverBudget() bool { return l.overBudget.Load() }
 // SetOverBudget marks or releases the link for budget reasons.
 func (l *Link) SetOverBudget(v bool) { l.overBudget.Store(v) }
 
-// LatencyMs is the last measured TCP connect time to the internet (0 = unknown).
+// LatencyMs is the TCP connect time to the internet, smoothed over the last
+// checks (0 = unknown).
 func (l *Link) LatencyMs() int64 { return l.latency.Load() }
 
 // Busy counts the open connections that moved data within the last `within`

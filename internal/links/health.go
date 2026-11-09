@@ -25,7 +25,7 @@ func (l *Link) probe(ctx context.Context) bool {
 		cancel()
 		if err == nil {
 			c.Close()
-			l.latency.Store(time.Since(start).Milliseconds())
+			l.latency.Store(smooth(l.latency.Load(), max(time.Since(start).Milliseconds(), 1)))
 			l.fails.Store(0)
 			l.unhealthy.Store(false)
 			return true
@@ -37,6 +37,16 @@ func (l *Link) probe(ctx context.Context) bool {
 		l.latency.Store(0)
 	}
 	return false
+}
+
+// smooth mixes a new ping sample into the previous value (0 = none yet), so one
+// slow answer does not reorder the links: rules that follow the lowest ping
+// would otherwise hop from link to link.
+func smooth(prev, sample int64) int64 {
+	if prev <= 0 {
+		return sample
+	}
+	return max((prev*7+sample*3+5)/10, 1)
 }
 
 // SetHealthy marks the link as reaching (or not reaching) the internet (tests).

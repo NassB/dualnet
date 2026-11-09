@@ -45,3 +45,19 @@ func TestProbeMarksUnhealthyAfterTwoFailures(t *testing.T) {
 		t.Fatal("link should recover after a successful check")
 	}
 }
+
+func TestSmooth(t *testing.T) {
+	if smooth(0, 40) != 40 {
+		t.Fatal("the first sample is taken as it is")
+	}
+	if got := smooth(20, 220); got != 80 { // one slow answer moves the value, it does not replace it
+		t.Fatal(got)
+	}
+	v := int64(200)
+	for i := 0; i < 20; i++ {
+		v = smooth(v, 20)
+	}
+	if v > 22 {
+		t.Fatalf("must converge to the samples, got %d", v)
+	}
+}
