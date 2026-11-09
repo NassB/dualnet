@@ -114,7 +114,8 @@ func main() {
 		fs.Parse(os.Args[2:])
 		restoreStale()
 		pool := watchPool(ctx, *ifs)
-		s := &proxy.Server{Pool: pool, Sticky: *sticky}
+		st := store.Open(store.DefaultDir())
+		s := &proxy.Server{Pool: pool, Sticky: *sticky, DomainRule: st.DomainRuleLink}
 		if *auth != "" {
 			user, pass, ok := strings.Cut(*auth, ":")
 			if !ok || user == "" || pass == "" {

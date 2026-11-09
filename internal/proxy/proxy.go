@@ -239,6 +239,15 @@ func isDNSPort(port string) bool { return port == "53" || port == "853" }
 
 func (s *Server) dial(addr string) (net.Conn, *links.Link, error) { return s.dialFor(addr, nil) }
 
+func (s *Server) domainLinks(order []*links.Link, host string, allow func(*links.Link) bool) []*links.Link {
+	if s.DomainRule != nil {
+		if name := s.DomainRule(host); name != "" {
+			allow = func(l *links.Link) bool { return l.Name == name }
+		}
+	}
+	return filterLinks(order, allow)
+}
+
 // dialFor connects over the best link allow accepts (nil = any), falling back to
 // the other links when none of the accepted ones can be used.
 func (s *Server) dialFor(addr string, allow func(*links.Link) bool) (net.Conn, *links.Link, error) {
@@ -247,12 +256,7 @@ func (s *Server) dialFor(addr string, allow func(*links.Link) bool) (net.Conn, *
 	if isDNSPort(port) {
 		order = s.pickLowestLatency()
 	}
-	if s.DomainRule != nil {
-		if name := s.DomainRule(host); name != "" {
-			allow = func(l *links.Link) bool { return l.Name == name }
-		}
-	}
-	order = filterLinks(order, allow)
+	order = s.domainLinks(order, host, allow)
 	lastErr := errNoLink
 	for _, l := range order {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
@@ -374,7 +378,7 @@ func (s *Server) forward(c net.Conn, req *http.Request) bool {
 	var resp *http.Response
 	var used *links.Link
 	err := errNoLink
-	for _, l := range s.pick(host) {
+	for _, l := range s.domainLinks(s.pick(host), host, nil) {
 		l.Active.Add(1)
 		resp, err = s.transport(l).RoundTrip(req)
 		if err == nil {
