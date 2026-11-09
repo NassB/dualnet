@@ -3,6 +3,7 @@ package doctor
 import (
 	"errors"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func healthyEnv() Env {
 		PowerMode:           "transparent",
 		ProxyAddr:           "127.0.0.1:1080",
 		DataDir:             `C:\data`,
-		ExePath:             `C:\Program Files\dualnet\dualnet.exe`,
+		ExePath:             filepath.Join(`C:\Program Files\dualnet`, "dualnet.exe"),
 		WebView2:            func() string { return "130.0.1" },
 		SimultaneousAllowed: func() bool { return true },
 		ProxyStatus:         func() (bool, string) { return false, "" },

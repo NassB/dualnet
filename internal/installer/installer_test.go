@@ -1,11 +1,15 @@
 package installer
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestPaths(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows path semantics")
+	}
 	if exeIn(`C:\Program Files\dualnet`) != `C:\Program Files\dualnet\dualnet.exe` {
 		t.Fatal(exeIn(`C:\Program Files\dualnet`))
 	}
@@ -24,6 +28,9 @@ func TestPaths(t *testing.T) {
 }
 
 func TestCommands(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows path semantics")
+	}
 	c := selfDeleteCommand(`C:\Program Files\dualnet`)
 	if !strings.HasPrefix(c, "ping ") || !strings.HasSuffix(c, `& rmdir "C:\Program Files\dualnet"`) ||
 		!strings.Contains(c, `del /f /q "C:\Program Files\dualnet\dualnet.exe"`) || strings.Contains(c, "/s") {
@@ -40,6 +47,12 @@ func TestSafety(t *testing.T) {
 	}
 	if installable([]string{"Documents", "notes.txt"}) {
 		t.Fatal("a folder with other people's files must be refused")
+	}
+}
+
+func TestWindowsDataDirSafety(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows path semantics")
 	}
 	if !dataDirOK(`C:\Users\me\AppData\Roaming\dualnet`) || !dataDirOK(`D:\x\DualNet\`) {
 		t.Fatal("dualnet's own folder is fine")
