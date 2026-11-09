@@ -38,6 +38,11 @@ type Server struct {
 	Apps *AppRegistry
 	// Overflow reports whether a link only serves when the others are busy.
 	Overflow func(linkName string) bool
+	// MaxConns caps the open client connections (default 4096); more are refused.
+	MaxConns int
+	// HandshakeTimeout is how long a client has to send its request (default 30 s);
+	// IdleTimeout how long a keep-alive HTTP connection may wait for the next one (default 2 min).
+	HandshakeTimeout, IdleTimeout time.Duration
 
 	initOnce     sync.Once
 	mu           sync.Mutex
@@ -56,6 +61,15 @@ type stickyEntry struct {
 
 func (s *Server) init() {
 	s.initOnce.Do(func() {
+		if s.MaxConns <= 0 {
+			s.MaxConns = 4096
+		}
+		if s.HandshakeTimeout <= 0 {
+			s.HandshakeTimeout = 30 * time.Second
+		}
+		if s.IdleTimeout <= 0 {
+			s.IdleTimeout = 2 * time.Minute
+		}
 		s.sticky = map[string]stickyEntry{}
 		s.rate = map[*links.Link]float64{}
 		s.seed = map[*links.Link]seed{}
@@ -76,7 +90,7 @@ func (s *Server) ListenAndServe(addr string) error {
 		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication", addr)
 	}
 	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
-	slots := make(chan struct{}, maxConns)
+	slots := make(chan struct{}, s.MaxConns)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -95,12 +109,6 @@ func (s *Server) ListenAndServe(addr string) error {
 	}
 }
 
-const (
-	maxConns         = 4096
-	handshakeTimeout = 30 * time.Second // client must send its request within this
-	idleReqTimeout   = 2 * time.Minute  // between requests on a keep-alive HTTP connection
-)
-
 var pipeBufs = sync.Pool{New: func() any { b := make([]byte, 64*1024); return &b }}
 
 func copyBuf(dst io.Writer, src io.Reader) {
@@ -111,7 +119,7 @@ func copyBuf(dst io.Writer, src io.Reader) {
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
-	c.SetReadDeadline(time.Now().Add(handshakeTimeout))
+	c.SetReadDeadline(time.Now().Add(s.HandshakeTimeout))
 	br := bufio.NewReader(c)
 	first, err := br.Peek(1)
 	if err != nil {
@@ -319,7 +327,7 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 		if !s.forward(c, req) || req.Close {
 			return
 		}
-		c.SetReadDeadline(time.Now().Add(idleReqTimeout))
+		c.SetReadDeadline(time.Now().Add(s.IdleTimeout))
 	}
 }
 
