@@ -27,6 +27,8 @@
   "heroOnTransparent": "{n} Verbindungen werden für den ganzen PC kombiniert (transparenter Modus)",
   "heroOnProxy": "{n} Verbindungen werden für Apps mit Windows-Proxy kombiniert",
   "heroOffSub": "Windows nutzt seine normale Verbindung. Mit der Schaltfläche kombinierst du deine Verbindungen.",
+  "heroOffUsed": "dualnet ist aus, aber sein Proxy wird benutzt",
+  "heroOffUsedSub": "{n} Verbindung(en) von Programmen, die auf den Proxy {address} eingestellt sind, laufen weiter über dualnet. Beim Beenden von dualnet werden sie getrennt.",
   "powerOn": "dualnet ausschalten",
   "powerOff": "dualnet einschalten",
   "oneLinkWarn": "Es ist nur eine Verbindung aktiv, also gibt es nichts zu kombinieren. Wenn das WLAN beim Anstecken des Handys per USB getrennt wird, aktiviere in den Einstellungen „WLAN trotz USB-Tethering behalten“.",

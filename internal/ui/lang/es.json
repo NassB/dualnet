@@ -27,6 +27,8 @@
   "heroOnTransparent": "Combinando {n} enlaces para todo el PC (modo transparente)",
   "heroOnProxy": "Combinando {n} enlaces para las aplicaciones que usan el proxy de Windows",
   "heroOffSub": "Windows usa su conexión habitual. Pulsa el botón para combinar tus enlaces.",
+  "heroOffUsed": "dualnet está apagado, pero su proxy está en uso",
+  "heroOffUsedSub": "{n} conexión(es) de programas configurados con el proxy {address} siguen pasando por dualnet. Salir de dualnet las corta.",
   "powerOn": "Desactivar dualnet",
   "powerOff": "Activar dualnet",
   "oneLinkWarn": "Solo hay un enlace conectado, así que no hay nada que combinar. Si el Wi‑Fi se corta al conectar el teléfono por USB, activa «Mantener el Wi‑Fi con la conexión USB» en Ajustes.",

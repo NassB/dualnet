@@ -552,8 +552,12 @@ function renderHome(snap) {
   const pb = $('powerBtn');
   pb.hidden = manual;
   pb.classList.toggle('off', !p.on); pb.title = p.on ? t('powerOn') : t('powerOff'); pb.disabled = busy;
-  $('heroTitle').textContent = manual ? t('manualProxyTitle') : p.on ? t('heroOn') : t('heroOff');
-  $('heroSub').textContent = manual ? (snap.proxy ? t('manualProxySub', { address: snap.proxy }) : t('proxyOff')) : !p.on ? t('heroOffSub') : t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length });
+  // Off for Windows, yet programs set by hand to the proxy address still go through dualnet.
+  const viaProxy = !p.on && snap.proxy ? snap.links.reduce((a, l) => a + l.active, 0) : 0;
+  $('heroTitle').textContent = manual ? t('manualProxyTitle') : p.on ? t('heroOn') : viaProxy ? t('heroOffUsed') : t('heroOff');
+  $('heroSub').textContent = manual ? (snap.proxy ? t('manualProxySub', { address: snap.proxy }) : t('proxyOff'))
+    : p.on ? t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length })
+    : viaProxy ? t('heroOffUsedSub', { n: viaProxy, address: snap.proxy }) : t('heroOffSub');
   $('totalNum').textContent = fmtMbps(total);
   $('peakTxt').textContent = t('peak', { s: fmtMbps(peakTotal) });
   // Everything below is updated in place. Rebuilding the DOM every 500 ms made the
