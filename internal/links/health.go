@@ -9,23 +9,37 @@ import (
 // whether the link reaches the internet and how long it takes.
 var probeTargets = []string{"1.1.1.1:443", "8.8.8.8:443", "9.9.9.9:443"}
 
+const probeTimeout = 3 * time.Second
+
 // Probe checks the link once (the "dualnet doctor" command uses it) and reports
 // whether this attempt reached the internet.
 func (l *Link) Probe(ctx context.Context) bool { return l.probe(ctx) }
 
 // probe checks the link once: it succeeds if any target accepts a connection.
+// The targets are tried at the same time, so a link that stopped answering is
+// known after one timeout (3 s), not one per target.
 func (l *Link) probe(ctx context.Context) bool {
+	cctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	l.mu.RLock()
+	d := *l.dialer
+	l.mu.RUnlock()
+	start := time.Now()
+	answers := make(chan time.Duration, len(probeTargets)) // -1 = failed
 	for _, t := range probeTargets {
-		cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		start := time.Now()
-		l.mu.RLock()
-		d := *l.dialer
-		l.mu.RUnlock()
-		c, err := d.DialContext(cctx, "tcp4", t)
-		cancel()
-		if err == nil {
+		go func(t string) {
+			c, err := d.DialContext(cctx, "tcp4", t)
+			if err != nil {
+				answers <- -1
+				return
+			}
 			c.Close()
-			l.latency.Store(smooth(l.latency.Load(), max(time.Since(start).Milliseconds(), 1)))
+			answers <- time.Since(start)
+		}(t)
+	}
+	for range probeTargets {
+		if took := <-answers; took >= 0 { // the first target to answer gives the ping
+			l.latency.Store(smooth(l.latency.Load(), max(took.Milliseconds(), 1)))
 			l.fails.Store(0)
 			l.unhealthy.Store(false)
 			return true
