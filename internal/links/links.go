@@ -81,6 +81,7 @@ func (l *Link) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	}
 	cc := &countingConn{Conn: c, link: l}
 	cc.lastIO.Store(time.Now().UnixNano())
+	cc.lastRx.Store(cc.lastIO.Load())
 	l.connsMu.Lock()
 	if l.conns == nil {
 		l.conns = map[*countingConn]struct{}{}
@@ -169,13 +170,16 @@ type countingConn struct {
 	link   *Link
 	closed atomic.Bool
 	lastIO atomic.Int64 // unix nanoseconds of the last byte read or written
+	lastRx atomic.Int64 // unix nanoseconds of the last byte received (or of the opening)
 }
 
 func (c *countingConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	c.link.BytesIn.Add(int64(n))
 	if n > 0 {
-		c.lastIO.Store(time.Now().UnixNano())
+		now := time.Now().UnixNano()
+		c.lastIO.Store(now)
+		c.lastRx.Store(now)
 	}
 	c.link.Throttle(n)
 	return n, err
@@ -205,6 +209,29 @@ func (c *countingConn) Close() error {
 		c.link.connsMu.Unlock()
 	}
 	return c.Conn.Close()
+}
+
+// CloseStalled closes the link's connections that received nothing for idle,
+// and returns how many. It is used when the link stopped working: without it
+// the applications would wait on those connections until Windows gives up
+// (minutes); closed, they reconnect at once, over a link that works.
+//
+// Connections that still receive data are left alone, so a link wrongly
+// reported dead (a firewall that only blocks the check) keeps its traffic.
+func (l *Link) CloseStalled(idle time.Duration) int {
+	cut := time.Now().Add(-idle).UnixNano()
+	var stalled []*countingConn
+	l.connsMu.Lock()
+	for c := range l.conns {
+		if c.lastRx.Load() <= cut {
+			stalled = append(stalled, c)
+		}
+	}
+	l.connsMu.Unlock()
+	for _, c := range stalled {
+		c.Close()
+	}
+	return len(stalled)
 }
 
 // HumanBytes formats a byte count.

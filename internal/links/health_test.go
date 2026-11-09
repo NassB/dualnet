@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestProbeMarksUnhealthyAfterTwoFailures(t *testing.T) {
@@ -59,5 +60,47 @@ func TestSmooth(t *testing.T) {
 	}
 	if v > 22 {
 		t.Fatalf("must converge to the samples, got %d", v)
+	}
+}
+
+func TestCloseStalled(t *testing.T) {
+	ln, _ := net.Listen("tcp4", "127.0.0.1:0")
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() { // answers one byte to the connections that send one
+				b := make([]byte, 1)
+				for {
+					if _, err := c.Read(b); err != nil {
+						return
+					}
+					c.Write(b)
+				}
+			}()
+		}
+	}()
+	l := New("t", net.IPv4(127, 0, 0, 1))
+	quiet, _ := l.DialContext(context.Background(), "tcp", ln.Addr().String())
+	busy, _ := l.DialContext(context.Background(), "tcp", ln.Addr().String())
+	defer busy.Close()
+	time.Sleep(150 * time.Millisecond)
+	busy.Write([]byte{1})
+	busy.Read(make([]byte, 1)) // received something just now
+
+	if n := l.CloseStalled(100 * time.Millisecond); n != 1 {
+		t.Fatalf("%d connections closed, want only the silent one", n)
+	}
+	if _, err := quiet.Write([]byte{1}); err == nil {
+		t.Fatal("the stalled connection must be closed")
+	}
+	if _, err := busy.Write([]byte{1}); err != nil {
+		t.Fatal("a connection that receives data must be kept:", err)
+	}
+	if l.Busy(time.Minute) != 1 {
+		t.Fatalf("%d connections tracked, want 1", l.Busy(time.Minute))
 	}
 }

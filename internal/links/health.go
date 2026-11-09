@@ -2,6 +2,7 @@ package links
 
 import (
 	"context"
+	"log"
 	"time"
 )
 
@@ -10,6 +11,10 @@ import (
 var probeTargets = []string{"1.1.1.1:443", "8.8.8.8:443", "9.9.9.9:443"}
 
 const probeTimeout = 3 * time.Second
+
+// stalledAfter: on a link that stopped working, a connection that received
+// nothing for this long is closed (see CloseStalled).
+const stalledAfter = 5 * time.Second
 
 // Probe checks the link once (the "dualnet doctor" command uses it) and reports
 // whether this attempt reached the internet.
@@ -49,6 +54,9 @@ func (l *Link) probe(ctx context.Context) bool {
 	if l.fails.Add(1) >= 2 {
 		l.unhealthy.Store(true)
 		l.latency.Store(0)
+		if n := l.CloseStalled(stalledAfter); n > 0 {
+			log.Printf("Link %s does not answer: %d stalled connection(s) closed", l.Name, n)
+		}
 	}
 	return false
 }

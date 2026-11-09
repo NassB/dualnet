@@ -2,6 +2,7 @@ package links
 
 import (
 	"context"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -94,7 +95,18 @@ func (p *Pool) Refresh() {
 			changes = append(changes, change{l, EventDisconnected})
 		}
 	}
+	down := []*Link{}
+	for _, l := range p.all {
+		if !l.Up() {
+			down = append(down, l)
+		}
+	}
 	p.mu.Unlock()
+	for _, l := range down { // its connections cannot carry anything any more
+		if n := l.CloseStalled(stalledAfter); n > 0 {
+			log.Printf("Link %s is disconnected: %d connection(s) closed", l.Name, n)
+		}
+	}
 	if p.OnChange != nil {
 		for _, c := range changes {
 			p.OnChange(c.l, c.ev)
