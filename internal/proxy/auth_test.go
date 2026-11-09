@@ -108,3 +108,20 @@ func TestAllowList(t *testing.T) {
 		t.Error("empty allow-list must allow everyone")
 	}
 }
+
+func TestAuthLockout(t *testing.T) {
+	s := &Server{Username: "u", Password: "p"}
+	addr := &net.TCPAddr{IP: net.IPv4(10, 0, 0, 9), Port: 1}
+	for i := 0; i < maxAuthFailures; i++ {
+		if s.authBlocked(addr) {
+			t.Fatalf("blocked after only %d failures", i)
+		}
+		s.authFailed(addr)
+	}
+	if !s.authBlocked(addr) {
+		t.Fatal("not blocked after repeated failures")
+	}
+	if s.authBlocked(&net.TCPAddr{IP: net.IPv4(10, 0, 0, 10)}) {
+		t.Fatal("another address must not be blocked")
+	}
+}

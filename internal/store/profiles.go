@@ -14,6 +14,7 @@ type Profile struct {
 	Limits      map[string]float64 `json:"limits,omitempty"`
 	Overflow    map[string]bool    `json:"overflow,omitempty"`
 	Budgets     map[string]float64 `json:"budgets,omitempty"`
+	WarnPercent int                `json:"warnPercent,omitempty"`
 	Rules       []Rule             `json:"rules,omitempty"`
 	DomainRules []DomainRule       `json:"domainRules,omitempty"`
 }
@@ -63,6 +64,7 @@ func (s *Store) SaveProfile(name string) bool {
 		Limits:      copyMap(s.settings.Limits),
 		Overflow:    copyMap(s.settings.Overflow),
 		Budgets:     copyMap(s.settings.Budgets),
+		WarnPercent: s.settings.BudgetWarnPercent,
 		Rules:       append([]Rule(nil), s.settings.Rules...),
 		DomainRules: append([]DomainRule(nil), s.settings.DomainRules...),
 	}
@@ -92,6 +94,8 @@ func (s *Store) ApplyProfile(name string, pool *links.Pool) bool {
 		}
 		s.settings.Overflow = copyMap(p.Overflow)
 		s.settings.Budgets = copyMap(p.Budgets)
+		s.settings.BudgetWarnPercent = p.WarnPercent
+		s.publishDomains()
 		s.settings.Rules = append([]Rule(nil), p.Rules...)
 		s.settings.DomainRules = append([]DomainRule(nil), p.DomainRules...)
 	}
@@ -99,6 +103,9 @@ func (s *Store) ApplyProfile(name string, pool *links.Pool) bool {
 	if !ok {
 		return false
 	}
+	warnMu.Lock() // the new budgets may already be past their warning level
+	clear(warned)
+	warnMu.Unlock()
 	s.Save()
 	for _, l := range pool.All() {
 		s.mu.Lock()

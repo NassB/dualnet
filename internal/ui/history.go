@@ -22,7 +22,10 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		days = n
 	}
-	h := s.Store.History(days)
+	h := []store.Day{}
+	if s.Store != nil {
+		h = s.Store.History(days)
+	}
 	switch r.URL.Query().Get("format") {
 	case "", "json":
 		w.Header().Set("Content-Type", "application/json")

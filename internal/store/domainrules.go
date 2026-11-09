@@ -32,15 +32,24 @@ func (s *Store) DomainRules() []DomainRule {
 // (longest) matching domain wins.
 func (s *Store) DomainRuleLink(host string) string {
 	host = strings.TrimSuffix(strings.ToLower(host), ".")
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	best, link := -1, ""
-	for _, r := range s.settings.DomainRules {
+	snap := s.domains.Load()
+	if snap == nil {
+		return ""
+	}
+	for _, r := range *snap { // an immutable copy: no lock on the hot path
 		if (host == r.Domain || strings.HasSuffix(host, "."+r.Domain)) && len(r.Domain) > best {
 			best, link = len(r.Domain), r.Link
 		}
 	}
 	return link
+}
+
+// publishDomains refreshes the lock-free copy read by DomainRuleLink. The
+// caller holds s.mu (or the store is not shared yet).
+func (s *Store) publishDomains() {
+	cp := append([]DomainRule(nil), s.settings.DomainRules...)
+	s.domains.Store(&cp)
 }
 
 // SetDomainRule sends domain over link; an empty link removes the rule.
@@ -66,6 +75,7 @@ func (s *Store) SetDomainRule(domain, link string) bool {
 		rules = append(rules, DomainRule{Domain: domain, Link: link})
 	}
 	s.settings.DomainRules = rules
+	s.publishDomains()
 	s.mu.Unlock()
 	s.Save()
 	return true

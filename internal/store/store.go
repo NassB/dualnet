@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
@@ -101,6 +102,7 @@ type Store struct {
 	history  map[string]map[string]Usage // day (2006-01-02) -> link -> usage
 	settings Settings
 	last     map[*links.Link]Usage
+	domains  atomic.Pointer[[]DomainRule] // immutable copy of settings.DomainRules, see domainrules.go
 }
 
 // Open loads the store from dir (created if needed).
@@ -113,6 +115,7 @@ func Open(dir string) *Store {
 	if s.settings.Limits == nil {
 		s.settings.Limits = map[string]float64{}
 	}
+	s.publishDomains()
 	return s
 }
 
@@ -141,18 +144,28 @@ func readJSON(path string, v any) {
 		}
 		return
 	}
-	defer f.Close()
 	b, err := io.ReadAll(io.LimitReader(f, maxJSONSize+1))
+	f.Close() // before any rename: Windows cannot rename an open file
 	if err != nil {
 		log.Printf("store: reading %s: %v", path, err)
 		return
 	}
 	if len(b) > maxJSONSize {
 		log.Printf("store: %s is larger than %d bytes, ignored", path, maxJSONSize)
+		keepBad(path)
 		return
 	}
 	if err := json.Unmarshal(b, v); err != nil {
 		log.Printf("store: %s is not valid JSON, ignored: %v", path, err)
+		keepBad(path)
+	}
+}
+
+// keepBad renames a file dualnet cannot read to <name>.bad, so that the next save
+// does not overwrite what the user may still want to recover.
+func keepBad(path string) {
+	if err := os.Rename(path, path+".bad"); err != nil {
+		log.Printf("store: keeping %s: %v", path, err)
 	}
 }
 

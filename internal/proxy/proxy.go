@@ -52,6 +52,9 @@ type Server struct {
 	// IdleTimeout how long a keep-alive HTTP connection may wait for the next one (default 2 min).
 	HandshakeTimeout, IdleTimeout time.Duration
 
+	failMu sync.Mutex // failed logins per client address (see auth.go)
+	fails  map[string]*failState
+
 	initOnce     sync.Once
 	mu           sync.Mutex
 	sticky       map[string]stickyEntry
@@ -96,6 +99,9 @@ func (s *Server) ListenAndServe(addr string) error {
 	}
 	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !tcp.IP.IsLoopback() && !s.authRequired() && len(s.Allow) == 0 {
 		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication and no allow-list", addr)
+	}
+	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !tcp.IP.IsLoopback() && s.authRequired() {
+		log.Printf("NOTE: proxy %s sends its password in clear text: use it only on a network you trust", addr)
 	}
 	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
 	slots := make(chan struct{}, s.MaxConns)
@@ -335,7 +341,7 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 			return
 		}
 		c.SetReadDeadline(time.Time{})
-		if !s.checkHTTPAuth(req) {
+		if !s.checkHTTPAuth(req, c.RemoteAddr()) {
 			fmt.Fprint(c, "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"dualnet\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 			return
 		}

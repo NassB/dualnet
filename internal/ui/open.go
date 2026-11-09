@@ -15,7 +15,8 @@ func launch(name string, args ...string) error {
 		return fmt.Errorf("opening with %s: %w", name, err)
 	}
 	go func() {
-		if err := cmd.Wait(); err != nil {
+		// explorer.exe exits with status 1 even when it did what was asked
+		if err := cmd.Wait(); err != nil && name != "explorer" {
 			log.Printf("opening with %s: %v", name, err)
 		}
 	}()
@@ -49,10 +50,10 @@ func OpenBrowser(target string) error {
 }
 
 func openFolder(dir string) error {
-	name, args, err := openCommand(runtime.GOOS, dir)
 	if runtime.GOOS == "windows" {
-		name, args = "explorer", []string{dir}
+		return launch("explorer", dir)
 	}
+	name, args, err := openCommand(runtime.GOOS, dir)
 	if err != nil {
 		return err
 	}
