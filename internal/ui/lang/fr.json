@@ -1,5 +1,7 @@
 {
   "navHome": "Tableau de bord",
+  "manualProxyTitle": "Mode proxy manuel",
+  "manualProxySub": "Configurez vos applications pour utiliser le proxy à l’adresse {address}.",
   "navDownloads": "Téléchargements",
   "navHistory": "Historique",
   "navSettings": "Réglages",

@@ -1,5 +1,7 @@
 {
   "navHome": "Panel",
+  "manualProxyTitle": "Modo proxy manual",
+  "manualProxySub": "Configure sus aplicaciones para usar el proxy en {address}.",
   "navDownloads": "Descargas",
   "navHistory": "Historial",
   "navSettings": "Ajustes",

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -140,6 +141,7 @@ type jobView struct {
 
 type snapshot struct {
 	T     int64      `json:"t"`
+	OS    string     `json:"os"`
 	Links []linkView `json:"links"`
 	Jobs  []jobView  `json:"jobs"`
 	Proxy string     `json:"proxy"`
@@ -225,7 +227,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone()}
+			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone()}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {

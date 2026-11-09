@@ -197,6 +197,7 @@ td { padding: 9px 8px 9px 0; border-top: 1px solid var(--border); }
 td.r, th.r { text-align: right; }
 
 /* toast */
+.windows-only[hidden], .power[hidden] { display: none; }
 .toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
   border-left: 4px solid var(--err); border-radius: 10px; padding: 11px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
   transform: translateY(20px); opacity: 0; transition: .2s; pointer-events: none; font-size: 13px; z-index: 10; }
@@ -316,11 +317,11 @@ td.r, th.r { text-align: right; }
 
       <div class="card">
         <h2 data-i18n="captureTitle"></h2>
-        <div class="setting">
+        <div class="setting windows-only">
           <div class="txt"><div class="title" data-i18n="tunTitle"></div><div class="sub" id="tunText"></div></div>
           <label class="switch"><input type="checkbox" id="tunSw"><span></span></label>
         </div>
-        <div class="setting">
+        <div class="setting windows-only">
           <div class="txt"><div class="title" data-i18n="sysTitle"></div><div class="sub" id="sysText"></div></div>
           <label class="switch"><input type="checkbox" id="sysSw"><span></span></label>
         </div>
@@ -346,7 +347,7 @@ td.r, th.r { text-align: right; }
         <div class="howto" style="margin-top:8px" data-i18n="speedNote"></div>
       </div>
 
-      <div class="card mt">
+      <div class="card mt windows-only">
         <h2 data-i18n="winSettings"></h2>
         <div class="setting">
           <div class="txt"><div class="title" data-i18n="simTitle"></div><div class="sub" id="simText"></div></div>
@@ -358,7 +359,7 @@ td.r, th.r { text-align: right; }
         </div>
       </div>
 
-      <div class="card mt">
+      <div class="card mt windows-only">
         <h2 data-i18n="rulesTitle"></h2>
         <div class="setting">
           <div class="txt"><div class="title" data-i18n="rulesHead"></div><div class="sub" data-i18n="rulesSub"></div></div>
@@ -374,11 +375,11 @@ td.r, th.r { text-align: right; }
 
       <div class="card mt" id="appCard">
         <h2 data-i18n="appTitle"></h2>
-        <div class="setting">
+        <div class="setting windows-only">
           <div class="txt"><div class="title" data-i18n="autoTitle"></div><div class="sub" data-i18n="autoSub"></div></div>
           <label class="switch"><input type="checkbox" id="autoSw"><span></span></label>
         </div>
-        <div class="setting">
+        <div class="setting windows-only">
           <div class="txt"><div class="title" data-i18n="notifTitle"></div><div class="sub" data-i18n="notifSub"></div></div>
           <button class="btn ghost small" id="notifTest" data-i18n="notifTest"></button>
           <label class="switch"><input type="checkbox" id="notifSw"><span></span></label>
@@ -511,14 +512,16 @@ function setH(e, html) { // set innerHTML only when it changed
 // ---------- home ----------
 function renderHome(snap) {
   const p = snap.power || {};
+  const manual = snap.os !== 'windows';
   const up = snap.links.filter(l => l.up && l.healthy && !l.overBudget);
   const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
   peakTotal = Math.max(peakTotal, total);
-  $('hero').classList.toggle('off', !p.on);
+  $('hero').classList.toggle('off', manual ? !snap.proxy : !p.on);
   const pb = $('powerBtn');
+  pb.hidden = manual;
   pb.classList.toggle('off', !p.on); pb.title = p.on ? t('powerOn') : t('powerOff'); pb.disabled = busy;
-  $('heroTitle').textContent = p.on ? t('heroOn') : t('heroOff');
-  $('heroSub').textContent = !p.on ? t('heroOffSub') : t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length });
+  $('heroTitle').textContent = manual ? t('manualProxyTitle') : p.on ? t('heroOn') : t('heroOff');
+  $('heroSub').textContent = manual ? (snap.proxy ? t('manualProxySub', { address: snap.proxy }) : t('proxyOff')) : !p.on ? t('heroOffSub') : t(p.mode === 'proxy' ? 'heroOnProxy' : 'heroOnTransparent', { n: up.length });
   $('totalNum').textContent = fmtMbps(total);
   $('peakTxt').textContent = t('peak', { s: fmtMbps(peakTotal) });
   // Everything below is updated in place. Rebuilding the DOM every 500 ms made the
@@ -746,7 +749,7 @@ function renderDoctor() {
   if (!doctorChecks) return;
   $('chkList').innerHTML = checkRows(doctorChecks);
   const todo = doctorChecks.filter(c => c.core && c.level !== 'ok');
-  const show = !(snapLast && snapLast.onboarded) && todo.length > 0;
+  const show = !!snapLast && snapLast.os === 'windows' && !snapLast.onboarded && todo.length > 0;
   $('onboard').hidden = !show;
   if (show) $('onbList').innerHTML = checkRows(todo);
 }
@@ -900,6 +903,7 @@ $('updSw').addEventListener('change', e => post('/api/updatecheck?on=' + (e.targ
 
 function renderSettings(snap) {
   const tun = snap.tun || {}, sys = snap.sys || {}, sy = snap.system || {};
+  document.querySelectorAll('.windows-only').forEach(el => { el.hidden = snap.os !== 'windows'; });
   setSwitch('tunSw', tun.on, !tun.on && !tun.admin);
   $('tunText').textContent = tun.on ? t('tunOn') : tun.err ? srv(tun.err) : !tun.admin ? t('tunNeedAdmin') : t('tunOff');
   $('tunText').classList.toggle('warn', !tun.on && (!!tun.err || !tun.admin));
@@ -914,7 +918,6 @@ function renderSettings(snap) {
   const pref = snap.links.map(l => `<button class="btn ghost small${m[l.name] === best ? ' chosen' : ''}" ${sy.admin ? '' : 'disabled'} onclick="post('/api/system?do=prefer&link=${encodeURIComponent(l.name)}')">${esc(l.name)}</button>`).join('') +
     `<button class="btn ghost small" ${sy.admin ? '' : 'disabled'} onclick="post('/api/system?do=prefer&link=')">${t('automatic')}</button>`;
   if ($('prefer').innerHTML !== pref) $('prefer').innerHTML = pref;
-  $('appCard').style.display = snap.autostart === undefined ? 'none' : '';
   setSwitch('autoSw', snap.autostart, false);
 }
 $('tunSw').addEventListener('change', e => post('/api/transparent?on=' + (e.target.checked ? 1 : 0)));

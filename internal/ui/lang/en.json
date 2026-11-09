@@ -1,5 +1,7 @@
 {
   "navHome": "Dashboard",
+  "manualProxyTitle": "Manual proxy mode",
+  "manualProxySub": "Configure your applications to use the proxy at {address}.",
   "navDownloads": "Downloads",
   "navHistory": "History",
   "navSettings": "Settings",
