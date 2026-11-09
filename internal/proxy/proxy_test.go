@@ -18,6 +18,7 @@ import (
 
 // A link that goes down must stop being used, and be used again when it returns.
 func TestPickFollowsLinkState(t *testing.T) {
+	needSecondLoopback(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -89,6 +90,7 @@ func sink(t *testing.T) net.Listener {
 
 // Connections are spread in proportion to the links' measured capacity.
 func TestPickWeightsByCapacity(t *testing.T) {
+	needSecondLoopback(t)
 	ln := sink(t)
 	defer ln.Close()
 	fast := links.New("fast", net.IPv4(127, 0, 0, 1))

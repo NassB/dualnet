@@ -42,6 +42,7 @@ func spread(t *testing.T, s *Server, n int) map[string]int {
 }
 
 func TestOverflowStaysIdleUntilBusy(t *testing.T) {
+	needSecondLoopback(t)
 	s, a, b := overflowSetup()
 	if got := spread(t, s, 20); got["b"] != 0 || got["a"] != 20 {
 		t.Fatalf("overflow link used while the primary is free: %v", got)
@@ -109,6 +110,7 @@ func TestOverflowNeedsAKnownCapacity(t *testing.T) {
 }
 
 func TestOverflowNeverCutsAnyoneOff(t *testing.T) {
+	needSecondLoopback(t)
 	s, a, b := overflowSetup()
 	// no usable primary: the overflow link serves everything
 	a.SetUp(false)
@@ -155,6 +157,7 @@ func TestOverflowAndDNSAndSticky(t *testing.T) {
 
 // A rule that names the overflow link is an explicit choice: it wins.
 func TestOverflowRuleWins(t *testing.T) {
+	needSecondLoopback(t)
 	ln := echoServer(t)
 	defer ln.Close()
 	s, _, b := overflowSetup()

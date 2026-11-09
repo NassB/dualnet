@@ -37,6 +37,7 @@ func TestCapacityEstimate(t *testing.T) {
 
 // A speed test changes how connections are spread: 5x the capacity, 5x the connections.
 func TestSpeedTestWeightsTheSpread(t *testing.T) {
+	needSecondLoopback(t)
 	ln := sink(t)
 	defer ln.Close()
 	fast := links.New("fast", net.IPv4(127, 0, 0, 1))

@@ -54,6 +54,7 @@ func linkOf(t *testing.T, c net.Conn) string {
 }
 
 func TestRulesRestrictApplications(t *testing.T) {
+	needSecondLoopback(t)
 	ln := echoServer(t)
 	defer ln.Close()
 	a := links.New("a", net.IPv4(127, 0, 0, 1))
@@ -124,6 +125,7 @@ func TestRulesRestrictApplications(t *testing.T) {
 }
 
 func TestAppStats(t *testing.T) {
+	needSecondLoopback(t)
 	ln := echoServer(t)
 	defer ln.Close()
 	a := links.New("a", net.IPv4(127, 0, 0, 1))
