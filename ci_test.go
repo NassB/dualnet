@@ -53,8 +53,9 @@ func TestWorkflowHygiene(t *testing.T) {
 	if !strings.Contains(rel.If, "refs/tags/v") {
 		t.Errorf("release job runs on %q: it must only run for version tags", rel.If)
 	}
-	if rel.Needs != "build" {
-		t.Errorf("release needs %v, want build (never release an untested build)", rel.Needs)
+	needs, ok := rel.Needs.([]any)
+	if !ok || len(needs) != 2 || needs[0] != "build" || needs[1] != "unix-test" {
+		t.Errorf("release needs %v, want build and unix-test", rel.Needs)
 	}
 	for _, p := range []string{"contents", "id-token", "attestations"} {
 		if rel.Permissions[p] != "write" {

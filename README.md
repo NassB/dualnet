@@ -151,7 +151,7 @@ go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resource
 go test -tags integration -v ./integration   # administrator only: real install/uninstall and transparent mode
 ```
 
-GitHub Actions vets, tests and builds every push with the newest Go, and runs `govulncheck`. The `integration` workflow (on demand and weekly) runs the administrator-only tests on a real Windows runner. To publish a release, push a version tag:
+GitHub Actions vets and tests every push on Windows, Linux and macOS with the newest Go, builds the release binaries, and runs `govulncheck`. The `integration` workflow (on demand and weekly) runs the administrator-only tests on a real Windows runner. To publish a release, push a version tag:
 
 ```powershell
 git tag v0.5.1
