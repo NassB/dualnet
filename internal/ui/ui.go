@@ -140,23 +140,24 @@ type jobView struct {
 }
 
 type snapshot struct {
-	T     int64      `json:"t"`
-	OS    string     `json:"os"`
-	Links []linkView `json:"links"`
-	Jobs  []jobView  `json:"jobs"`
-	Proxy string     `json:"proxy"`
-	Dir   string     `json:"dir"`
-	Sys   sysView    `json:"sys"`
-	Tun   tunView    `json:"tun"`
-	Sys2  systemView `json:"system"`
-	Ver   string     `json:"version"`
-	Power powerView  `json:"power"`
-	Upd   updateView `json:"update"`
-	Notif bool       `json:"notify"`
-	Onb   bool       `json:"onboarded"`
-	Apps  []appView  `json:"apps"`
-	Rules []ruleView `json:"rules"`
-	Auto  *bool      `json:"autostart,omitempty"` // nil = option not available
+	T          int64      `json:"t"`
+	OS         string     `json:"os"`
+	Links      []linkView `json:"links"`
+	Jobs       []jobView  `json:"jobs"`
+	Proxy      string     `json:"proxy"`
+	Dir        string     `json:"dir"`
+	Sys        sysView    `json:"sys"`
+	Tun        tunView    `json:"tun"`
+	Sys2       systemView `json:"system"`
+	Ver        string     `json:"version"`
+	Power      powerView  `json:"power"`
+	Upd        updateView `json:"update"`
+	Notif      bool       `json:"notify"`
+	Onb        bool       `json:"onboarded"`
+	BudgetWarn int        `json:"budgetWarn"`
+	Apps       []appView  `json:"apps"`
+	Rules      []ruleView `json:"rules"`
+	Auto       *bool      `json:"autostart,omitempty"` // nil = option not available
 }
 
 // sysView is the Windows proxy state: on/off, its address, and whether it points to us.
@@ -228,6 +229,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			dt := now.Sub(last)
 			last = now
 			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone()}
+			if s.Store != nil {
+				snap.BudgetWarn = s.Store.WarnPercent()
+			}
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {

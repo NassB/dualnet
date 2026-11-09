@@ -307,6 +307,10 @@ td.r, th.r { text-align: right; }
     <section class="page" id="page-history">
       <h1 data-i18n="navHistory"></h1>
       <p class="lead" data-i18n="historyLead"></p>
+      <div class="row">
+        <a class="btn ghost small" href="/api/history?days=366&amp;format=csv" data-i18n="exportCSV"></a>
+        <a class="btn ghost small" href="/api/history?days=366&amp;format=json" download="dualnet-history.json" data-i18n="exportJSON"></a>
+      </div>
       <div class="card"><div id="history" class="empty" data-i18n="loading"></div></div>
     </section>
 
@@ -345,6 +349,32 @@ td.r, th.r { text-align: right; }
         <div id="linksCfg"></div>
         <div class="howto" style="margin-top:8px" data-i18n="roleHelp"></div>
         <div class="howto" style="margin-top:8px" data-i18n="speedNote"></div>
+        <form class="setting" id="budgetWarnForm">
+          <label class="txt" for="budgetWarn" data-i18n="budgetWarnLabel"></label>
+          <input type="number" id="budgetWarn" min="50" max="99" required>
+          <button class="btn small" type="submit" data-i18n="save"></button>
+        </form>
+      </div>
+
+      <div class="card mt">
+        <h2 data-i18n="domainTitle"></h2>
+        <p class="howto" data-i18n="domainHelp"></p>
+        <div id="domainRules"></div>
+        <form class="rule-add" id="domainForm">
+          <input id="domainName" type="text" maxlength="253" required data-i18n-ph="domainPlaceholder">
+          <select id="domainLink" required aria-label="Link"></select>
+          <button class="btn small" type="submit" data-i18n="save"></button>
+        </form>
+      </div>
+
+      <div class="card mt">
+        <h2 data-i18n="profilesTitle"></h2>
+        <p class="howto" data-i18n="profilesHelp"></p>
+        <div id="profiles"></div>
+        <form class="rule-add" id="profileForm">
+          <input id="profileName" type="text" maxlength="40" required data-i18n-ph="profilePlaceholder">
+          <button class="btn small" type="submit" data-i18n="save"></button>
+        </form>
       </div>
 
       <div class="card mt windows-only">
@@ -472,9 +502,11 @@ function toast(msg, ok) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = 'toast', 4000);
 }
 async function post(url) {
-  const r = await fetch(url, { method: 'POST', headers: { 'X-Dualnet': '1' } });
-  if (!r.ok) toast(srv(await r.text()));
-  return r.ok;
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'X-Dualnet': '1' } });
+    if (!r.ok) toast(srv(await r.text()));
+    return r.ok;
+  } catch (e) { toast(String(e)); return false; }
 }
 const linkIcon = name => /wi-?fi|wlan|wireless/i.test(name)
   ? '<path d="M2 8.5a15 15 0 0120 0M5 12a10 10 0 0114 0M8.5 15.5a5 5 0 017 0"/><circle cx="12" cy="19" r="1"/>'
@@ -911,6 +943,14 @@ function renderSettings(snap) {
   $('sysText').textContent = sys.err ? srv(sys.err) : sys.ours ? t('sysOurs') : sys.on ? t('sysOther', { s: sys.server }) : t('sysOff');
   $('sysText').classList.toggle('warn', !sys.ours && sys.on);
   $('proxyAddr').textContent = snap.proxy || t('proxyOff');
+  if (document.activeElement !== $('budgetWarn') && snap.budgetWarn) $('budgetWarn').value = snap.budgetWarn;
+  const domainSel = $('domainLink'), domainKey = snap.links.map(l => l.name).join('\u0000');
+  if (domainSel.dataset.key !== domainKey) {
+    const current = domainSel.value;
+    domainSel.replaceChildren(...snap.links.map(l => new Option(l.name, l.name)));
+    domainSel.value = snap.links.some(l => l.name === current) ? current : (snap.links[0]?.name || '');
+    domainSel.dataset.key = domainKey;
+  }
   setSwitch('simSw', sy.simultaneous, !sy.admin);
   $('simText').textContent = !sy.admin && !sy.simultaneous ? t('needAdmin') : sy.simultaneous ? t('simOn') : t('simOff');
   const m = sy.metrics || {};
@@ -924,6 +964,74 @@ $('tunSw').addEventListener('change', e => post('/api/transparent?on=' + (e.targ
 $('sysSw').addEventListener('change', e => post('/api/sysproxy?on=' + (e.target.checked ? 1 : 0)));
 $('simSw').addEventListener('change', e => post('/api/system?do=simultaneous&on=' + (e.target.checked ? 1 : 0)));
 $('autoSw').addEventListener('change', e => post('/api/autostart?on=' + (e.target.checked ? 1 : 0)));
+
+$('budgetWarnForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (await post('/api/budgetwarn?percent=' + encodeURIComponent($('budgetWarn').value))) toast(t('saved'), true);
+});
+
+async function loadNamedSettings() {
+  try {
+    const [domains, profiles] = await Promise.all(['/api/domainrules', '/api/profiles'].map(async url => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }));
+    const domainBox = $('domainRules');
+    domainBox.replaceChildren();
+    for (const rule of domains) {
+      const row = document.createElement('div'); row.className = 'rule-row';
+      const name = document.createElement('b'); name.textContent = rule.domain;
+      const link = document.createElement('span'); link.textContent = rule.link;
+      const remove = document.createElement('button'); remove.className = 'btn ghost small'; remove.textContent = t('ruleRemove');
+      remove.addEventListener('click', async () => {
+        if (await post('/api/domainrule?domain=' + encodeURIComponent(rule.domain) + '&link=')) await loadNamedSettings();
+      });
+      row.append(name, link, remove); domainBox.append(row);
+    }
+    const profileBox = $('profiles');
+    profileBox.replaceChildren();
+    for (const name of profiles) {
+      const row = document.createElement('div'); row.className = 'rule-row';
+      const label = document.createElement('b'); label.textContent = name;
+      const apply = document.createElement('button'); apply.className = 'btn ghost small'; apply.textContent = t('profileApply');
+      apply.addEventListener('click', async () => {
+        if (await post('/api/profile?action=apply&name=' + encodeURIComponent(name))) {
+          toast(t('profileApplied'), true); await loadNamedSettings();
+        }
+      });
+      const remove = document.createElement('button'); remove.className = 'btn ghost small'; remove.textContent = t('ruleRemove');
+      remove.addEventListener('click', async () => {
+        if (confirm(t('profileDeleteConfirm', { name }))) {
+          if (await post('/api/profile?action=delete&name=' + encodeURIComponent(name))) await loadNamedSettings();
+        }
+      });
+      row.append(label, apply, remove); profileBox.append(row);
+    }
+  } catch (e) { toast(String(e)); }
+}
+$('domainForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const domain = $('domainName').value.trim(), link = $('domainLink').value;
+  if (link && await post('/api/domainrule?domain=' + encodeURIComponent(domain) + '&link=' + encodeURIComponent(link))) {
+    $('domainName').value = ''; await loadNamedSettings();
+  }
+});
+$('profileForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('profileName').value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/api/profiles');
+    if (!r.ok) { toast(srv(await r.text())); return; }
+    if ((await r.json()).includes(name) && !confirm(t('profileReplaceConfirm', { name }))) return;
+    if (await post('/api/profile?action=save&name=' + encodeURIComponent(name))) {
+      $('profileName').value = ''; await loadNamedSettings();
+    }
+  } catch (e) { toast(String(e)); }
+});
+document.querySelector('[data-page="settings"]').addEventListener('click', loadNamedSettings);
+loadNamedSettings();
 
 // ---------- history ----------
 async function loadHistory() {
