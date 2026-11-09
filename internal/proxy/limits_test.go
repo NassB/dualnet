@@ -81,3 +81,37 @@ func TestMaxConns(t *testing.T) {
 		c.Close()
 	}
 }
+
+func TestDomainRuleChoosesLink(t *testing.T) {
+	needSecondLoopback(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			if _, err := ln.Accept(); err != nil {
+				return
+			}
+		}
+	}()
+	a := links.New("a", net.IPv4(127, 0, 0, 1))
+	b := links.New("b", net.IPv4(127, 0, 0, 2))
+	s := &Server{Pool: links.PoolOf(a, b), DomainRule: func(host string) string {
+		if host == "127.0.0.1" {
+			return "b"
+		}
+		return ""
+	}}
+	for i := 0; i < 4; i++ {
+		c, l, err := s.dial(ln.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+		if l.Name != "b" {
+			t.Fatalf("connection %d used link %s, the domain rule says b", i, l.Name)
+		}
+	}
+}

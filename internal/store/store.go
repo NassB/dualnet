@@ -37,6 +37,8 @@ type Settings struct {
 	OnboardingDone *bool `json:"onboardingDone,omitempty"`
 	// Rules: applications restricted to one link (transparent mode).
 	Rules []Rule `json:"rules,omitempty"`
+	// DomainRules: destination domains sent over one link.
+	DomainRules []DomainRule `json:"domainRules,omitempty"`
 	// Budgets: monthly data budget per link in GB (absent = none).
 	Budgets map[string]float64 `json:"budgets,omitempty"`
 	// Notify: Windows notifications for link events; nil = yes.

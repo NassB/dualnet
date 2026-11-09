@@ -38,6 +38,9 @@ type Server struct {
 	Apps *AppRegistry
 	// Overflow reports whether a link only serves when the others are busy.
 	Overflow func(linkName string) bool
+	// DomainRule returns the name of the link a destination host must use
+	// ("" = no rule). It wins over an application's rule.
+	DomainRule func(host string) string
 	// Username and Password, when Username is set, are required from every client
 	// (SOCKS5 username/password, HTTP Proxy-Authorization: Basic).
 	Username, Password string
@@ -242,6 +245,11 @@ func (s *Server) dialFor(addr string, allow func(*links.Link) bool) (net.Conn, *
 	order := s.pick(host)
 	if isDNSPort(port) {
 		order = s.pickLowestLatency()
+	}
+	if s.DomainRule != nil {
+		if name := s.DomainRule(host); name != "" {
+			allow = func(l *links.Link) bool { return l.Name == name }
+		}
 	}
 	order = filterLinks(order, allow)
 	lastErr := errNoLink
