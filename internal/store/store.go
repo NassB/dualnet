@@ -39,6 +39,8 @@ type Settings struct {
 	Rules []Rule `json:"rules,omitempty"`
 	// DomainRules: destination domains sent over one link.
 	DomainRules []DomainRule `json:"domainRules,omitempty"`
+	// BudgetWarnPercent: when a link has used this share of its budget, warn (0 = 80).
+	BudgetWarnPercent int `json:"budgetWarnPercent,omitempty"`
 	// Budgets: monthly data budget per link in GB (absent = none).
 	Budgets map[string]float64 `json:"budgets,omitempty"`
 	// Notify: Windows notifications for link events; nil = yes.

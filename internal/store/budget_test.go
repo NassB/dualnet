@@ -133,3 +133,16 @@ func TestBudgetPersisted(t *testing.T) {
 		t.Fatalf("budgets after reload: Phone=%v Gone=%v", r.Budget("Phone"), r.Budget("Gone"))
 	}
 }
+
+func TestWarnPercent(t *testing.T) {
+	s := Open(t.TempDir())
+	if s.WarnPercent() != 80 {
+		t.Fatal("default must be 80")
+	}
+	if s.SetWarnPercent(49) || s.SetWarnPercent(100) {
+		t.Fatal("out-of-range value accepted")
+	}
+	if !s.SetWarnPercent(90) || Open(s.Dir).WarnPercent() != 90 {
+		t.Fatal("threshold not saved")
+	}
+}

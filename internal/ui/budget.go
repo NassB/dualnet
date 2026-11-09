@@ -17,6 +17,16 @@ func (s *Server) budgetOf(l *links.Link, now time.Time) (budget, usedGB float64)
 	return s.Store.Budget(l.Name), float64(s.Store.MonthUsage(l.Name, now)) / 1e9
 }
 
+// setBudgetWarn sets the share of a budget at which a warning is given: ?percent=<50-99>.
+func (s *Server) setBudgetWarn(w http.ResponseWriter, r *http.Request) {
+	p, err := strconv.Atoi(r.URL.Query().Get("percent"))
+	if err != nil || s.Store == nil || !s.Store.SetWarnPercent(p) {
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // setBudget sets a link's monthly data budget: ?link=<name>&gb=<n> (0 = none).
 func (s *Server) setBudget(w http.ResponseWriter, r *http.Request) {
 	gb, err := strconv.ParseFloat(r.URL.Query().Get("gb"), 64)

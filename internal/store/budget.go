@@ -17,7 +17,7 @@ import (
 
 var (
 	warnMu sync.Mutex
-	warned = map[string]string{} // link -> month in which the 80 % warning was given
+	warned = map[string]string{} // link -> month in which the warning was given
 )
 
 // Budget returns the monthly budget of a link in GB (0 = none).
@@ -40,6 +40,28 @@ func (s *Store) SetBudget(name string, gb float64) {
 	}
 	s.mu.Unlock()
 	s.Save()
+}
+
+// WarnPercent returns the budget share (50-99) at which a warning is given; 80 by default.
+func (s *Store) WarnPercent() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := s.settings.BudgetWarnPercent; p >= 50 && p <= 99 {
+		return p
+	}
+	return 80
+}
+
+// SetWarnPercent sets the warning threshold; it reports false outside 50-99.
+func (s *Store) SetWarnPercent(p int) bool {
+	if p < 50 || p > 99 {
+		return false
+	}
+	s.mu.Lock()
+	s.settings.BudgetWarnPercent = p
+	s.mu.Unlock()
+	s.Save()
+	return true
 }
 
 // MonthUsage returns the bytes (received + sent) a link carried in the calendar
@@ -72,6 +94,7 @@ func otherUsable(ls []*links.Link, except *links.Link) bool {
 // each change through pool.OnChange.
 func (s *Store) Enforce(pool *links.Pool, now time.Time) {
 	ls := pool.All()
+	warnAt := float64(s.WarnPercent()) / 100
 	month := now.Format("2006-01")
 	type change struct {
 		l *links.Link
@@ -97,7 +120,7 @@ func (s *Store) Enforce(pool *links.Pool, now time.Time) {
 				l.SetOverBudget(false)
 				changes = append(changes, change{l, links.EventBudgetOK})
 			}
-			if budget > 0 && used >= 0.8*budget {
+			if budget > 0 && used >= warnAt*budget {
 				warnMu.Lock()
 				first := warned[l.Name] != month
 				warned[l.Name] = month
