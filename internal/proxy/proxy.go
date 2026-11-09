@@ -76,17 +76,42 @@ func (s *Server) ListenAndServe(addr string) error {
 		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication", addr)
 	}
 	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
+	slots := make(chan struct{}, maxConns)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			return err
 		}
-		go s.handle(c)
+		select {
+		case slots <- struct{}{}:
+		default: // too many open connections: refuse rather than exhaust memory
+			c.Close()
+			continue
+		}
+		go func() {
+			defer func() { <-slots }()
+			s.handle(c)
+		}()
 	}
+}
+
+const (
+	maxConns         = 4096
+	handshakeTimeout = 30 * time.Second // client must send its request within this
+	idleReqTimeout   = 2 * time.Minute  // between requests on a keep-alive HTTP connection
+)
+
+var pipeBufs = sync.Pool{New: func() any { b := make([]byte, 64*1024); return &b }}
+
+func copyBuf(dst io.Writer, src io.Reader) {
+	bp := pipeBufs.Get().(*[]byte)
+	defer pipeBufs.Put(bp)
+	io.CopyBuffer(dst, src, *bp)
 }
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	br := bufio.NewReader(c)
 	first, err := br.Peek(1)
 	if err != nil {
@@ -267,6 +292,7 @@ func (s *Server) socks5(c net.Conn, br *bufio.Reader) {
 	}
 	defer up.Close()
 	c.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+	c.SetReadDeadline(time.Time{})
 	pipe(c, br, up, l)
 }
 
@@ -276,6 +302,7 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 		if err != nil {
 			return
 		}
+		c.SetReadDeadline(time.Time{})
 		if req.Method == http.MethodConnect {
 			up, l, err := s.dial(req.Host)
 			if err != nil {
@@ -292,6 +319,7 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 		if !s.forward(c, req) || req.Close {
 			return
 		}
+		c.SetReadDeadline(time.Now().Add(idleReqTimeout))
 	}
 }
 
@@ -369,12 +397,12 @@ func pipe(client net.Conn, clientR io.Reader, up net.Conn, l *links.Link) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		io.Copy(up, clientR)
+		copyBuf(up, clientR)
 		closeWrite(up)
 	}()
 	go func() {
 		defer wg.Done()
-		io.Copy(client, up)
+		copyBuf(client, up)
 		closeWrite(client)
 	}()
 	wg.Wait()
