@@ -48,6 +48,7 @@ func TestHandshakeTimeout(t *testing.T) {
 func TestMaxConns(t *testing.T) {
 	s := &Server{Pool: links.PoolOf(links.New("a", net.IPv4(127, 0, 0, 1))), MaxConns: 2, HandshakeTimeout: time.Minute}
 	addr := startServer(t, s)
+	time.Sleep(300 * time.Millisecond) // startServer's probe connection must have released its slot
 	var held []net.Conn
 	for i := 0; i < 2; i++ {
 		c, err := net.Dial("tcp", addr)
