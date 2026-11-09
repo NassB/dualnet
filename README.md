@@ -32,6 +32,8 @@ Get `dualnet.exe` from the [latest release](https://github.com/NassB/dualnet/rel
 
 > The executable is not code-signed, so Windows SmartScreen may warn the first time: click **More info → Run anyway**. You can check the download against the published checksum and build attestation (see [Verifying a download](#verifying-a-download)), or build it yourself (see [Development](#development)).
 
+> **Linux and macOS (experimental):** each release also has `dualnet-linux-*` and `dualnet-darwin-*` binaries (amd64, arm64). Only the **proxy** (`dualnet proxy`), `get` and the web interface (`dualnet ui -open=false`, then open the printed address) are available. There is no transparent mode, per-application statistics, tray icon or installer outside Windows, and it has not been tested on those systems yet. Run `chmod +x` on the file first; on macOS you may need to clear the quarantine flag (`xattr -d com.apple.quarantine`).
+
 ## Quick start
 
 Double-click `dualnet.exe`:
