@@ -1,8 +1,30 @@
+<div align="center">
+
+<img src="assets/icon.png" alt="dualnet logo" width="96">
+
 # dualnet
 
-Combine several internet connections on one Windows PC — for example your home Wi‑Fi and your phone's USB tethering — **without any remote server**.
+**Combine several internet connections on one Windows PC, with no remote server.**<br>
+Home Wi‑Fi + phone USB tethering + Ethernet: use them all at once.
 
-The interface follows your language: English, French, Spanish or German (English otherwise). The Spanish and German texts were written without a native-speaker review: corrections and new languages are welcome (see [CONTRIBUTING](CONTRIBUTING.md#translating)).
+[![build](https://github.com/NassB/dualnet/actions/workflows/build.yml/badge.svg)](https://github.com/NassB/dualnet/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/NassB/dualnet)](https://github.com/NassB/dualnet/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/NassB/dualnet)](LICENSE)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6)
+
+[Download](#download) · [Quick start](#quick-start) · [Features](#what-dualnet-does) · [Command line](#command-line) · [Security](#security) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+## Highlights
+
+- 🔀 **Spreads connections by measured speed**: every new connection goes to the link with the most free capacity.
+- 🖥️ **Transparent mode**: a virtual adapter (Wintun) captures the whole PC's IPv4 traffic, no per-app settings.
+- ⚡ **Faster downloads**: one big file is fetched over all links at once, so speeds add up.
+- 📱 **Overflow, caps and budgets**: keep your phone's mobile data idle until it is needed, cap speeds, set a monthly budget per link.
+- 🎯 **Per-application rules**: pin a game to Wi‑Fi, limit a download's speed.
+- 🔒 **Local only**: no account, no server, no telemetry. The dashboard is bound to `127.0.0.1` and protected against CSRF and DNS rebinding.
+- 🌍 **Interface in English, French, Spanish and German.** The Spanish and German texts have not been reviewed by native speakers: corrections and new languages are welcome (see [CONTRIBUTING](CONTRIBUTING.md#translating)).
 
 ## Download
 
@@ -79,6 +101,9 @@ Add `?lang=en`, `?lang=fr`, `?lang=es` or `?lang=de` (or any other language file
 
 ## Wi‑Fi drops when the phone is plugged in?
 
+<details>
+<summary>Show details</summary>
+
 By default Windows disconnects Wi‑Fi as soon as a wired connection (the USB tethering) is present. Use the “Keep Wi‑Fi with USB tethering” button in the interface, or in an administrator PowerShell:
 
 ```powershell
@@ -86,13 +111,20 @@ New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -F
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Name fMinimizeConnections -Value 0 -Type DWord
 ```
 
+</details>
+
 ## Transparent mode: details
+
+<details>
+<summary>Show details</summary>
 
 - A `dualnet` virtual adapter (Wintun) plus routes `0.0.0.0/1` and `128.0.0.0/1`; your normal routes are left untouched.
 - Connections are terminated by tun2socks (gVisor stack) and reopened over a link (TCP and UDP, so DNS and games too).
 - **IPv6 is refused**: applications fall back to IPv4. Programs that were already running keep the connections they had; most reopen them by themselves, otherwise restart the program.
 - When dualnet exits, even if it crashes, the adapter and its routes disappear.
 - `wintun.dll` 0.14.1 (signed by WireGuard LLC, license: `internal/transparent/WINTUN-LICENSE.txt`) is embedded in the executable and extracted next to it on first run.
+
+</details>
 
 ## Limits
 
@@ -102,6 +134,8 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPo
 - An already open connection cannot move to another link: if its link drops it ends, and the application reconnects over the remaining links.
 
 ## Development
+
+Requires the Go version in `go.mod`.
 
 ```powershell
 go test ./...
