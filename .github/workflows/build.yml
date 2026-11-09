@@ -73,6 +73,10 @@ jobs:
         with:
           go-version: stable
           check-latest: true
+      - name: Format (gofmt)
+        run: |
+          bad=$(gofmt -l .)
+          if [ -n "$bad" ]; then echo "not gofmt-ed:"; echo "$bad"; exit 1; fi
       - name: Vet
         run: go vet ./...
       - name: Test
