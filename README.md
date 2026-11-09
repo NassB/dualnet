@@ -14,6 +14,10 @@ Home Wi‑Fi + phone USB tethering + Ethernet: use them all at once.
 
 [Download](#download) · [Quick start](#quick-start) · [Features](#what-dualnet-does) · [Command line](#command-line) · [Security](#security) · [Contributing](CONTRIBUTING.md)
 
+<br>
+
+<img src="assets/screenshot-dashboard.png" alt="dualnet's dashboard: on/off switch, one card per link, applications and the speed chart" width="640">
+
 </div>
 
 ## Highlights
