@@ -100,6 +100,9 @@ func (s *Server) openLogFolder(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	openFolder(s.Store.Dir)
+	if err := openFolder(s.Store.Dir); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

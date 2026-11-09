@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -137,7 +138,9 @@ func (a *appWindow) loop() {
 			messageBox("dualnet", tr(
 				"Microsoft Edge WebView2 is not installed, so the interface opens in your browser.\n\nInstall it from https://go.microsoft.com/fwlink/p/?LinkId=2124703 to get dualnet's own window.",
 				"Microsoft Edge WebView2 n'est pas installé : l'interface s'ouvre dans votre navigateur.\n\nInstallez-le depuis https://go.microsoft.com/fwlink/p/?LinkId=2124703 pour avoir la fenêtre de dualnet."))
-			ui.OpenBrowser(a.url)
+			if err := ui.OpenBrowser(a.url); err != nil {
+				log.Printf("opening browser: %v", err)
+			}
 			continue
 		}
 		w.SetSize(900, 620, webview2.HintMin)

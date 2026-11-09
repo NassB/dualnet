@@ -29,7 +29,10 @@ func (s *Server) openUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no update", http.StatusNotFound)
 		return
 	}
-	OpenBrowser(s.Update.Info().URL)
+	if err := OpenBrowser(s.Update.Info().URL); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

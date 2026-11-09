@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -352,7 +351,7 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// reveal opens Explorer with the downloaded file selected.
+// reveal opens the downloaded file's location.
 func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
 	j := s.find(r)
 	if j == nil {
@@ -365,7 +364,10 @@ func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	exec.Command("explorer", "/select,", abs).Start()
+	if err := revealFile(abs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -388,12 +390,4 @@ func (s *Server) setLimit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
-}
-
-// OpenBrowser opens url in the default browser (Windows).
-func OpenBrowser(target string) {
-	if u, err := url.Parse(target); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return
-	}
-	exec.Command("rundll32", "url.dll,FileProtocolHandler", target).Start()
 }

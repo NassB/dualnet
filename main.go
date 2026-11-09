@@ -150,7 +150,9 @@ func main() {
 		check(err)
 		fmt.Println("Interface:", app.url)
 		if *open {
-			ui.OpenBrowser(app.url)
+			if err := ui.OpenBrowser(app.url); err != nil {
+				log.Printf("opening browser: %v", err)
+			}
 		}
 		go exitRestoring(ctx)
 		check(app.serve())
