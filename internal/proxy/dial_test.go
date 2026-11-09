@@ -82,15 +82,24 @@ func TestRaceDial(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// both open: the loser's connection is closed, not leaked
+	// both open (the slower attempt completes although it was cancelled): the
+	// loser's connection is closed, not leaked
 	closed.Store(0)
 	a.SetLatencyMs(0)
-	_, l, _ = raceDial(order, dialer(map[*links.Link]time.Duration{a: dialHeadMin + 150*time.Millisecond, b: 150 * time.Millisecond}, nil, &tried), never)
-	for i := 0; i < 50 && closed.Load() == 0; i++ {
+	stubborn := func(_ context.Context, l *links.Link) (net.Conn, error) {
+		if l == a {
+			time.Sleep(dialHeadMin + 400*time.Millisecond)
+		}
+		return fakeConn{closed: &closed}, nil
+	}
+	if _, l, _ = raceDial(order, stubborn, never); l != b {
+		t.Fatalf("winner %v, want b", l)
+	}
+	for i := 0; i < 100 && closed.Load() == 0; i++ {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if closed.Load() != 1 {
-		t.Fatalf("winner %v, %d connections closed, want 1", l, closed.Load())
+		t.Fatalf("%d connections closed, want 1", closed.Load())
 	}
 
 	// a slow link gets a longer head start
