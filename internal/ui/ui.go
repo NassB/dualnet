@@ -389,6 +389,9 @@ func (s *Server) setLimit(w http.ResponseWriter, r *http.Request) {
 }
 
 // OpenBrowser opens url in the default browser (Windows).
-func OpenBrowser(url string) {
-	exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+func OpenBrowser(target string) {
+	if u, err := url.Parse(target); err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return
+	}
+	exec.Command("rundll32", "url.dll,FileProtocolHandler", target).Start()
 }

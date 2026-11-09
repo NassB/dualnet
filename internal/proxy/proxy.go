@@ -72,6 +72,9 @@ func (s *Server) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
+	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !tcp.IP.IsLoopback() {
+		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication", addr)
+	}
 	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
 	for {
 		c, err := ln.Accept()

@@ -57,7 +57,7 @@ func (c *Checker) Check(ctx context.Context) error {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "dualnet/"+c.Current)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if err != nil {
 		return err
 	}
