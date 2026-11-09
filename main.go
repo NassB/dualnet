@@ -48,7 +48,7 @@ Usage:
   dualnet version
   dualnet interfaces
   dualnet get   [-if "Wi-Fi,Ethernet 2"] [-o file] [-chunk 4] [-workers 4] <url>
-  dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy]`)
+  dualnet proxy [-if "Wi-Fi,Ethernet 2"] [-listen 127.0.0.1:1080] [-sticky 10m] [-system-proxy] [-auth user:password] [-allow 192.168.1.0/24]`)
 	os.Exit(2)
 }
 
@@ -109,10 +109,22 @@ func main() {
 		listen := fs.String("listen", "127.0.0.1:1080", "listen address")
 		sticky := fs.Duration("sticky", 10*time.Minute, "keep a site on the same link for this long")
 		sys := fs.Bool("system-proxy", false, "point the Windows proxy to dualnet (restored on exit)")
+		auth := fs.String("auth", os.Getenv("DUALNET_PROXY_AUTH"), `require "user:password" from clients (or set DUALNET_PROXY_AUTH, which keeps the password out of the process list)`)
+		allow := fs.String("allow", "", "only accept clients from these networks, comma-separated (e.g. 192.168.1.0/24,10.0.0.5)")
 		fs.Parse(os.Args[2:])
 		restoreStale()
 		pool := watchPool(ctx, *ifs)
 		s := &proxy.Server{Pool: pool, Sticky: *sticky}
+		if *auth != "" {
+			user, pass, ok := strings.Cut(*auth, ":")
+			if !ok || user == "" || pass == "" {
+				check(fmt.Errorf(`-auth must look like "user:password"`))
+			}
+			s.Username, s.Password = user, pass
+		}
+		nets, err := proxy.ParseAllow(*allow)
+		check(err)
+		s.Allow = nets
 		if *sys {
 			check(sysproxy.Enable(*listen))
 			fmt.Println("Windows proxy set to", *listen, "(restored on exit)")

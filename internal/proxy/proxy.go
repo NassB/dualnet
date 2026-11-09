@@ -38,6 +38,11 @@ type Server struct {
 	Apps *AppRegistry
 	// Overflow reports whether a link only serves when the others are busy.
 	Overflow func(linkName string) bool
+	// Username and Password, when Username is set, are required from every client
+	// (SOCKS5 username/password, HTTP Proxy-Authorization: Basic).
+	Username, Password string
+	// Allow, when not empty, lists the client networks that may connect (others are dropped).
+	Allow []*net.IPNet
 	// MaxConns caps the open client connections (default 4096); more are refused.
 	MaxConns int
 	// HandshakeTimeout is how long a client has to send its request (default 30 s);
@@ -86,8 +91,8 @@ func (s *Server) ListenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
-	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !tcp.IP.IsLoopback() {
-		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication", addr)
+	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !tcp.IP.IsLoopback() && !s.authRequired() && len(s.Allow) == 0 {
+		log.Printf("WARNING: proxy %s is reachable from the network and has no authentication and no allow-list", addr)
 	}
 	log.Printf("SOCKS5/HTTP proxy listening on %s", addr)
 	slots := make(chan struct{}, s.MaxConns)
@@ -119,6 +124,9 @@ func copyBuf(dst io.Writer, src io.Reader) {
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
+	if !s.allowed(c.RemoteAddr()) {
+		return
+	}
 	c.SetReadDeadline(time.Now().Add(s.HandshakeTimeout))
 	br := bufio.NewReader(c)
 	first, err := br.Peek(1)
@@ -255,10 +263,13 @@ func (s *Server) socks5(c net.Conn, br *bufio.Reader) {
 	if _, err := io.ReadFull(br, hdr); err != nil {
 		return
 	}
-	if _, err := io.ReadFull(br, make([]byte, hdr[1])); err != nil {
+	methods := make([]byte, hdr[1])
+	if _, err := io.ReadFull(br, methods); err != nil {
 		return
 	}
-	c.Write([]byte{0x05, 0x00}) // no auth
+	if !s.socksAuth(c, br, methods) {
+		return
+	}
 
 	// Request: VER CMD RSV ATYP DST.ADDR DST.PORT
 	req := make([]byte, 4)
@@ -311,6 +322,10 @@ func (s *Server) http(c net.Conn, br *bufio.Reader) {
 			return
 		}
 		c.SetReadDeadline(time.Time{})
+		if !s.checkHTTPAuth(req) {
+			fmt.Fprint(c, "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"dualnet\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+			return
+		}
 		if req.Method == http.MethodConnect {
 			up, l, err := s.dial(req.Host)
 			if err != nil {

@@ -87,6 +87,7 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 .\dualnet.exe ui                            # interface + proxy, no admin rights needed
 .\dualnet.exe get https://example.com/big-file.iso
 .\dualnet.exe proxy -listen 127.0.0.1:1080 -system-proxy
+.\dualnet.exe proxy -listen 0.0.0.0:1080 -auth me:secret -allow 192.168.1.0/24   # share the links with your LAN
 .\dualnet.exe window                        # dualnet's window for an instance started with "ui"
 .\dualnet.exe doctor                        # installation check (exit code 1 if something failed)
 .\dualnet.exe version
@@ -94,6 +95,8 @@ Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualne
 .\dualnet.exe install                    # administrator: copy to Program Files, Start Menu entry, "Apps & features" entry
 .\dualnet.exe uninstall [-purge] [-force] # administrator: remove all of it (-purge also deletes your data)
 ```
+
+To share dualnet's links with other devices, listen on a non-loopback address and protect it: `-auth user:password` (SOCKS5 username/password and HTTP `Proxy-Authorization: Basic`; set `DUALNET_PROXY_AUTH` instead to keep the password out of the process list) and `-allow` (client networks). dualnet warns when it listens beyond this PC with neither. Basic and SOCKS5 passwords are not encrypted: use it on a network you trust.
 
 `-sticky 10m` (default) keeps a given site on the same link for 10 minutes (useful for sites that watch your IP); `-sticky 0` spreads every connection (best for downloads).
 
