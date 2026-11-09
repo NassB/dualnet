@@ -105,6 +105,7 @@
   "colRoute": "Uses",
   "routeAll": "All links",
   "routeOnly": "Only {n}",
+  "routePing": "Lowest ping",
   "rulesTitle": "Application rules",
   "rulesHead": "Restrict an application to one link",
   "rulesSub": "Example: keep an online game on Wi‑Fi for a steady ping while your downloads use every link. If the chosen link is down, the application uses the others. Transparent mode only.",

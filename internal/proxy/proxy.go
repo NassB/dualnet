@@ -243,28 +243,36 @@ func (s *Server) pickLowestLatency() []*links.Link {
 // isDNSPort: DNS (53) and DNS over TLS (853).
 func isDNSPort(port string) bool { return port == "53" || port == "853" }
 
-func (s *Server) dial(addr string) (net.Conn, *links.Link, error) { return s.dialFor(addr, nil) }
+func (s *Server) dial(addr string) (net.Conn, *links.Link, error) { return s.dialFor(addr, "") }
 
-func (s *Server) domainLinks(order []*links.Link, host string, allow func(*links.Link) bool) []*links.Link {
-	if s.DomainRule != nil {
-		if name := s.DomainRule(host); name != "" {
-			allow = func(l *links.Link) bool { return l.Name == name }
-		}
+// order returns the links to try, best first, for a new flow of app ("" = not
+// known) to host:port: the lowest ping for DNS and for applications whose rule
+// asks for it, otherwise the most spare capacity; then only the links the
+// application's rule accepts, unless none of them can be used.
+func (s *Server) order(host, port, app string) []*links.Link {
+	if isDNSPort(port) || s.wantsLowPing(app) {
+		return filterLinks(s.pickLowestLatency(), s.allowFor(app))
 	}
-	return filterLinks(order, allow)
+	return filterLinks(s.pick(host), s.allowFor(app))
 }
 
-// dialFor connects over the best link allow accepts (nil = any), falling back to
-// the other links when none of the accepted ones can be used.
-func (s *Server) dialFor(addr string, allow func(*links.Link) bool) (net.Conn, *links.Link, error) {
-	host, port, _ := net.SplitHostPort(addr)
-	order := s.pick(host)
-	if isDNSPort(port) {
-		order = s.pickLowestLatency()
+// linksFor is order, except that a domain rule for host wins over the
+// application's rule.
+func (s *Server) linksFor(host, port, app string) []*links.Link {
+	if s.DomainRule != nil {
+		if name := s.DomainRule(host); name != "" {
+			return filterLinks(s.order(host, port, ""), func(l *links.Link) bool { return l.Name == name })
+		}
 	}
-	order = s.domainLinks(order, host, allow)
+	return s.order(host, port, app)
+}
+
+// dialFor connects over the best link for app's rule ("" = no application),
+// falling back to the other links when none of the accepted ones can be used.
+func (s *Server) dialFor(addr, app string) (net.Conn, *links.Link, error) {
+	host, port, _ := net.SplitHostPort(addr)
 	lastErr := errNoLink
-	for _, l := range order {
+	for _, l := range s.linksFor(host, port, app) {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		c, err := l.DialContext(ctx, "tcp", addr)
 		cancel()
@@ -384,7 +392,7 @@ func (s *Server) forward(c net.Conn, req *http.Request) bool {
 	var resp *http.Response
 	var used *links.Link
 	err := errNoLink
-	for _, l := range s.domainLinks(s.pick(host), host, nil) {
+	for _, l := range s.linksFor(host, "", "") {
 		l.Active.Add(1)
 		resp, err = s.transport(l).RoundTrip(req)
 		if err == nil {

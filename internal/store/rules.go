@@ -9,6 +9,9 @@ import (
 // must never be cut off). Applications are named by their executable
 // ("game.exe"), compared without regard to case.
 //
+// Link can also be "*ping" (proxy.LowestPing): the application is not tied to a
+// link, each of its connections takes the link with the lowest ping.
+//
 // A rule can also cap the application's download speed (Limit, in Mb/s, over
 // all its connections together; 0 = no cap). A rule with neither a link nor a
 // cap does not exist.

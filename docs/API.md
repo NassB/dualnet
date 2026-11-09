@@ -33,7 +33,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | `POST /api/budget?link=<name>&gb=<n>` | monthly budget of a link (0 = none) |
 | `POST /api/budgetwarn?percent=<50-99>` | share of a budget at which dualnet warns |
 | `POST /api/role?link=<name>&mode=normal\|overflow` | how a link is used |
-| `POST /api/rule?app=<exe>&link=<name>` | restrict a program to a link (empty `link` removes the restriction, `all=1` removes the whole rule) |
+| `POST /api/rule?app=<exe>&link=<name>` | restrict a program to a link (`link=*ping`: the link with the lowest ping; empty `link` removes the restriction, `all=1` removes the whole rule) |
 | `POST /api/applimit?app=<exe>&mbps=<n>` | download cap of a program (0 = none) |
 | `POST /api/domainrule?domain=<name>&link=<name>` | send a domain (and subdomains) over a link (empty `link` removes the rule) |
 | `POST /api/profile?name=<name>&action=save\|apply\|delete` | save, apply or delete a profile |

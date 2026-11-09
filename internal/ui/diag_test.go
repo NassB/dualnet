@@ -183,6 +183,9 @@ func TestRuleEndpoint(t *testing.T) {
 	if post("/api/rule?app=game.exe&link=Nope", true) != 404 {
 		t.Error("a rule for an unknown link must be refused")
 	}
+	if post("/api/rule?app=game.exe&link=*ping", true) != 204 || st.RuleLink("game.exe") != proxy.LowestPing {
+		t.Fatal("the lowest-ping rule must be accepted")
+	}
 	if post("/api/rule?app=game.exe&link=", true) != 204 || st.RuleLink("game.exe") != "" {
 		t.Error("an empty link must remove the rule")
 	}

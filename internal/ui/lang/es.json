@@ -105,6 +105,7 @@
   "colRoute": "Usa",
   "routeAll": "Todos los enlaces",
   "routeOnly": "Solo {n}",
+  "routePing": "Menor ping",
   "rulesTitle": "Reglas por aplicación",
   "rulesHead": "Limitar una aplicación a un enlace",
   "rulesSub": "Ejemplo: mantener un juego en línea en el Wi‑Fi para un ping estable mientras tus descargas usan todos los enlaces. Si el enlace elegido está caído, la aplicación usa los demás. Solo en modo transparente.",

@@ -48,7 +48,7 @@ func (d TunDialer) DialContext(_ context.Context, md *M.Metadata) (net.Conn, err
 		return nil, errIPv6
 	}
 	app, st := d.app(md)
-	c, l, err := d.S.dialFor(md.DestinationAddress(), d.S.allowFor(app))
+	c, l, err := d.S.dialFor(md.DestinationAddress(), app)
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +66,7 @@ func (d TunDialer) DialUDP(md *M.Metadata) (net.PacketConn, error) {
 		return nil, errIPv6
 	}
 	app, st := d.app(md)
-	order := d.S.pick(ip.String())
-	if isDNSPort(strconv.Itoa(int(md.DstPort))) {
-		order = d.S.pickLowestLatency()
-	}
-	order = filterLinks(order, d.S.allowFor(app))
+	order := d.S.order(ip.String(), strconv.Itoa(int(md.DstPort)), app)
 	if len(order) == 0 {
 		return nil, errNoLink
 	}

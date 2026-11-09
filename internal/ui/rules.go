@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/proxy"
 )
 
 type appView struct {
@@ -66,7 +67,8 @@ func validApp(name string) bool {
 	return name != "" && len(name) <= 128 && !strings.ContainsAny(name, `/\:*?"<>|`)
 }
 
-// setRule restricts an application to a link: ?app=<exe name>&link=<link name>.
+// setRule restricts an application to a link: ?app=<exe name>&link=<link name>
+// (or *ping: whichever link answers fastest).
 // An empty link removes the restriction but keeps the application's speed cap;
 // all=1 removes the whole rule, cap included.
 func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +83,7 @@ func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if link != "" {
+	if link != "" && link != proxy.LowestPing {
 		known := false
 		for _, l := range s.Pool.All() {
 			if l.Name == link {

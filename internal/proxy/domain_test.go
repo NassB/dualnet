@@ -49,8 +49,8 @@ func TestDomainRuleHTTP(t *testing.T) {
 
 func TestDomainRuleFallback(t *testing.T) {
 	a := links.New("a", net.IPv4(127, 0, 0, 1))
-	s := &Server{DomainRule: func(string) string { return "unavailable" }}
-	got := s.domainLinks([]*links.Link{a}, "example.com", nil)
+	s := &Server{Pool: links.PoolOf(a), DomainRule: func(string) string { return "unavailable" }}
+	got := s.linksFor("example.com", "443", "")
 	if len(got) != 1 || got[0] != a {
 		t.Fatalf("expected fallback to link a: %v", got)
 	}

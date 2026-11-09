@@ -871,8 +871,10 @@ function limitOptions(cur) {
   const vals = LIMITS.includes(cur) ? LIMITS : [...LIMITS, cur].sort((a, b) => a - b);
   return vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${v ? esc(t('limitMbps', { n: v })) : esc(t('limitNone'))}</option>`).join('');
 }
+const PING = '*ping'; // rule value: the link with the lowest ping
+function routeName(link) { return link === PING ? t('routePing') : t('routeOnly', { n: link }); }
 function routeOptions(snap, current) {
-  return `<option value="">${esc(t('routeAll'))}</option>` + snap.links.map(l =>
+  return `<option value="">${esc(t('routeAll'))}</option><option value="${PING}"${current === PING ? ' selected' : ''}>${esc(t('routePing'))}</option>` + snap.links.map(l =>
     `<option value="${esc(l.name)}"${current === l.name ? ' selected' : ''}>${esc(t('routeOnly', { n: l.name }))}</option>`).join('');
 }
 function renderApps(snap) {
@@ -908,11 +910,11 @@ function renderRules(snap) {
   const key = LANG + snap.links.map(l => l.name).join(',') + '|' + rules.map(r => r.app + ':' + r.link + ':' + r.limit).join(',');
   if (key === rulesKey) return;
   rulesKey = key;
-  $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc([r.link ? t('routeOnly', { n: r.link }) : '', r.limit ? t('limitMax', { n: r.limit }) : ''].filter(Boolean).join(' · '))}</span>
+  $('rules').innerHTML = rules.length ? rules.map(r => `<div class="rule-row"><b>${esc(r.app)}</b><span>${esc([r.link ? routeName(r.link) : '', r.limit ? t('limitMax', { n: r.limit }) : ''].filter(Boolean).join(' · '))}</span>
       <button class="btn ghost small" data-app="${esc(r.app)}" onclick="post('/api/rule?app=' + encodeURIComponent(this.dataset.app) + '&link=&all=1')">${t('ruleRemove')}</button></div>`).join('')
     : `<div class="empty">${t('rulesNone')}</div>`;
   const sel = $('ruleLink'), cur = sel.value;
-  sel.innerHTML = snap.links.map(l => `<option value="${esc(l.name)}">${esc(t('routeOnly', { n: l.name }))}</option>`).join('');
+  sel.innerHTML = snap.links.map(l => `<option value="${esc(l.name)}">${esc(t('routeOnly', { n: l.name }))}</option>`).join('') + `<option value="${PING}">${esc(t('routePing'))}</option>`;
   if (cur) sel.value = cur;
   $('appNames').innerHTML = (snap.apps || []).map(a => `<option value="${esc(a.name)}">`).join('');
 }

@@ -270,3 +270,34 @@ func TestAppLimit(t *testing.T) {
 		t.Fatal("game.exe missing from the stats")
 	}
 }
+
+// A "lowest ping" rule follows the link that answers fastest, whatever the
+// spare capacity, and never cuts the application off.
+func TestLowestPingRule(t *testing.T) {
+	a, b := links.New("a", net.IPv4(127, 0, 0, 1)), links.New("b", net.IPv4(127, 0, 0, 1))
+	a.SetLatencyMs(80)
+	b.SetLatencyMs(20)
+	s := &Server{Pool: links.PoolOf(a, b), Rules: func(app string) []string {
+		if app == "game.exe" {
+			return []string{LowestPing}
+		}
+		return nil
+	}}
+	b.Active.Add(50) // busy: the capacity-based choice would avoid it
+	if got := s.order("example.com", "443", "game.exe"); len(got) != 2 || got[0] != b {
+		t.Fatalf("lowest ping first, got %v", got)
+	}
+	a.SetLatencyMs(5)
+	if got := s.order("example.com", "443", "game.exe"); got[0] != a {
+		t.Fatalf("the order must follow the ping, got %v", got)
+	}
+	b.SetHealthy(false)
+	a.SetHealthy(false)
+	a.SetHealthy(true)
+	if got := s.order("example.com", "443", "game.exe"); len(got) != 1 || got[0] != a {
+		t.Fatalf("only the usable link, got %v", got)
+	}
+	if s.wantsLowPing("other.exe") || s.wantsLowPing("") || s.allowFor("game.exe") != nil {
+		t.Fatal("the rule applies to its application only, and does not restrict links")
+	}
+}

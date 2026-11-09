@@ -134,6 +134,20 @@ func (r *AppRegistry) Snapshot() []AppView {
 	return out
 }
 
+// LowestPing, in place of a link name in an application's rule, sends each new
+// connection of the application over the link that answers fastest at that
+// moment (games, calls), instead of the one with the most spare capacity.
+const LowestPing = "*ping"
+
+// wantsLowPing reports whether an application's rule asks for the lowest ping.
+func (s *Server) wantsLowPing(app string) bool {
+	if app == "" || app == UnknownApp || s.Rules == nil {
+		return false
+	}
+	names := s.Rules(app)
+	return len(names) > 0 && names[0] == LowestPing
+}
+
 // allowFor returns the filter of the links an application may use, or nil when
 // it is not restricted.
 func (s *Server) allowFor(app string) func(*links.Link) bool {
@@ -141,7 +155,7 @@ func (s *Server) allowFor(app string) func(*links.Link) bool {
 		return nil
 	}
 	names := s.Rules(app)
-	if len(names) == 0 {
+	if len(names) == 0 || names[0] == LowestPing {
 		return nil
 	}
 	return func(l *links.Link) bool {

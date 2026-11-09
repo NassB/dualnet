@@ -105,6 +105,7 @@
   "colRoute": "Nutzt",
   "routeAll": "Alle Verbindungen",
   "routeOnly": "Nur {n}",
+  "routePing": "Niedrigster Ping",
   "rulesTitle": "Regeln pro Anwendung",
   "rulesHead": "Eine Anwendung auf eine Verbindung beschränken",
   "rulesSub": "Beispiel: Ein Online-Spiel bleibt für einen stabilen Ping im WLAN, während deine Downloads alle Verbindungen nutzen. Ist die gewählte Verbindung getrennt, nutzt die Anwendung die anderen. Nur im transparenten Modus.",
