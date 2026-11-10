@@ -20,12 +20,14 @@ type appView struct {
 	PerLink []int64 `json:"perLink"` // bytes received through each link, in the order of the links list
 	Rule    string  `json:"rule"`    // link the application is restricted to ("" = none)
 	Limit   int     `json:"limit"`   // download cap in Mb/s (0 = none)
+	UpLimit int     `json:"upLimit"` // upload cap in Mb/s (0 = none)
 }
 
 type ruleView struct {
-	App   string `json:"app"`
-	Link  string `json:"link"`
-	Limit int    `json:"limit"`
+	App     string `json:"app"`
+	Link    string `json:"link"`
+	Limit   int    `json:"limit"`
+	UpLimit int    `json:"upLimit"`
 }
 
 // appViews turns the per-application counters into what the page shows. prev
@@ -46,6 +48,7 @@ func (s *Server) appViews(all []*links.Link, dt time.Duration, prev map[string]i
 		if s.Store != nil {
 			v.Rule = s.Store.RuleLink(a.Name)
 			v.Limit = s.Store.RuleLimit(a.Name)
+			v.UpLimit = s.Store.RuleUpLimit(a.Name)
 		}
 		out = append(out, v)
 	}
@@ -56,7 +59,7 @@ func (s *Server) ruleViews() []ruleView {
 	out := []ruleView{}
 	if s.Store != nil {
 		for _, r := range s.Store.Rules() {
-			out = append(out, ruleView{App: r.App, Link: r.Link, Limit: r.Limit})
+			out = append(out, ruleView{App: r.App, Link: r.Link, Limit: r.Limit, UpLimit: r.UpLimit})
 		}
 	}
 	return out
@@ -99,8 +102,8 @@ func (s *Server) setRule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// setAppLimit caps an application's download speed: ?app=<exe name>&mbps=<n>.
-// 0 removes the cap.
+// setAppLimit caps an application's download speed: ?app=<exe name>&mbps=<n>;
+// with dir=up it caps its upload speed instead. 0 removes the cap.
 func (s *Server) setAppLimit(w http.ResponseWriter, r *http.Request) {
 	app := strings.TrimSpace(r.URL.Query().Get("app"))
 	mbps, err := strconv.Atoi(r.URL.Query().Get("mbps"))
@@ -108,6 +111,14 @@ func (s *Server) setAppLimit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid value", http.StatusBadRequest)
 		return
 	}
-	s.Store.SetRuleLimit(app, mbps)
+	switch r.URL.Query().Get("dir") {
+	case "", "down":
+		s.Store.SetRuleLimit(app, mbps)
+	case "up":
+		s.Store.SetRuleUpLimit(app, mbps)
+	default:
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

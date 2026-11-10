@@ -224,6 +224,8 @@
     "speed test failed": "échec du test de vitesse"
   },
   "colLimit": "Vitesse max",
+  "colLimitUp": "Envoi max",
+  "limitMaxUp": "envoi max {n} Mb/s",
   "limitNone": "Sans limite",
   "limitMbps": "{n} Mb/s",
   "limitMax": "max {n} Mb/s"

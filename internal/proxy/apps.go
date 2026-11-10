@@ -22,31 +22,40 @@ type AppStats struct {
 	mu                          sync.Mutex
 	rxByLink                    map[string]int64
 
-	// download cap shared by all the application's connections: capOf gives the
-	// cap of an application in Mb/s (nil = no caps at all) and is asked again every second
-	capOf   func(app string) int
-	lim     ratelimit.Bucket
-	limAt   atomic.Int64
-	limMbps atomic.Int64
+	// speed caps shared by all the application's connections, one for what it
+	// downloads and one for what it uploads
+	down, up appCap
 }
 
-func (a *AppStats) refreshLimit() {
-	a.limAt.Store(time.Now().UnixNano())
-	if m := int64(a.capOf(a.Name)); m != a.limMbps.Swap(m) {
-		a.lim.Set(float64(m) * 1e6 / 8)
-	}
+// appCap is one speed cap of an application. of gives the cap in Mb/s (nil = no
+// cap at all) and is asked again every second, so a change made in the
+// interface applies to connections that are already open.
+type appCap struct {
+	of   func(app string) int
+	b    ratelimit.Bucket
+	at   atomic.Int64
+	mbps atomic.Int64
 }
 
-// throttle accounts n received bytes against the application's cap.
-func (a *AppStats) throttle(n int) {
-	if a.capOf == nil {
+// wait accounts n bytes against the cap, pausing the caller if it is exceeded.
+func (c *appCap) wait(app string, n int) {
+	if c.of == nil {
 		return
 	}
-	if time.Since(time.Unix(0, a.limAt.Load())) > time.Second {
-		a.refreshLimit()
+	if time.Since(time.Unix(0, c.at.Load())) > time.Second {
+		c.at.Store(time.Now().UnixNano())
+		if m := int64(c.of(app)); m != c.mbps.Swap(m) {
+			c.b.Set(float64(m) * 1e6 / 8)
+		}
 	}
-	a.lim.Wait(n)
+	c.b.Wait(n)
 }
+
+// throttle accounts n received bytes against the application's download cap.
+func (a *AppStats) throttle(n int) { a.down.wait(a.Name, n) }
+
+// throttleUp accounts n sent bytes against the application's upload cap.
+func (a *AppStats) throttleUp(n int) { a.up.wait(a.Name, n) }
 
 func (a *AppStats) touch()  { a.last.Store(time.Now().UnixNano()) }
 func (a *AppStats) opened() { a.active.Add(1); a.total.Add(1); a.touch() }
@@ -71,6 +80,7 @@ type AppView struct {
 	Rx, Tx   int64            // bytes received / sent
 	RxByLink map[string]int64 // bytes received through each link
 	Limit    int              // download cap in Mb/s (0 = none)
+	UpLimit  int              // upload cap in Mb/s (0 = none)
 }
 
 // AppRegistry holds the counters of every application seen recently.
@@ -84,17 +94,18 @@ func NewAppRegistry() *AppRegistry { return &AppRegistry{apps: map[string]*AppSt
 // Get returns (creating it if needed) the counters of an application. Names are
 // compared without regard to case; the first spelling seen is displayed.
 func (r *AppRegistry) Get(name string) *AppStats {
-	return r.get(name, nil)
+	return r.get(name, nil, nil)
 }
 
-// get is Get, giving a new application the function that reads its cap.
-func (r *AppRegistry) get(name string, capOf func(string) int) *AppStats {
+// get is Get, giving a new application the functions that read its caps.
+func (r *AppRegistry) get(name string, downOf, upOf func(string) int) *AppStats {
 	key := strings.ToLower(name)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a := r.apps[key]
 	if a == nil {
-		a = &AppStats{Name: name, rxByLink: map[string]int64{}, capOf: capOf}
+		a = &AppStats{Name: name, rxByLink: map[string]int64{}}
+		a.down.of, a.up.of = downOf, upOf
 		a.touch()
 		r.apps[key] = a
 	}
@@ -113,7 +124,7 @@ func (r *AppRegistry) Snapshot() []AppView {
 			delete(r.apps, k)
 			continue
 		}
-		v := AppView{Name: a.Name, Active: a.active.Load(), Total: a.total.Load(), Rx: a.rx.Load(), Tx: a.tx.Load(), RxByLink: map[string]int64{}, Limit: int(a.limMbps.Load())}
+		v := AppView{Name: a.Name, Active: a.active.Load(), Total: a.total.Load(), Rx: a.rx.Load(), Tx: a.tx.Load(), RxByLink: map[string]int64{}, Limit: int(a.down.mbps.Load()), UpLimit: int(a.up.mbps.Load())}
 		a.mu.Lock()
 		for l, b := range a.rxByLink {
 			v.RxByLink[l] = b

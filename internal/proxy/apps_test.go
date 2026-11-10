@@ -301,3 +301,44 @@ func TestLowestPingRule(t *testing.T) {
 		t.Fatal("the rule applies to its application only, and does not restrict links")
 	}
 }
+
+// An upload cap slows what the application sends, not what it receives.
+func TestAppUpLimit(t *testing.T) {
+	ln := echoServer(t)
+	defer ln.Close()
+	a := links.New("a", net.IPv4(127, 0, 0, 1))
+	s := &Server{Pool: links.PoolOf(a), AppUpLimit: func(app string) int {
+		if app == "game.exe" {
+			return 8 // Mb/s = 1 MB/s
+		}
+		return 0
+	}}
+	d := TunDialer{S: s, AppOf: fakeApps}
+
+	pump := func(srcPort uint16, size int) time.Duration {
+		t.Helper()
+		c, err := d.DialContext(context.Background(), tcpFlow(ln, srcPort))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		start := time.Now()
+		go func() { c.Write(make([]byte, size)) }()
+		buf := make([]byte, 32*1024)
+		for got := 0; got < size; {
+			c.SetReadDeadline(time.Now().Add(5 * time.Second))
+			n, err := c.Read(buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got += n
+		}
+		return time.Since(start)
+	}
+	if el := pump(1, 500_000); el < 300*time.Millisecond || el > 1200*time.Millisecond {
+		t.Fatalf("500 KB uploaded at 1 MB/s took %v, want ~0.5 s", el)
+	}
+	if el := pump(2, 500_000); el > 200*time.Millisecond {
+		t.Fatalf("an application without a cap took %v", el)
+	}
+}

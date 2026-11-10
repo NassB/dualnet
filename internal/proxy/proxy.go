@@ -34,6 +34,8 @@ type Server struct {
 	Rules func(app string) []string
 	// AppLimit returns an application's download cap in Mb/s (0 = none).
 	AppLimit func(app string) int
+	// AppUpLimit is the same for uploads: what the application sends.
+	AppUpLimit func(app string) int
 	// Apps counts the traffic per application (transparent mode).
 	Apps *AppRegistry
 	// Overflow reports whether a link only serves when the others are busy.

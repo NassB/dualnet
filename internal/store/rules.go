@@ -13,12 +13,15 @@ import (
 // link, each of its connections takes the link with the lowest ping.
 //
 // A rule can also cap the application's download speed (Limit, in Mb/s, over
-// all its connections together; 0 = no cap). A rule with neither a link nor a
-// cap does not exist.
+// all its connections together; 0 = no cap) and its upload speed the same way.
+// A rule with neither a link nor a cap does not exist.
 type Rule struct {
 	App   string `json:"app"`
 	Link  string `json:"link"`
 	Limit int    `json:"limit,omitempty"`
+	// UpLimit caps what the application sends (Mb/s, 0 = no cap): a backup or a
+	// sync must not fill the uplink while a call needs it.
+	UpLimit int `json:"upLimit,omitempty"`
 }
 
 // Rules returns the rules, in the order they were added.
@@ -61,6 +64,27 @@ func (s *Store) RuleLimit(app string) int {
 		}
 	}
 	return 0
+}
+
+// RuleUpLimit returns an application's upload cap in Mb/s (0 = none).
+func (s *Store) RuleUpLimit(app string) int {
+	app = strings.ToLower(app)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.settings.Rules {
+		if r.App == app {
+			return r.UpLimit
+		}
+	}
+	return 0
+}
+
+// SetRuleUpLimit caps an application's upload speed in Mb/s; 0 removes the cap.
+func (s *Store) SetRuleUpLimit(app string, mbps int) {
+	if mbps < 0 {
+		mbps = 0
+	}
+	s.update(app, func(r *Rule) { r.UpLimit = mbps })
 }
 
 // SetRule restricts an application to a link; an empty link removes the
@@ -109,7 +133,7 @@ func (s *Store) update(app string, edit func(*Rule)) {
 	}
 	kept := rules[:0:0]
 	for _, r := range rules {
-		if r.Link != "" || r.Limit > 0 {
+		if r.Link != "" || r.Limit > 0 || r.UpLimit > 0 {
 			kept = append(kept, r)
 		}
 	}

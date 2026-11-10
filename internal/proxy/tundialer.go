@@ -32,11 +32,11 @@ func (d TunDialer) app(md *M.Metadata) (string, *AppStats) {
 	if name == "" {
 		name = UnknownApp
 	}
-	var capOf func(string) int
+	var down, up func(string) int
 	if name != UnknownApp {
-		capOf = d.S.AppLimit
+		down, up = d.S.AppLimit, d.S.AppUpLimit
 	}
-	return name, d.S.Apps.get(name, capOf)
+	return name, d.S.Apps.get(name, down, up)
 }
 
 // DialContext opens a TCP connection to the destination over the best link the
@@ -100,11 +100,34 @@ func (c *activeConn) Read(p []byte) (int, error) {
 }
 
 func (c *activeConn) Write(p []byte) (int, error) {
-	n, err := c.Conn.Write(p)
-	if c.app != nil && n > 0 {
-		c.app.addTx(n)
+	if c.app == nil {
+		return c.Conn.Write(p)
 	}
-	return n, err
+	c.app.throttleUp(0) // refreshes the cap
+	if c.app.up.mbps.Load() == 0 {
+		n, err := c.Conn.Write(p)
+		if n > 0 {
+			c.app.addTx(n)
+		}
+		return n, err
+	}
+	// Capped: send in small pieces, each one paid for before it leaves, so that
+	// even one huge write cannot go out as a burst.
+	total := 0
+	for len(p) > 0 {
+		chunk := p[:min(len(p), 16<<10)]
+		c.app.throttleUp(len(chunk))
+		n, err := c.Conn.Write(chunk)
+		if n > 0 {
+			c.app.addTx(n)
+			total += n
+		}
+		if err != nil {
+			return total, err
+		}
+		p = p[n:]
+	}
+	return total, nil
 }
 
 func (c *activeConn) Close() error {
@@ -136,6 +159,9 @@ func (c *countingPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func (c *countingPacketConn) WriteTo(p []byte, a net.Addr) (int, error) {
+	if c.app != nil {
+		c.app.throttleUp(len(p)) // a datagram is one piece: pay before it leaves
+	}
 	n, err := c.PacketConn.WriteTo(p, a)
 	c.link.BytesOut.Add(int64(n))
 	if c.app != nil && n > 0 {

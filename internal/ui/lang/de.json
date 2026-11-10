@@ -224,6 +224,8 @@
     "speed test failed": "Geschwindigkeitstest fehlgeschlagen"
   },
   "colLimit": "Max. Tempo",
+  "colLimitUp": "Max. Upload",
+  "limitMaxUp": "max. Upload {n} Mb/s",
   "limitNone": "Unbegrenzt",
   "limitMbps": "{n} Mb/s",
   "limitMax": "max. {n} Mb/s"

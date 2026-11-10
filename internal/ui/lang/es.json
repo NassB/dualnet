@@ -224,6 +224,8 @@
     "speed test failed": "falló la prueba de velocidad"
   },
   "colLimit": "Vel. máx.",
+  "colLimitUp": "Subida máx.",
+  "limitMaxUp": "subida máx. {n} Mb/s",
   "limitNone": "Sin límite",
   "limitMbps": "{n} Mb/s",
   "limitMax": "máx. {n} Mb/s"

@@ -62,3 +62,30 @@ func TestRuleLimit(t *testing.T) {
 		t.Fatalf("empty rule kept: %+v", s.Rules())
 	}
 }
+
+func TestUpLimit(t *testing.T) {
+	s := Open(t.TempDir())
+	s.SetRuleUpLimit("Backup.exe", 5)
+	if s.RuleUpLimit("backup.exe") != 5 || s.RuleLimit("backup.exe") != 0 || s.RuleLink("backup.exe") != "" {
+		t.Fatal("the upload cap is independent of the download cap and the link")
+	}
+	s.SetRuleLimit("backup.exe", 20)
+	s.SetRule("backup.exe", "Wi-Fi")
+	s.SetRule("backup.exe", "")
+	if s.RuleUpLimit("backup.exe") != 5 || s.RuleLimit("backup.exe") != 20 {
+		t.Fatal("changing the link must keep both caps")
+	}
+	if s2 := Open(s.Dir); s2.RuleUpLimit("backup.exe") != 5 {
+		t.Fatal("the upload cap must survive a restart")
+	}
+	s.SetRuleLimit("backup.exe", 0)
+	s.SetRuleUpLimit("backup.exe", 0)
+	if len(s.Rules()) != 0 {
+		t.Fatal("a rule with nothing left is dropped")
+	}
+	s.SetRuleUpLimit("x.exe", 3)
+	s.RemoveRule("x.exe")
+	if s.RuleUpLimit("x.exe") != 0 {
+		t.Fatal("removing a rule removes its upload cap")
+	}
+}
