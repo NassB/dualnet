@@ -46,15 +46,15 @@ What to expect: because there is no server that merges the links back into one, 
 
 ## Download
 
-Get `dualnet.exe` from the [latest release](https://github.com/NassB/dualnet/releases/latest). It is a single file: run it where it is, or install it properly with `dualnet install` (administrator: copies it to Program Files, adds a Start Menu entry and an "Apps & features" entry; `dualnet uninstall` removes it again, see [Command line](#command-line)).
+Get `dualnet-<version>-b<build>-windows-amd64.exe` (for example `dualnet-v0.10.0-b57-windows-amd64.exe`) from the [latest release](https://github.com/NassB/dualnet/releases/latest). It is a single file: run it where it is, or install it properly with `dualnet install` (administrator: copies it to Program Files, adds a Start Menu entry and an "Apps & features" entry; `dualnet uninstall` removes it again, see [Command line](#command-line)).
 
 > The executable is not code-signed, so Windows SmartScreen may warn the first time: click **More info → Run anyway**. You can check the download against the published checksum and build attestation (see [Verifying a download](#verifying-a-download)), or build it yourself (see [Development](#development)).
 
-> **Linux and macOS (experimental):** each release also has `dualnet-linux-*` and `dualnet-darwin-*` binaries (amd64, arm64). Only the **proxy** (`dualnet proxy`), `get` and the web interface (`dualnet ui -open=false`, then open the printed address) are available. There is no transparent mode, per-application statistics, tray icon or installer outside Windows, and it is only lightly tested on those systems (the test suite runs on Linux and macOS in CI). Run `chmod +x` on the file first; on macOS you may need to clear the quarantine flag (`xattr -d com.apple.quarantine`).
+> **Linux and macOS (experimental):** each release also has `dualnet-<version>-b<build>-linux-<arch>` and `-darwin-<arch>` binaries (amd64, arm64). Only the **proxy** (`dualnet proxy`), `get` and the web interface (`dualnet ui -open=false`, then open the printed address) are available. There is no transparent mode, per-application statistics, tray icon or installer outside Windows, and it is only lightly tested on those systems (the test suite runs on Linux and macOS in CI). Run `chmod +x` on the file first; on macOS you may need to clear the quarantine flag (`xattr -d com.apple.quarantine`).
 
 ## Quick start
 
-Double-click `dualnet.exe`:
+Double-click the downloaded file (or `dualnet.exe` once installed):
 
 1. Windows asks for administrator rights (needed by transparent mode);
 2. **dualnet's window opens** (its own app window, no browser) and an icon appears in the notification area;
@@ -176,19 +176,19 @@ go test -tags integration -v ./integration   # administrator only: real install/
 GitHub Actions vets and tests every push on Windows, Linux and macOS with the newest Go, builds the release binaries, and runs `govulncheck`. The `integration` workflow (on demand and weekly) runs the administrator-only tests on a real Windows runner. To publish a release, push a version tag (higher than the [latest one](https://github.com/NassB/dualnet/releases/latest)):
 
 ```powershell
-git tag v0.9.0
-git push origin v0.9.0
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
-The workflow builds `dualnet.exe` with that version and, only after a green build, a separate job attaches it to a GitHub release with generated notes, together with its SHA-256 checksum and a build attestation. See [CONTRIBUTING](CONTRIBUTING.md).
+The workflow builds the program with that version and the run's build number (the files are named `dualnet-<version>-b<build>-<system>-<architecture>`, and `dualnet version` prints both) and, only after a green build, a separate job attaches it to a GitHub release with generated notes, together with its SHA-256 checksum and a build attestation. See [CONTRIBUTING](CONTRIBUTING.md).
 
 ## Verifying a download
 
-Each release has `dualnet.exe.sha256` next to `dualnet.exe`:
+Each release has a `.sha256` file next to each program (`...-windows-amd64.exe.sha256`, and one for the Linux and macOS files):
 
 ```powershell
-certutil -hashfile dualnet.exe SHA256        # compare with the file's content
-gh attestation verify dualnet.exe --repo NassB/dualnet     # needs the GitHub CLI
+certutil -hashfile dualnet-v0.10.0-b57-windows-amd64.exe SHA256        # compare with the file's content
+gh attestation verify dualnet-v0.10.0-b57-windows-amd64.exe --repo NassB/dualnet     # needs the GitHub CLI
 ```
 
 The attestation proves the file was built by this repository's GitHub Actions workflow.

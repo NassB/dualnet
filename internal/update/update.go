@@ -21,6 +21,7 @@ type Info struct {
 	Latest    string    `json:"latest"`
 	URL       string    `json:"url"`
 	CheckedAt time.Time `json:"checkedAt"`
+	Asset     string    `json:"-"` // the release's Windows program (see FindAsset), "" if none
 }
 
 // Checker polls the releases API.
@@ -74,6 +75,9 @@ func (c *Checker) Check(ctx context.Context) error {
 		URL        string `json:"html_url"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
+		Assets     []struct {
+			Name string `json:"name"`
+		} `json:"assets"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 1<<20)).Decode(&rel); err != nil {
 		return err
@@ -82,6 +86,11 @@ func (c *Checker) Check(ctx context.Context) error {
 	// Only ever offer a page of our own repository, whatever the API answers.
 	if !rel.Draft && !rel.Prerelease && strings.HasPrefix(rel.URL, "https://github.com/"+c.Repo+"/") && Newer(rel.Tag, c.Current) {
 		info.Available, info.URL = true, rel.URL
+		names := make([]string, len(rel.Assets))
+		for i, a := range rel.Assets {
+			names[i] = a.Name
+		}
+		info.Asset = FindAsset(names)
 	}
 	c.mu.Lock()
 	c.info = info

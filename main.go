@@ -35,6 +35,18 @@ import (
 // version is set at build time: go build -ldflags "-X main.version=v1.2.3".
 var version = "dev"
 
+// build is the CI build number, set at build time like version
+// (-X main.build=57); empty for a local build.
+var build = ""
+
+// versionLine is "v0.10.0 (build 57)", or just the version without a build number.
+func versionLine() string {
+	if build == "" {
+		return version
+	}
+	return version + " (build " + build + ")"
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `dualnet — combine several internet connections
 
@@ -72,7 +84,7 @@ func main() {
 		os.Exit(runUninstall(os.Args[2:]))
 
 	case "version", "-v", "--version":
-		fmt.Println("dualnet", version)
+		fmt.Println("dualnet", versionLine())
 
 	case "interfaces":
 		lines, err := links.ListAll()
@@ -252,7 +264,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Notify: notifier, Journal: journal, Autostart: autostartHooks(),
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: versionLine(), Update: checker, Notify: notifier, Journal: journal, Autostart: autostartHooks(),
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),

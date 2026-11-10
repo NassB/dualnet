@@ -66,6 +66,10 @@ func TestCheck(t *testing.T) {
 	if i, _ := run(rel("v0.3.0", good, ""), "v0.2.2", true); !i.Available || i.Latest != "v0.3.0" || i.URL != good {
 		t.Errorf("newer release not offered: %+v", i)
 	}
+	assets := `,"assets":[{"name":"dualnet-v0.3.0-b9-unix.sha256"},{"name":"dualnet-v0.3.0-b9-windows-amd64.exe"},{"name":"dualnet-v0.3.0-b9-windows-amd64.exe.sha256"}]`
+	if i, _ := run(rel("v0.3.0", good, assets), "v0.2.2", true); i.Asset != "dualnet-v0.3.0-b9-windows-amd64.exe" {
+		t.Errorf("the Windows program of the release was not found: %+v", i)
+	}
 	if i, _ := run(rel("v0.2.2", good, ""), "v0.2.2", true); i.Available {
 		t.Errorf("same version offered: %+v", i)
 	}

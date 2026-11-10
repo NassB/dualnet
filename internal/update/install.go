@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -28,8 +29,25 @@ import (
 
 const maxExe = 200 << 20 // far above any real build; stops a runaway download
 
-// asset is the file a release provides for this system.
-const asset = "dualnet.exe"
+// assetRE matches the Windows program of a release, named
+// dualnet-<version>-b<build>-windows-amd64.exe (digits only in the build number,
+// so the name is safe to put in a URL). Releases before v0.10.0 called it
+// plain dualnet.exe.
+var assetRE = regexp.MustCompile(`^dualnet-v[0-9]+\.[0-9]+\.[0-9]+-b[0-9]+-windows-amd64\.exe$`)
+
+// FindAsset returns the Windows program among a release's file names ("" if none).
+func FindAsset(names []string) string {
+	legacy := ""
+	for _, n := range names {
+		if assetRE.MatchString(n) {
+			return n
+		}
+		if n == "dualnet.exe" {
+			legacy = n
+		}
+	}
+	return legacy
+}
 
 // Fetch downloads the latest release's program next to exe as exe+".new" and
 // returns that path once its checksum is verified.
@@ -45,7 +63,10 @@ func (c *Checker) Fetch(ctx context.Context, exe string) (string, error) {
 	if base == "" {
 		base = "https://github.com"
 	}
-	url := base + "/" + c.Repo + "/releases/download/" + info.Latest + "/" + asset
+	if info.Asset == "" || (info.Asset != "dualnet.exe" && !assetRE.MatchString(info.Asset)) {
+		return "", errors.New("this release has no Windows program to install")
+	}
+	url := base + "/" + c.Repo + "/releases/download/" + info.Latest + "/" + info.Asset
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
