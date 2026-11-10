@@ -136,6 +136,9 @@ func (p *Pool) wanted(name string, ip net.IP) bool {
 	if len(p.selectors) > 0 {
 		return matches(p.selectors, name, ip)
 	}
+	if isHotspot(name, ip) {
+		return false
+	}
 	lname := strings.ToLower(name)
 	for _, s := range skipNames {
 		if strings.Contains(lname, s) {

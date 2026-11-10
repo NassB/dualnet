@@ -103,6 +103,18 @@ func newLink(name string, ip net.IP) *Link {
 
 var skipNames = []string{"dualnet", "wintun", "loopback", "vethernet", "virtualbox", "vmware", "hyper-v", "bluetooth", "wsl", "tailscale", "zerotier", "wireguard", "openvpn", "tap-"}
 
+// isHotspot reports whether an interface is Windows' own mobile hotspot or
+// Internet Connection Sharing side: dualnet would share a connection with the
+// very devices it serves, and the interface never reaches the internet by itself.
+// The virtual Wi-Fi Direct adapters are named "Local Area Connection* N"
+// (in French "Connexion au réseau local* N"); the sharing address is always
+// 192.168.137.1. An interface chosen by name or address (-if) is never refused.
+func isHotspot(name string, ip net.IP) bool {
+	l := strings.ToLower(name)
+	return strings.Contains(l, "local area connection*") || strings.Contains(l, "réseau local*") ||
+		strings.Contains(l, "wi-fi direct") || ip.Equal(net.IPv4(192, 168, 137, 1))
+}
+
 // Discover returns the links to use. If selectors is non-empty, it is a list of
 // interface names or IPv4 addresses (case-insensitive); otherwise all plausible
 // physical interfaces with an IPv4 address are returned.

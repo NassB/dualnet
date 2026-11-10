@@ -104,3 +104,30 @@ func TestCloseStalled(t *testing.T) {
 		t.Fatalf("%d connections tracked, want 1", l.Busy(time.Minute))
 	}
 }
+
+func TestHotspotIsNotALink(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		ip   net.IP
+		want bool
+	}{
+		{"Connexion au réseau local* 2", net.IPv4(192, 168, 137, 1), true},
+		{"Local Area Connection* 10", net.IPv4(10, 0, 0, 2), true},
+		{"Microsoft Wi-Fi Direct Virtual Adapter", net.IPv4(10, 0, 0, 2), true},
+		{"Ethernet 3", net.IPv4(192, 168, 137, 1), true},
+		{"Wi-Fi", net.IPv4(192, 168, 1, 20), false},
+		{"Ethernet 2", net.IPv4(10, 95, 82, 157), false},
+	} {
+		if got := isHotspot(c.name, c.ip); got != c.want {
+			t.Errorf("isHotspot(%q, %v) = %v, want %v", c.name, c.ip, got, c.want)
+		}
+	}
+	p := &Pool{}
+	if p.wanted("Connexion au réseau local* 2", net.IPv4(192, 168, 137, 1)) {
+		t.Fatal("the hotspot must not be a link")
+	}
+	chosen := &Pool{selectors: []string{"Ethernet 3"}}
+	if !chosen.wanted("Ethernet 3", net.IPv4(192, 168, 137, 1)) {
+		t.Fatal("an interface chosen by name is always used")
+	}
+}
