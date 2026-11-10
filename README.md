@@ -97,7 +97,7 @@ The interface has four pages:
 - **Updates**: once a day dualnet asks GitHub for the latest release and shows a banner (it can be turned off in Settings). Nothing is downloaded or installed until you press **Install**: dualnet then downloads the release, checks it against its published SHA-256, replaces itself and restarts. Started from a console (`dualnet ui`), the button opens the release page instead.
 - **Installation check**: `dualnet doctor`, or Settings → Diagnostics → *Run checks*. It looks at administrator rights, each link and its internet access, Windows' Wi‑Fi policy, the virtual adapter, a Windows proxy left pointing at a stopped dualnet, DNS, WebView2 and where the elevated program lives. Fixable problems get a button; nothing is changed without a click.
 - **Diagnostics**: Settings can show the log live and copy a bug-report text (version, checks, links, last log lines). Check it before sharing: it lists your network interface names and addresses.
-- **History**: data per link and per day (30 days shown, one year kept). Export CSV or JSON from the History page.
+- **History**: data per link and per day (30 days shown, one year kept). Export CSV or JSON from the History page. Under the table, the **link events** list shows when each link was set aside, came back, was unplugged or went over budget.
 - **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows.
 
 Data and settings: `%APPDATA%\dualnet` (`history.json`, `settings.json`, `dualnet.log`). Set the `DUALNET_DATA` environment variable to use another folder. A settings file dualnet cannot read is kept as `settings.json.bad` instead of being overwritten.

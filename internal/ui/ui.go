@@ -49,6 +49,8 @@ type Server struct {
 	Native bool
 	// Restart starts the program again and stops this one, after an update
 	// replaced the executable (nil = the interface cannot install updates).
+	// Journal receives the link events to show in the History page (nil = none).
+	Journal  *Journal
 	Restart  func() error
 	updating atomic.Bool
 	// OnSettings is called after a setting changed in the UI (to save it).
@@ -109,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/log", s.getLog)
 	mux.HandleFunc("POST /api/logfolder", s.openLogFolder)
 	mux.HandleFunc("GET /api/history", s.getHistory)
+	mux.HandleFunc("GET /api/journal", s.getJournal)
 	return guard(mux)
 }
 

@@ -18,6 +18,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 |---|---|
 | `GET /api/events` | live state, one JSON snapshot every 500 ms (server-sent events) |
 | `GET /api/history?days=30&format=json\|csv` | traffic per day and link (`days` 1-366; `csv` is a download) |
+| `GET /api/journal` | the last 200 link events since dualnet started (set aside, back, unplugged, over budget), most recent first |
 | `GET /api/domainrules` | the domain rules |
 | `GET /api/profiles` | the profile names |
 | `GET /api/doctor` | the installation checks |

@@ -222,7 +222,9 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 	}
 	prevChange := pool.OnChange
 	notifier := &notify.Notifier{Enabled: st.NotifyEnabled, French: windowsFrench}
+	journal := &ui.Journal{}
 	pool.OnChange = func(l *links.Link, ev string) {
+		journal.Add(l.Name, ev)
 		if ev == links.EventAdded {
 			st.ApplyLimit(l)
 			seedSpeed(l)
@@ -250,7 +252,7 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 			return nil, err
 		}
 	}
-	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Notify: notifier, Autostart: autostartHooks(),
+	srv := &ui.Server{Pool: pool, ProxyAddr: cfg.proxyAddr, OutDir: cfg.dir, Tun: tun, Store: st, Version: version, Update: checker, Notify: notifier, Journal: journal, Autostart: autostartHooks(),
 		OnSettings: func() { st.RememberLimits(pool.All()) }}
 	return &uiApp{
 		url:   "http://" + ln.Addr().String(),

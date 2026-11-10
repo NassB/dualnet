@@ -312,6 +312,8 @@ td.r, th.r { text-align: right; }
         <a class="btn ghost small" href="/api/history?days=366&amp;format=json" download="dualnet-history.json" data-i18n="exportJSON"></a>
       </div>
       <div class="card"><div id="history" class="empty" data-i18n="loading"></div></div>
+      <h2 data-i18n="journalTitle"></h2>
+      <div class="card"><div id="journal" class="empty" data-i18n="loading"></div></div>
     </section>
 
     <!-- ================= SETTINGS ================= -->
@@ -519,7 +521,7 @@ function show(page) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
   try { localStorage.setItem('page', page); } catch (e) {}
-  if (page === 'history') loadHistory();
+  if (page === 'history') { loadHistory(); loadJournal(); }
   if (page === 'home') requestAnimationFrame(resize);
 }
 document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => show(b.dataset.page)));
@@ -1063,7 +1065,22 @@ async function loadHistory() {
       }).join('') + '</table>';
   } catch (e) { /* server not ready */ }
 }
-setInterval(() => { if ($('page-history').classList.contains('active')) loadHistory(); }, 30000);
+const JOURNAL_KEYS = { 'added': 'evAdded', 'reconnected': 'evReconnected', 'disconnected': 'evDisconnected', 'answering again': 'evAnswering',
+  'not answering (skipped)': 'evNotAnswering', 'budget warning': 'evBudgetWarn', 'over budget (skipped)': 'evOverBudget',
+  'budget available again': 'evBudgetOK', 'over budget (kept)': 'evBudgetKept' };
+async function loadJournal() {
+  try {
+    const list = await (await fetch('/api/journal')).json();
+    const el = $('journal');
+    if (!list.length) { el.className = 'empty'; el.textContent = t('journalNone'); return; }
+    el.className = '';
+    el.innerHTML = '<table>' + list.slice(0, 100).map(e => {
+      const when = new Date(e.at).toLocaleString(LANG, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `<tr><td>${esc(when)}</td><td><b>${esc(e.link)}</b></td><td>${esc(t(JOURNAL_KEYS[e.event] || 'evOther', { e: e.event }))}</td></tr>`;
+    }).join('') + '</table>';
+  } catch (e) { /* server not ready */ }
+}
+setInterval(() => { if ($('page-history').classList.contains('active')) { loadHistory(); loadJournal(); } }, 30000);
 
 // ---------- live stream ----------
 function connect() {
