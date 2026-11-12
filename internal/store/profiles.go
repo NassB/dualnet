@@ -76,7 +76,13 @@ func (s *Store) SaveProfile(name string) bool {
 // DeleteProfile removes a profile.
 func (s *Store) DeleteProfile(name string) {
 	s.mu.Lock()
-	delete(s.settings.Profiles, strings.TrimSpace(name))
+	name = strings.TrimSpace(name)
+	delete(s.settings.Profiles, name)
+	for ssid, p := range s.settings.WifiProfiles { // a rule must not point to a profile that is gone
+		if p == name {
+			delete(s.settings.WifiProfiles, ssid)
+		}
+	}
 	s.mu.Unlock()
 	s.Save()
 }

@@ -396,3 +396,43 @@ func TestRoleEndpoint(t *testing.T) {
 		t.Fatal("back to normal not applied")
 	}
 }
+
+func TestWifiProfileEndpoints(t *testing.T) {
+	st := store.Open(t.TempDir())
+	st.SaveProfile("Home")
+	srv := httptest.NewServer((&Server{Store: st, Pool: links.PoolOf(), CurrentSSID: func() string { return "Home Net" }}).Handler())
+	defer srv.Close()
+	call := func(method, path string, header bool) (int, string) {
+		req, _ := http.NewRequest(method, srv.URL+path, nil)
+		req.Host = "127.0.0.1"
+		if header {
+			req.Header.Set("X-Dualnet", "1")
+		}
+		r, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Body.Close()
+		b, _ := io.ReadAll(r.Body)
+		return r.StatusCode, string(b)
+	}
+	if c, _ := call("POST", "/api/wifiprofile?ssid=Home+Net&profile=Home", false); c != 403 || st.WifiProfile("Home Net") != "" {
+		t.Fatal("changed without the header")
+	}
+	if c, _ := call("POST", "/api/wifiprofile?ssid=Home+Net&profile=Nope", true); c != 404 {
+		t.Fatalf("unknown profile: %d", c)
+	}
+	if c, _ := call("POST", "/api/wifiprofile?ssid=&profile=Home", true); c != 400 {
+		t.Fatalf("empty network name: %d", c)
+	}
+	if c, _ := call("POST", "/api/wifiprofile?ssid=Home+Net&profile=Home", true); c != 204 || st.WifiProfile("Home Net") != "Home" {
+		t.Fatal("rule not saved")
+	}
+	c, body := call("GET", "/api/wifi", false)
+	if c != 200 || !strings.Contains(body, `"current":"Home Net"`) || !strings.Contains(body, `"profile":"Home"`) {
+		t.Fatalf("%d %s", c, body)
+	}
+	if c, _ := call("POST", "/api/wifiprofile?ssid=Home+Net&profile=", true); c != 204 || st.WifiProfile("Home Net") != "" {
+		t.Fatal("rule not removed")
+	}
+}

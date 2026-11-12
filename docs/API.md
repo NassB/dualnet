@@ -21,6 +21,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | `GET /api/journal` | the last 200 link events since dualnet started (set aside, back, unplugged, over budget), most recent first |
 | `GET /api/domainrules` | the domain rules |
 | `GET /api/profiles` | the profile names |
+| `GET /api/wifi` | the Wi-Fi network the PC is on (`current`, "" = none) and the rules that apply a profile by network |
 | `GET /api/doctor` | the installation checks |
 | `GET /api/diagnostics`, `GET /api/log` | the bug-report text, the log |
 
@@ -38,6 +39,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | `POST /api/applimit?app=<exe>&mbps=<n>[&dir=up]` | download cap of a program, or its upload cap with `dir=up` (0 = none) |
 | `POST /api/domainrule?domain=<name>&link=<name>` | send a domain (and subdomains) over a link (empty `link` removes the rule) |
 | `POST /api/profile?name=<name>&action=save\|apply\|delete` | save, apply or delete a profile |
+| `POST /api/wifiprofile?ssid=<network>&profile=<name>` | apply a profile by itself when the PC joins a Wi-Fi network (empty `profile` removes the rule) |
 | `POST /api/speedtest?link=<name>` | measure one link |
 | `POST /api/update/install` | download the newer release found by the daily check, verify its checksum, replace the program and restart (app mode on Windows only; `501` otherwise) |
 | `POST /api/download` (JSON body `{"url": "...", "workers": 4}`), `/api/cancel?id=<n>`, `/api/reveal?id=<n>` | multi-link downloads |

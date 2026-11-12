@@ -390,6 +390,13 @@ td.r, th.r { text-align: right; }
         <h2 data-i18n="profilesTitle"></h2>
         <p class="howto" data-i18n="profilesHelp"></p>
         <div id="profiles"></div>
+        <div class="howto" style="margin-top:14px"><b data-i18n="wifiTitle"></b><br><span data-i18n="wifiHelp"></span></div>
+        <div id="wifiRules"></div>
+        <form class="rule-add" id="wifiForm">
+          <input id="wifiSsid" type="text" maxlength="32" required data-i18n-ph="wifiPlaceholder" autocomplete="off">
+          <select id="wifiProfile"></select>
+          <button class="btn small" type="submit" data-i18n="save"></button>
+        </form>
         <form class="rule-add" id="profileForm">
           <input id="profileName" type="text" maxlength="40" required data-i18n-ph="profilePlaceholder">
           <button class="btn small" type="submit" data-i18n="save"></button>
@@ -1052,8 +1059,33 @@ async function loadNamedSettings() {
       });
       row.append(label, apply, remove); profileBox.append(row);
     }
+    const w = await (await fetch('/api/wifi')).json();
+    const wifiBox = $('wifiRules');
+    wifiBox.replaceChildren();
+    for (const rule of w.rules) {
+      const row = document.createElement('div'); row.className = 'rule-row';
+      const net = document.createElement('b'); net.textContent = rule.ssid;
+      const prof = document.createElement('span'); prof.textContent = '→ ' + rule.profile;
+      const remove = document.createElement('button'); remove.className = 'btn ghost small'; remove.textContent = t('ruleRemove');
+      remove.addEventListener('click', async () => {
+        if (await post('/api/wifiprofile?profile=&ssid=' + encodeURIComponent(rule.ssid))) await loadNamedSettings();
+      });
+      row.append(net, prof, remove); wifiBox.append(row);
+    }
+    const input = $('wifiSsid');
+    if (w.current && !input.value) input.value = w.current; // the network the PC is on now
+    const sel = $('wifiProfile'), chosen = sel.value;
+    sel.replaceChildren(...profiles.map(n => new Option(n, n)));
+    if (chosen) sel.value = chosen;
+    $('wifiForm').hidden = !profiles.length;
   } catch (e) { toast(String(e)); }
 }
+$('wifiForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (await post('/api/wifiprofile?ssid=' + encodeURIComponent($('wifiSsid').value.trim()) + '&profile=' + encodeURIComponent($('wifiProfile').value))) {
+    $('wifiSsid').value = ''; await loadNamedSettings();
+  }
+});
 $('domainForm').addEventListener('submit', async e => {
   e.preventDefault();
   const domain = $('domainName').value.trim(), link = $('domainLink').value;
@@ -1107,7 +1139,7 @@ async function loadJournal() {
     el.className = '';
     el.innerHTML = '<table>' + list.slice(0, 100).map(e => {
       const when = new Date(e.at).toLocaleString(LANG, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return `<tr><td>${esc(when)}</td><td><b>${esc(e.link)}</b></td><td>${esc(t(JOURNAL_KEYS[e.event] || 'evOther', { e: e.event }))}</td></tr>`;
+      return `<tr><td>${esc(when)}</td><td><b>${esc(e.link)}</b></td><td>${esc(e.event.startsWith('profile:') ? t('evProfile', { n: e.event.slice(8) }) : t(JOURNAL_KEYS[e.event] || 'evOther', { e: e.event }))}</td></tr>`;
     }).join('') + '</table>';
   } catch (e) { /* server not ready */ }
 }

@@ -44,6 +44,8 @@ type Settings struct {
 	DomainRules []DomainRule `json:"domainRules,omitempty"`
 	// BudgetWarnPercent: when a link has used this share of its budget, warn (0 = 80).
 	BudgetWarnPercent int `json:"budgetWarnPercent,omitempty"`
+	// WifiProfiles: Wi-Fi network name -> profile applied when the PC joins it.
+	WifiProfiles map[string]string `json:"wifiProfiles,omitempty"`
 	// Profiles: named snapshots of the routing choices (see profiles.go).
 	Profiles map[string]Profile `json:"profiles,omitempty"`
 	// Budgets: monthly data budget per link in GB (absent = none).

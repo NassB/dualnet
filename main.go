@@ -30,6 +30,7 @@ import (
 	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/ui"
 	"github.com/NassB/dualnet/internal/update"
+	"github.com/NassB/dualnet/internal/wifi"
 )
 
 // version is set at build time: go build -ldflags "-X main.version=v1.2.3".
@@ -245,6 +246,10 @@ func startUI(ctx context.Context, cfg uiConfig) (*uiApp, error) {
 		notifier.LinkEvent(l.Name, ev, len(pool.Up()))
 	}
 	go st.Run(ctx, pool)
+	go st.FollowWifi(ctx, pool, 10*time.Second, wifi.CurrentSSID, func(ssid, profile string) {
+		log.Printf("Wi-Fi %q: profile %q applied", ssid, profile)
+		journal.Add(ssid, "profile:"+profile)
+	})
 	checker := &update.Checker{Current: version, Repo: "NassB/dualnet", Enabled: st.UpdateCheckEnabled}
 	go checker.Run(ctx, 24*time.Hour)
 	tun := &ui.TunControl{Proxy: p}

@@ -49,6 +49,8 @@ type Server struct {
 	Native bool
 	// Restart starts the program again and stops this one, after an update
 	// replaced the executable (nil = the interface cannot install updates).
+	// CurrentSSID returns the Wi-Fi network name ("" = none); nil = ask Windows.
+	CurrentSSID func() string
 	// Journal receives the link events to show in the History page (nil = none).
 	Journal  *Journal
 	Restart  func() error
@@ -93,6 +95,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/applimit", s.setAppLimit)
 	mux.HandleFunc("GET /api/profiles", s.getProfiles)
 	mux.HandleFunc("POST /api/profile", s.profile)
+	mux.HandleFunc("GET /api/wifi", s.getWifi)
+	mux.HandleFunc("POST /api/wifiprofile", s.setWifiProfile)
 	mux.HandleFunc("GET /api/domainrules", s.getDomainRules)
 	mux.HandleFunc("POST /api/domainrule", s.setDomainRule)
 	mux.HandleFunc("GET /api/doctor", s.getDoctor)
