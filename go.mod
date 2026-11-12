@@ -3,7 +3,7 @@ module github.com/NassB/dualnet
 go 1.26.0
 
 require (
-	fyne.io/systray v1.11.0
+	fyne.io/systray v1.12.2
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
 	golang.org/x/net v0.60.0
