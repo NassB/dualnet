@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestNewer(t *testing.T) {
@@ -89,5 +90,32 @@ func TestCheck(t *testing.T) {
 	// disabled: no request at all
 	if _, hits := run(rel("v0.3.0", good, ""), "v0.2.2", false); hits != 0 {
 		t.Errorf("disabled checker made %d requests", hits)
+	}
+}
+
+// A check that fails at startup is tried again soon, not a day later.
+func TestRunRetriesAfterFailure(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) <= 2 {
+			http.Error(w, "network not ready", http.StatusBadGateway)
+			return
+		}
+		fmt.Fprint(w, `{"tag_name":"v0.3.0","html_url":"https://github.com/NassB/dualnet/releases/tag/v0.3.0"}`)
+	}))
+	defer srv.Close()
+	c := &Checker{Current: "v0.2.0", Repo: "NassB/dualnet", API: srv.URL, FirstDelay: time.Millisecond, RetryMin: 5 * time.Millisecond}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx, time.Hour)
+	for i := 0; i < 200 && !c.Info().Available; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !c.Info().Available || hits.Load() != 3 {
+		t.Fatalf("after %d requests: %+v", hits.Load(), c.Info())
+	}
+	time.Sleep(100 * time.Millisecond)
+	if hits.Load() != 3 {
+		t.Fatalf("a successful check must wait for the next interval, but %d requests were made", hits.Load())
 	}
 }

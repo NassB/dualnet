@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,7 +33,10 @@ type Checker struct {
 	// Download is the base URL release files are fetched from when the user
 	// installs an update (default https://github.com; tests point it elsewhere).
 	Download string
-	Enabled  func() bool
+	// FirstDelay and RetryMin set when the first check runs (default 20 s) and
+	// how soon a failed one is tried again (default 1 min); tests shorten them.
+	FirstDelay, RetryMin time.Duration
+	Enabled              func() bool
 
 	mu   sync.Mutex
 	info Info
@@ -98,19 +102,37 @@ func (c *Checker) Check(ctx context.Context) error {
 	return nil
 }
 
-// Run checks at startup (after a short delay) and then every interval.
+// Run checks at startup (after a short delay) and then every interval. A check
+// that fails (the network is not ready right after Windows starts, a link is
+// still coming up) is tried again after a minute, then 2, 4… up to an hour, so
+// that the banner does not wait a whole day for a bad moment.
 func (c *Checker) Run(ctx context.Context, every time.Duration) {
+	first, retry := c.FirstDelay, c.RetryMin
+	if first == 0 {
+		first = 20 * time.Second
+	}
+	if retry == 0 {
+		retry = time.Minute
+	}
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(20 * time.Second):
+	case <-time.After(first):
 	}
+	wait := retry
 	for {
-		c.Check(ctx) // errors (offline…) are not worth reporting
+		next := every
+		if err := c.Check(ctx); err != nil {
+			log.Printf("update check: %v (trying again in %v)", err, wait.Round(time.Second))
+			next = wait
+			wait = min(wait*2, max(time.Hour, retry))
+		} else {
+			wait = retry
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(every):
+		case <-time.After(next):
 		}
 	}
 }
