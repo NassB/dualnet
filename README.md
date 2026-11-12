@@ -143,6 +143,17 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPo
 
 </details>
 
+## A program loses its connection when I quit dualnet?
+
+<details>
+<summary>Show details</summary>
+
+Connections that are open when dualnet stops are cut: a browser reconnects by itself, a download without resume or an online game does not.
+
+If a program stays offline until you restart it, it was set to dualnet's proxy (`127.0.0.1:1080`, from the Windows proxy or from its own settings) and keeps that address in memory. dualnet puts the Windows setting back when it quits, but it cannot change what another program remembers, and it cannot see inside the private settings of a packaged (Microsoft Store style) application. Restart the program, or use **transparent mode** (administrator): programs then see no proxy at all and simply reconnect. While dualnet is off but a program still uses its proxy, the dashboard says so ("dualnet is off, but its proxy is in use").
+
+</details>
+
 ## Transparent mode: details
 
 <details>

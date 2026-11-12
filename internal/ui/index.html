@@ -453,6 +453,10 @@ td.r, th.r { text-align: right; }
           <div class="txt"><div class="title" data-i18n="chkTitle"></div><div class="sub" data-i18n="chkSub"></div></div>
           <button class="btn ghost small" id="chkRun" data-i18n="chkRun"></button>
         </div>
+        <div class="setting">
+          <div class="txt"><div class="title" data-i18n="welcomeAgainTitle"></div><div class="sub" data-i18n="welcomeAgainSub"></div></div>
+          <button class="btn ghost small" id="welcomeAgain" data-i18n="welcomeAgain"></button>
+        </div>
         <div id="chkList"></div>
         <pre class="log" id="logView" hidden></pre>
       </div>
@@ -565,7 +569,9 @@ function renderHome(snap) {
   const p = snap.power || {};
   const nUp = snap.links.filter(l => l.up).length;
   $('welcome').hidden = !!snap.welcomed;
-  $('welcomeNow').textContent = nUp >= 2 ? t('welcomeLinks', { n: nUp }) : t('welcomeOneLink');
+  // with a single link the orange warning below already says what to do
+  $('welcomeNow').hidden = nUp < 2;
+  if (nUp >= 2) $('welcomeNow').textContent = t('welcomeLinks', { n: nUp });
   const manual = snap.os !== 'windows';
   const up = snap.links.filter(l => l.up && l.healthy && !l.overBudget);
   const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
@@ -820,6 +826,9 @@ $('chkRun').addEventListener('click', async () => {
   const b = $('chkRun'); b.disabled = true; b.textContent = t('chkRunning');
   await loadDoctor();
   b.disabled = false; b.textContent = t('chkRun');
+});
+$('welcomeAgain').addEventListener('click', async () => {
+  if (await post('/api/welcome?done=0')) { $('welcome').hidden = false; show('home'); }
 });
 $('welcomeGot').addEventListener('click', async () => { await post('/api/welcome?done=1'); $('welcome').hidden = true; });
 $('onbRecheck').addEventListener('click', loadDoctor);
