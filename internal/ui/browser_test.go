@@ -166,12 +166,29 @@ func startBrowser(t *testing.T, exe string) *cdp {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
+	// Not t.TempDir(): the browser's helper processes may still be writing into
+	// the profile for a moment after it is killed, which would fail the test's
+	// cleanup. The folder is removed with a few retries and a failure is ignored.
+	profile, err := os.MkdirTemp("", "dualnet-browser-")
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(exe, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--disable-extensions",
-		fmt.Sprintf("--remote-debugging-port=%d", port), "--remote-allow-origins=*", "--user-data-dir="+t.TempDir(), "about:blank")
+		fmt.Sprintf("--remote-debugging-port=%d", port), "--remote-allow-origins=*", "--user-data-dir="+profile, "about:blank")
 	if err := cmd.Start(); err != nil {
+		os.RemoveAll(profile)
 		t.Skipf("cannot start %s: %v", exe, err)
 	}
-	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	t.Cleanup(func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+		for i := 0; i < 30; i++ {
+			if os.RemoveAll(profile) == nil {
+				return
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	})
 
 	var wsURL string
 	for i := 0; i < 100 && wsURL == ""; i++ {
