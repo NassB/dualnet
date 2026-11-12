@@ -272,6 +272,20 @@ func TestDoctorEndpointAndOnboarding(t *testing.T) {
 	if post("/api/onboarding?done=0", true) != 204 || st.OnboardingDone() {
 		t.Fatal("the checklist could not be shown again")
 	}
+
+	// the welcome card is separate from the checklist
+	if st.Welcomed() {
+		t.Fatal("the welcome card must show on a fresh install")
+	}
+	if post("/api/welcome?done=1", false) != 403 || st.Welcomed() {
+		t.Fatal("welcome changed without the header")
+	}
+	if post("/api/welcome?done=1", true) != 204 || !st.Welcomed() || st.OnboardingDone() {
+		t.Fatal("dismissing the welcome card did not stick, or touched the checklist")
+	}
+	if post("/api/welcome?done=0", true) != 204 || st.Welcomed() {
+		t.Fatal("the welcome card could not be shown again")
+	}
 }
 
 func TestSpeedTestEndpoint(t *testing.T) {

@@ -162,6 +162,12 @@ form.rule-add input { flex: 1 1 200px; min-width: 0; background: var(--panel2); 
 .log { margin: 4px 0 0; max-height: 300px; overflow: auto; background: var(--panel2); border: 1px solid var(--border);
   border-radius: 10px; padding: 10px 12px; font: 12px/1.5 "Cascadia Code", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .onboard { margin-bottom: 14px; }
+.welcome { margin-bottom: 14px; }
+.welcome-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 12px 0; }
+.welcome-grid b { display: block; margin-bottom: 4px; }
+.welcome-grid p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.welcome-now { font-size: 13px; margin-bottom: 12px; }
+@media (max-width: 760px) { .welcome-grid { grid-template-columns: 1fr; } }
 .chk { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
 .chk:first-child { border-top: 0; }
 .chk .ico { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
@@ -239,6 +245,17 @@ td.r, th.r { text-align: right; }
     <!-- ================= HOME ================= -->
     <section class="page active" id="page-home">
       <div class="info-banner" id="updBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span id="updText"></span><button class="btn small" id="updBtn"></button></div>
+      <div class="card welcome" id="welcome" hidden>
+        <h2 data-i18n="welcomeTitle"></h2>
+        <div class="howto" data-i18n="welcomeLead"></div>
+        <div class="welcome-grid">
+          <div><b data-i18n="welcomeDoesT"></b><p data-i18n="welcomeDoes"></p></div>
+          <div><b data-i18n="welcomeNotT"></b><p data-i18n="welcomeNot"></p></div>
+          <div><b data-i18n="welcomeStartT"></b><p data-i18n="welcomeStart"></p></div>
+        </div>
+        <div class="welcome-now" id="welcomeNow"></div>
+        <button class="btn small" id="welcomeGot" data-i18n="welcomeGot"></button>
+      </div>
       <div class="card onboard" id="onboard" hidden>
         <div class="chart-head">
           <h2 data-i18n="onbTitle"></h2>
@@ -546,6 +563,9 @@ function setH(e, html) { // set innerHTML only when it changed
 // ---------- home ----------
 function renderHome(snap) {
   const p = snap.power || {};
+  const nUp = snap.links.filter(l => l.up).length;
+  $('welcome').hidden = !!snap.welcomed;
+  $('welcomeNow').textContent = nUp >= 2 ? t('welcomeLinks', { n: nUp }) : t('welcomeOneLink');
   const manual = snap.os !== 'windows';
   const up = snap.links.filter(l => l.up && l.healthy && !l.overBudget);
   const total = snap.links.reduce((a, l) => a + l.rxMbps, 0);
@@ -801,6 +821,7 @@ $('chkRun').addEventListener('click', async () => {
   await loadDoctor();
   b.disabled = false; b.textContent = t('chkRun');
 });
+$('welcomeGot').addEventListener('click', async () => { await post('/api/welcome?done=1'); $('welcome').hidden = true; });
 $('onbRecheck').addEventListener('click', loadDoctor);
 $('onbDismiss').addEventListener('click', async () => { await post('/api/onboarding?done=1'); $('onboard').hidden = true; });
 loadDoctor();

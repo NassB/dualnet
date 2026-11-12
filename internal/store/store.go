@@ -34,6 +34,8 @@ type Settings struct {
 	Overflow map[string]bool `json:"overflow,omitempty"`
 	// SpeedTests: the last speed test of each link.
 	SpeedTests map[string]SpeedTest `json:"speedTests,omitempty"`
+	// WelcomeDone: the welcome card (what dualnet does and does not speed up) was dismissed.
+	WelcomeDone *bool `json:"welcomeDone,omitempty"`
 	// OnboardingDone: the first-run checklist was dismissed.
 	OnboardingDone *bool `json:"onboardingDone,omitempty"`
 	// Rules: applications restricted to one link (transparent mode).
@@ -295,6 +297,21 @@ func (s *Store) OnboardingDone() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.settings.OnboardingDone != nil && *s.settings.OnboardingDone
+}
+
+// Welcomed reports whether the welcome card was dismissed.
+func (s *Store) Welcomed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.WelcomeDone != nil && *s.settings.WelcomeDone
+}
+
+// SetWelcomed saves whether the welcome card is dismissed.
+func (s *Store) SetWelcomed(done bool) {
+	s.mu.Lock()
+	s.settings.WelcomeDone = &done
+	s.mu.Unlock()
+	s.Save()
 }
 
 // SetOnboardingDone saves whether the first-run checklist is dismissed.

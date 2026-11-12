@@ -35,6 +35,14 @@ func (s *Server) getDoctor(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(doctor.Run(s.doctorEnv()))
 }
 
+// setWelcome hides (done=1) or shows again (done=0) the welcome card.
+func (s *Server) setWelcome(w http.ResponseWriter, r *http.Request) {
+	if s.Store != nil {
+		s.Store.SetWelcomed(r.URL.Query().Get("done") == "1")
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // setOnboarding hides (done=1) or shows again (done=0) the first-run checklist.
 func (s *Server) setOnboarding(w http.ResponseWriter, r *http.Request) {
 	if s.Store != nil {

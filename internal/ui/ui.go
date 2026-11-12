@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/speedtest", s.speedTest)
 	mux.HandleFunc("POST /api/role", s.setRole)
 	mux.HandleFunc("POST /api/onboarding", s.setOnboarding)
+	mux.HandleFunc("POST /api/welcome", s.setWelcome)
 	mux.HandleFunc("POST /api/system", s.setSystem)
 	mux.HandleFunc("POST /api/power", s.setPower)
 	mux.HandleFunc("POST /api/autostart", s.setAutostart)
@@ -164,6 +165,7 @@ type snapshot struct {
 	Upd        updateView `json:"update"`
 	Notif      bool       `json:"notify"`
 	Onb        bool       `json:"onboarded"`
+	Welcomed   bool       `json:"welcomed"`
 	BudgetWarn int        `json:"budgetWarn"`
 	Apps       []appView  `json:"apps"`
 	Rules      []ruleView `json:"rules"`
@@ -238,7 +240,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone()}
+			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone(), Welcomed: s.Store == nil || s.Store.Welcomed()}
 			if s.Store != nil {
 				snap.BudgetWarn = s.Store.WarnPercent()
 			}

@@ -58,6 +58,7 @@ Double-click the downloaded file (or `dualnet.exe` once installed):
 
 1. Windows asks for administrator rights (needed by transparent mode);
 2. **dualnet's window opens** (its own app window, no browser) and an icon appears in the notification area;
+   On the first launch the dashboard starts with a short **welcome card**: what dualnet speeds up, what it does not, and how to start. "Got it" hides it for good.
 3. press the big **power button** to turn dualnet on or off. When on, all the PC's IPv4 traffic (games, downloads, browser…) is spread over your links; when off, Windows uses its normal connection. Your choice is remembered.
 
 Closing the window keeps dualnet running in the notification area; open it again from the icon. **Quit** in the icon's menu stops dualnet and restores normal networking.
