@@ -32,6 +32,7 @@ go build -o dualnet.exe .
 
 - One change per commit, with a message that says *why*.
 - Add or update a test with behaviour changes. Pure logic (the picker, the budget, the checks) is tested with fakes; the Windows-specific parts are tested against the real system where it is safe (a throwaway registry key, loopback connections).
+- The dashboard itself is opened in a headless Chrome or Edge by `TestDashboardInBrowser` (`internal/ui`): it visits every page in every language and fails on a JavaScript error, an untranslated text or a leftover `{placeholder}`. It runs when a browser is found (`DUALNET_BROWSER` names one), is skipped otherwise, and fails on the Linux CI runner if there is none.
 - What needs administrator rights (Wintun adapter, install, uninstall) is covered by `integration/` (build tag `integration`); run the `integration` workflow from the Actions tab, or `go test -tags integration ./integration` in an administrator shell.
 - Changes to the local API must keep the guard in `internal/ui/guard.go`; `internal/ui/guard_test.go` replays web-page attacks.
 - The release workflow is guarded by `ci_test.go`: actions stay pinned to commits and only the release job may write.

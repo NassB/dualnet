@@ -6,6 +6,7 @@ require (
 	fyne.io/systray v1.11.0
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.49.0
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
@@ -21,7 +22,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb // indirect
