@@ -32,6 +32,7 @@
   "powerOn": "Turn dualnet off",
   "powerOff": "Turn dualnet on",
   "oneLinkWarn": "Only one link is connected, so there is nothing to combine. If Wi‑Fi drops when the phone is plugged in over USB, turn on “Keep Wi‑Fi with USB tethering” in Settings.",
+  "pingChartTitle": "Ping — last 2 minutes",
   "chartTitle": "Download speed — last 2 minutes",
   "now": "now",
   "agoS": "{n} s ago",

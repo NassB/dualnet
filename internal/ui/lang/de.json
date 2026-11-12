@@ -32,6 +32,7 @@
   "powerOn": "dualnet ausschalten",
   "powerOff": "dualnet einschalten",
   "oneLinkWarn": "Es ist nur eine Verbindung aktiv, also gibt es nichts zu kombinieren. Wenn das WLAN beim Anstecken des Handys per USB getrennt wird, aktiviere in den Einstellungen „WLAN trotz USB-Tethering behalten“.",
+  "pingChartTitle": "Ping — letzte 2 Minuten",
   "chartTitle": "Download-Geschwindigkeit — letzte 2 Minuten",
   "now": "jetzt",
   "agoS": "vor {n} s",

@@ -32,6 +32,7 @@
   "powerOn": "Désactiver dualnet",
   "powerOff": "Activer dualnet",
   "oneLinkWarn": "Un seul lien est connecté : rien à combiner. Si le Wi‑Fi se coupe quand le téléphone est branché en USB, activez « Garder le Wi‑Fi avec le partage USB » dans les Réglages.",
+  "pingChartTitle": "Ping — 2 dernières minutes",
   "chartTitle": "Débit descendant — 2 dernières minutes",
   "now": "maintenant",
   "agoS": "il y a {n} s",

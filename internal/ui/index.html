@@ -299,6 +299,14 @@ td.r, th.r { text-align: right; }
         </div>
         <div class="chart-box"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
       </div>
+
+      <div class="card mt">
+        <div class="chart-head">
+          <h2 data-i18n="pingChartTitle"></h2>
+          <div class="legend" id="pingLegend"></div>
+        </div>
+        <div class="chart-box" style="height:170px"><canvas id="pingChart"></canvas></div>
+      </div>
     </section>
 
     <!-- ================= DOWNLOADS ================= -->
@@ -735,9 +743,53 @@ function draw() {
 }
 cv.addEventListener('mousemove', e => { hoverX = e.offsetX; draw(); });
 cv.addEventListener('mouseleave', () => { hoverX = null; draw(); });
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { draw(); drawPing(); });
 function renderLegend() {
-  $('legend').innerHTML = links.map((l, i) => `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
+  const html = links.map((l, i) => `<span><span class="swatch" style="background:${color(i)}"></span>${esc(l.name)}</span>`).join('');
+  $('legend').innerHTML = html; $('pingLegend').innerHTML = html;
+}
+
+// ---------- ping chart (one line per link; a gap where the link did not answer) ----------
+const pcv = $('pingChart'), pctx = pcv.getContext('2d');
+function resizePing() {
+  const r = pcv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  if (!r.width) return;
+  pcv.width = r.width * d; pcv.height = r.height * d; pctx.setTransform(d, 0, 0, d, 0, 0); drawPing();
+}
+new ResizeObserver(resizePing).observe(pcv);
+function drawPing() {
+  const W = pcv.clientWidth, H = pcv.clientHeight, L = 40, R = 6, T = 8, B = 22, w = W - L - R, h = H - T - B;
+  if (!W) return;
+  pctx.clearRect(0, 0, W, H);
+  const maxPing = hist.reduce((m, p) => Math.max(m, ...(p.ping || [])), 0);
+  const ymax = niceMax(Math.max(maxPing * 1.15, 20));
+  const x = k => L + w * (k + MAXPTS - hist.length) / (MAXPTS - 1);
+  const y = v => T + h * (1 - v / ymax);
+  pctx.font = '11px "Segoe UI", system-ui, sans-serif'; pctx.fillStyle = css('--muted'); pctx.strokeStyle = css('--grid'); pctx.lineWidth = 1;
+  pctx.textAlign = 'right'; pctx.textBaseline = 'middle';
+  for (let i = 0; i <= 2; i++) { // three round marks: niceMax is always a multiple of 2
+    const v = ymax * i / 2, yy = Math.round(y(v)) + .5;
+    pctx.beginPath(); pctx.moveTo(L, yy); pctx.lineTo(W - R, yy); pctx.stroke();
+    pctx.fillText(v.toFixed(0) + (i === 2 ? ' ms' : ''), L - 6, yy);
+  }
+  pctx.textBaseline = 'top';
+  for (let s = 0; s <= WINDOW; s += 30) {
+    const xx = L + w * (1 - s / WINDOW);
+    pctx.textAlign = s === 0 ? 'right' : s === WINDOW ? 'left' : 'center';
+    pctx.fillText(s ? `-${s}s` : t('now'), xx, H - B + 6);
+  }
+  if (hist.length < 2) return;
+  links.forEach((l, li) => {
+    pctx.beginPath(); pctx.strokeStyle = color(li); pctx.lineWidth = 1.8; pctx.lineJoin = 'round';
+    let pen = false;
+    hist.forEach((p, k) => {
+      const v = (p.ping || [])[li];
+      if (!v) { pen = false; return; }          // 0 = unknown or not answering: leave a gap
+      pen ? pctx.lineTo(x(k), y(v)) : pctx.moveTo(x(k), y(v));
+      pen = true;
+    });
+    pctx.stroke();
+  });
 }
 
 // ---------- downloads ----------
@@ -1156,11 +1208,11 @@ function connect() {
     snapLast = snap;
     if (snap.links.length !== links.length) { links = snap.links; renderLegend(); }
     links = snap.links;
-    hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps) });
+    hist.push({ t: snap.t, v: snap.links.map(l => l.rxMbps), ping: snap.links.map(l => l.ping || 0) });
     if (hist.length > MAXPTS) hist.shift();
     $('ver').textContent = snap.version || '';
     renderHome(snap); renderApps(snap); renderJobs(snap); renderSettings(snap); renderLinksCfg(snap); renderRules(snap); renderUpdate(snap);
-    if ($('page-home').classList.contains('active')) draw();
+    if ($('page-home').classList.contains('active')) { draw(); drawPing(); }
   };
 }
 connect();
