@@ -181,7 +181,7 @@ Requires the Go version in `go.mod`.
 ```powershell
 go test ./...
 go build -o dualnet.exe .
-go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resource
+go run ./tools/mkicon     # regenerates the icon (assets/) and the .exe resources (icon, version info, manifest)
 go test -tags integration -v ./integration   # administrator only: real install/uninstall and transparent mode
 ```
 

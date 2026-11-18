@@ -40,6 +40,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME}"; else VERSION="dev-${GITHUB_SHA::7}"; fi
           NAME="dualnet-${VERSION}-b${GITHUB_RUN_NUMBER}-windows-amd64.exe"
+          # Stamp the version into the .exe's version information (Details tab).
+          go run ./tools/mkicon -version "$VERSION" -build "$GITHUB_RUN_NUMBER"
           go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.build=${GITHUB_RUN_NUMBER}" -o "$NAME" .
           "./$NAME" version
           sha256sum "$NAME" > "$NAME.sha256"

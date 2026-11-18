@@ -1,11 +1,17 @@
 // mkicon draws dualnet's icon (two links merging into one arrow) and writes
 // assets/icon.ico (16–256 px), assets/icon.png, rsrc_windows_amd64.syso (the .exe
-// icon) and the greyed assets/icon-off.ico used while dualnet is off. Run from the repo root: go run ./tools/mkicon
+// icon, version information and manifest) and the greyed assets/icon-off.ico used
+// while dualnet is off. Run from the repo root: go run ./tools/mkicon
+//
+// With -version (CI release builds), it only rewrites rsrc_windows_amd64.syso,
+// stamping that version and build number into the .exe's version information:
+// go run ./tools/mkicon -version v0.11.0 -build 64
 package main
 
 import (
 	"bytes"
 	"encoding/binary"
+	"flag"
 	"image"
 	"image/color"
 	"image/png"
@@ -138,12 +144,19 @@ func grey(v uint8) color.NRGBA { return color.NRGBA{v, v, v, 0xff} }
 
 func main() {
 	sizes := []int{16, 24, 32, 48, 64, 128, 256}
+	version := flag.String("version", "", "only write the .syso, with this version (vX.Y.Z)")
+	build := flag.String("build", "", "build number for the .syso's version information")
+	flag.Parse()
 	pngs := frames(sizes)
+	if *version != "" {
+		must(os.WriteFile("rsrc_windows_amd64.syso", writeSyso(exeResources(pngs, sizes, *version, *build)), 0o644))
+		return
+	}
 	must(os.WriteFile("assets/icon.ico", icoFile(sizes, pngs), 0o644))
 	var big bytes.Buffer
 	png.Encode(&big, draw(256))
 	must(os.WriteFile("assets/icon.png", big.Bytes(), 0o644))
-	must(os.WriteFile("rsrc_windows_amd64.syso", writeSyso(pngs, sizes), 0o644))
+	must(os.WriteFile("rsrc_windows_amd64.syso", writeSyso(exeResources(pngs, sizes, "dev", "")), 0o644))
 
 	// The same drawing in greys: the notification-area icon while dualnet is off.
 	blue, orange, white = grey(0x70), grey(0x62), grey(0x9a)
