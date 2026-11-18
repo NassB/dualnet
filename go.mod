@@ -6,7 +6,7 @@ require (
 	fyne.io/systray v1.11.0
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.50.0
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
