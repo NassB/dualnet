@@ -52,6 +52,30 @@ type Settings struct {
 	Budgets map[string]float64 `json:"budgets,omitempty"`
 	// Notify: Windows notifications for link events; nil = yes.
 	Notify *bool `json:"notify,omitempty"`
+	// MaxDownloads: downloads of the Downloads page running at once, the others
+	// wait in a queue; nil = 2, 0 = no limit.
+	MaxDownloads *int `json:"maxDownloads,omitempty"`
+}
+
+// DefaultMaxDownloads is how many downloads run at once until the user chooses.
+const DefaultMaxDownloads = 2
+
+// MaxDownloads returns how many downloads may run at once (0 = no limit).
+func (s *Store) MaxDownloads() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settings.MaxDownloads == nil {
+		return DefaultMaxDownloads
+	}
+	return *s.settings.MaxDownloads
+}
+
+// SetMaxDownloads saves how many downloads may run at once (0 = no limit).
+func (s *Store) SetMaxDownloads(n int) {
+	s.mu.Lock()
+	s.settings.MaxDownloads = &n
+	s.mu.Unlock()
+	s.Save()
 }
 
 // NotifyEnabled reports whether link notifications are on (default).
