@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"net/url"
 	"path/filepath"
 	"runtime"
@@ -98,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
 	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
+	mux.HandleFunc("POST /api/openfile", s.openFile)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
@@ -591,6 +593,43 @@ func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := revealFile(abs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// openFile opens a finished download with its default application. Only the
+// job's own output file is ever opened, and programs are refused: opening
+// them would run them.
+func (s *Server) openFile(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	state := j.state
+	s.mu.Unlock()
+	if state != "done" {
+		http.Error(w, "the download is not finished", http.StatusConflict)
+		return
+	}
+	file, _, _ := j.stats.Snapshot()
+	abs, err := filepath.Abs(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if fi, err := os.Stat(abs); err != nil || fi.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	if isProgram(abs) {
+		http.Error(w, "programs are not opened from here; use Show in folder", http.StatusForbidden)
+		return
+	}
+	if err := openPath(abs); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

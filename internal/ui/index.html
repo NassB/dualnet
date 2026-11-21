@@ -838,6 +838,7 @@ function renderJobs(snap) {
             ${j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/resume?id=${j.id}')">${t('resume')}</button>` : ''}
             ${j.state === 'error' ? `<button class="btn ghost small" onclick="post('/api/retry?id=${j.id}')">${t('retry')}</button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+            ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/openfile?id=${j.id}')">${t('openFile')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
             ${j.state === 'done' || j.state === 'error' || j.state === 'cancelled' ? `<button class="btn ghost small" title="${t('remove')}" onclick="post('/api/remove?id=${j.id}')">×</button>` : ''}
           </div>

@@ -83,6 +83,7 @@
   "stError": "error",
   "stCancelled": "cancelada",
   "openFolder": "Mostrar en la carpeta",
+  "openFile": "Abrir",
   "left": "faltan {t}",
   "avgIn": "media {s} Mb/s en {t}",
   "journalTitle": "Eventos de los enlaces",

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"runtime"
 )
 
@@ -69,4 +70,22 @@ func revealFile(path string) error {
 	default:
 		return openFolder(filepath.Dir(path))
 	}
+}
+
+// openPath is a variable so tests never launch anything.
+var openPath = func(path string) error {
+	name, args, err := openCommand(runtime.GOOS, path)
+	if err != nil {
+		return err
+	}
+	return launch(name, args...)
+}
+
+// isProgram reports whether opening the file would run code.
+func isProgram(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".exe", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".scr", ".com":
+		return true
+	}
+	return false
 }

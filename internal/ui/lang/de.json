@@ -83,6 +83,7 @@
   "stError": "Fehler",
   "stCancelled": "abgebrochen",
   "openFolder": "Im Ordner anzeigen",
+  "openFile": "Öffnen",
   "left": "noch {t}",
   "avgIn": "Ø {s} Mb/s in {t}",
   "journalTitle": "Ereignisse der Verbindungen",

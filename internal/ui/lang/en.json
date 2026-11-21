@@ -83,6 +83,7 @@
   "stError": "error",
   "stCancelled": "cancelled",
   "openFolder": "Show in folder",
+  "openFile": "Open",
   "left": "{t} left",
   "avgIn": "average {s} Mb/s in {t}",
   "journalTitle": "Link events",
