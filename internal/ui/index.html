@@ -815,6 +815,13 @@ function drawPing() {
 }
 
 // ---------- downloads ----------
+const jobShas = {}; // expected SHA-256 per download id, for the prompt
+async function askSha(id) {
+  const v = prompt(t('shaPrompt'), jobShas[id] || '');
+  if (v === null) return;
+  const r = await fetch(`/api/jobsha?id=${id}&sha256=${encodeURIComponent(v.trim())}`, { method: 'POST', headers: { 'X-Dualnet': '1' } });
+  if (!r.ok) toast(srv(await r.text()));
+}
 const jobCaps = {}; // current cap per download id, for the prompt
 function renderJobs(snap) {
   if (document.activeElement !== $('maxDl') && snap.maxDownloads != null) $('maxDl').value = snap.maxDownloads;
@@ -841,7 +848,7 @@ function renderJobs(snap) {
   const jobs = snap.jobs.slice().reverse();
   const qd = snap.jobs.filter(j => j.state === 'queued'); // queue order: first starts first
   jobs.forEach((j, n) => { if (j.state === 'queued') jobs[n] = qd.shift(); }); // queued cards sit in queue order
-  const key = LANG + jobs.map(j => [j.id, j.state, j.file, j.err].join(',')).join('|');
+  const key = LANG + jobs.map(j => [j.id, j.state, j.file, j.err, j.shaState].join(',')).join('|');
   if (key !== jobsKey) { // a download started, ended or failed: rebuild the cards
     jobsKey = key;
     box.innerHTML = jobs.map(j => {
@@ -857,6 +864,7 @@ function renderJobs(snap) {
             ${j.state === 'error' ? `<button class="btn ghost small" onclick="post('/api/retry?id=${j.id}')">${t('retry')}</button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" data-f="cap" onclick="askJobCap(${j.id}, jobCaps[${j.id}])"></button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+            ${j.state === 'done' ? `<button class="btn ghost small" onclick="askSha(${j.id})">${t('shaCheck')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/openfile?id=${j.id}')">${t('openFile')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
             ${j.state === 'done' || j.state === 'error' || j.state === 'cancelled' ? `<button class="btn ghost small" title="${t('remove')}" onclick="post('/api/remove?id=${j.id}')">×</button>` : ''}
@@ -865,13 +873,16 @@ function renderJobs(snap) {
         <div class="bar" data-f="bar"></div>
         <div class="meta" data-f="meta"></div>
         ${j.err ? `<div class="err">${esc(srv(j.err))}</div>` : ''}
+        ${j.shaState === 'ok' ? `<div class="meta"><span title="${esc(j.sha256)}">${t('shaOk')}</span></div>` : ''}
+        ${j.shaState === 'checking' ? `<div class="meta"><span>${t('shaChecking')}</span></div>` : ''}
+        ${j.shaState === 'mismatch' ? `<div class="err" title="${esc(j.sha256)}">${t('shaFail')}${j.shaGot ? ` <code style="user-select:all">${esc(j.shaGot)}</code>` : ''}</div>` : ''}
       </div>`;
     }).join('');
   }
   jobs.forEach((j, n) => {
     const el = box.children[n];
     if (!el) return;
-    jobCaps[j.id] = j.capMbps;
+    jobCaps[j.id] = j.capMbps; jobShas[j.id] = j.sha256 || '';
     const cb = el.querySelector('[data-f="cap"]');
     if (cb) cb.textContent = j.capMbps ? t('jobCapSet', { n: j.capMbps }) : t('jobCap');
     const pct = j.size ? 100 * j.done / j.size : 0;
@@ -891,19 +902,36 @@ function renderJobs(snap) {
 }
 // One link per line; every link starts its own download, all in parallel.
 // Links that fail stay in the box so they can be fixed; the reason is shown in a toast.
+// A line is "URL", "URL sha256:<hex>" or "URL <64 hex>"; a bad checksum keeps its line (err set).
+function parseDlLines(text) {
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    let cur = null;
+    for (const tok of line.trim().split(/\s+/).filter(Boolean)) {
+      if (cur && !/^https?:\/\//i.test(tok)) {
+        const h = tok.replace(/^sha256:/i, '');
+        if (/^[0-9a-f]{64}$/i.test(h)) cur.sha = h.toLowerCase(); else cur.err = t('shaBad');
+        cur.text += ' ' + tok;
+      } else { cur = { url: tok, sha: '', err: '', text: tok }; out.push(cur); }
+    }
+  }
+  return out.filter((d, i) => out.findIndex(o => o.url === d.url) === i);
+}
 $('dl').addEventListener('submit', async e => {
   e.preventDefault();
-  const urls = [...new Set($('url').value.split(/\s+/).filter(Boolean))];
+  const items = parseDlLines($('url').value);
+  const urls = items.map(d => d.url);
   const workers = +$('workers').value;
-  const results = await Promise.all(urls.map(async url => {
+  const results = await Promise.all(items.map(async d => {
+    if (d.err) return { text: d.text, url: d.url, err: d.err };
     try {
       const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' },
-        body: JSON.stringify({ url, workers }) });
-      return r.ok ? null : { url, err: srv(await r.text()) };
-    } catch (err) { return { url, err: String(err) }; }
+        body: JSON.stringify({ url: d.url, workers, sha256: d.sha }) });
+      return r.ok ? null : { text: d.text, url: d.url, err: srv(await r.text()) };
+    } catch (err) { return { text: d.text, url: d.url, err: String(err) }; }
   }));
   const failed = results.filter(Boolean);
-  $('url').value = failed.map(f => f.url).join('\1');
+  $('url').value = failed.map(f => f.text).join('\n');
   if (failed.length === 1) toast(urls.length > 1 ? `${failed[0].url}: ${failed[0].err}` : failed[0].err);
   else if (failed.length) toast(t('dlFailed', { n: failed.length, total: urls.length, err: failed[0].err }));
 });

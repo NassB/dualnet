@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -600,5 +601,86 @@ func TestJobCap(t *testing.T) {
 	srv2.Handler()
 	if len(srv2.jobs) != 1 || srv2.jobs[0].capMbps != 12.5 || srv2.jobs[0].limit.Rate() != 12.5e6/8 {
 		t.Fatal("cap not restored")
+	}
+}
+
+// A download given an expected SHA-256 is checked when it ends; a wrong sum
+// keeps the file and shows the actual one; /api/jobsha re-checks a done job.
+func TestSha256Check(t *testing.T) {
+	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("data")) }))
+	defer files.Close()
+	sum := fmt.Sprintf("%x", sha256.Sum256([]byte("data")))
+	conf := t.TempDir()
+	srv := &Server{Store: store.Open(conf), OutDir: t.TempDir(), Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path, body string) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(body))
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	state := func(i int) (string, string) {
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		return srv.jobs[i].shaState, srv.jobs[i].shaGot
+	}
+	wait := func(i int, want string) {
+		t.Helper()
+		for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			if s, _ := state(i); s == want {
+				return
+			}
+		}
+		s, _ := state(i)
+		t.Fatalf("job %d: %q, want %q", i, s, want)
+	}
+	if c := post("/api/download", fmt.Sprintf(`{"url":%q,"sha256":"xyz"}`, files.URL+"/bad.bin")); c != http.StatusBadRequest {
+		t.Fatalf("bad sha: %d", c)
+	}
+	post("/api/download", fmt.Sprintf(`{"url":%q,"sha256":%q}`, files.URL+"/a.bin", strings.ToUpper(sum)))
+	wait(0, "ok")
+	post("/api/download", fmt.Sprintf(`{"url":%q,"sha256":%q}`, files.URL+"/b.bin", strings.Repeat("0", 64)))
+	wait(1, "mismatch")
+	if _, got := state(1); got != sum {
+		t.Fatalf("actual hash %q", got)
+	}
+	if file, _, _ := srv.jobs[1].stats.Snapshot(); srv.jobs[1].state != "done" || file == "" {
+		t.Fatal("a mismatch must keep the file and the done state")
+	} else if _, err := os.Stat(file); err != nil {
+		t.Fatal(err)
+	}
+	// verify a done job without a hash, by endpoint; invalid and unknown are refused
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/c.bin"))
+	for end := time.Now().Add(5 * time.Second); srv.jobs[2].state != "done" && time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+	}
+	if c := post("/api/jobsha?id=3&sha256=nothex", ""); c != http.StatusBadRequest {
+		t.Fatalf("invalid: %d", c)
+	}
+	if c := post("/api/jobsha?id=99&sha256="+sum, ""); c != http.StatusNotFound {
+		t.Fatalf("unknown: %d", c)
+	}
+	if c := post("/api/jobsha?id=3&sha256="+strings.Repeat("1", 64), ""); c != http.StatusNoContent {
+		t.Fatalf("set: %d", c)
+	}
+	wait(2, "mismatch")
+	post("/api/jobsha?id=3&sha256="+sum, "")
+	wait(2, "ok")
+	b, _ := os.ReadFile(filepath.Join(conf, "downloads.json"))
+	if !strings.Contains(string(b), `"shaState": "ok"`) {
+		t.Fatalf("not saved: %s", b)
+	}
+	post("/api/jobsha?id=3&sha256=", "") // removed
+	if s, _ := state(2); s != "" || srv.jobs[2].sha != "" {
+		t.Fatal("not removed")
+	}
+	srv2 := &Server{Store: store.Open(conf), OutDir: t.TempDir(), Pool: srv.Pool}
+	srv2.Handler()
+	if len(srv2.jobs) != 3 || srv2.jobs[1].shaState != "mismatch" || srv2.jobs[1].shaGot != sum {
+		t.Fatal("not restored")
 	}
 }

@@ -16,18 +16,21 @@ const maxKeptFinished = 200
 
 // savedJob is a download as kept in downloads.json.
 type savedJob struct {
-	ID      int       `json:"id"`
-	URL     string    `json:"url"`
-	State   string    `json:"state"`
-	Err     string    `json:"err,omitempty"`
-	Workers int       `json:"workers"`
-	Dir     string    `json:"dir"`
-	CapMbps float64   `json:"capMbps,omitempty"`
-	File    string    `json:"file,omitempty"`
-	Size    int64     `json:"size"`
-	Done    int64     `json:"done"`
-	Started time.Time `json:"started"`
-	Ended   time.Time `json:"ended"`
+	ID       int       `json:"id"`
+	URL      string    `json:"url"`
+	State    string    `json:"state"`
+	Err      string    `json:"err,omitempty"`
+	Workers  int       `json:"workers"`
+	Dir      string    `json:"dir"`
+	CapMbps  float64   `json:"capMbps,omitempty"`
+	Sha      string    `json:"sha256,omitempty"`
+	ShaState string    `json:"shaState,omitempty"`
+	ShaGot   string    `json:"shaGot,omitempty"`
+	File     string    `json:"file,omitempty"`
+	Size     int64     `json:"size"`
+	Done     int64     `json:"done"`
+	Started  time.Time `json:"started"`
+	Ended    time.Time `json:"ended"`
 }
 
 func (s *Server) downloadsPath() string {
@@ -52,7 +55,7 @@ func (s *Server) saveJobs() {
 			done += b
 		}
 		out = append(out, savedJob{ID: j.id, URL: j.url, State: j.state, Err: j.err, Workers: j.workers, Dir: j.dir, CapMbps: j.capMbps,
-			File: file, Size: size, Done: done, Started: j.started, Ended: j.ended})
+			Sha: j.sha, ShaState: j.shaState, ShaGot: j.shaGot, File: file, Size: size, Done: done, Started: j.started, Ended: j.ended})
 	}
 	// keep only the most recent finished jobs
 	n := 0
@@ -114,7 +117,10 @@ func (s *Server) loadJobs() {
 		st.Preset(v.File, v.Size, v.Done)
 		ctx, cancel := context.WithCancel(context.Background())
 		j := &job{id: v.ID, url: v.URL, state: v.State, err: v.Err, workers: v.Workers, dir: v.Dir,
-			started: v.Started, ended: v.Ended, stats: st, ctx: ctx, cancel: cancel, limit: &ratelimit.Bucket{}}
+			started: v.Started, ended: v.Ended, stats: st, ctx: ctx, cancel: cancel, limit: &ratelimit.Bucket{}, sha: v.Sha, shaState: v.ShaState, shaGot: v.ShaGot}
+		if j.shaState == "checking" { // interrupted by a restart
+			j.shaState = ""
+		}
 		j.setCap(v.CapMbps)
 		s.jobs = append(s.jobs, j)
 		if v.ID > s.nextID {

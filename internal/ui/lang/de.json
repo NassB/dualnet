@@ -51,7 +51,7 @@
   "save": "Speichern",
   "cancel": "Abbrechen",
   "dlLead": "Lädt Dateien über alle Verbindungen gleichzeitig herunter: Ihre Geschwindigkeiten addieren sich. Mehrere Links einfügen, einen pro Zeile, um sie zusammen zu starten.",
-  "urlPlaceholder": "https://… (Dateien zum Herunterladen, ein Link pro Zeile, oder Links und Textdateien hier ablegen)",
+  "urlPlaceholder": "https://… (Dateien zum Herunterladen, ein Link pro Zeile, optional sha256:<hex> dahinter zur Prüfung, oder Links und Textdateien hier ablegen)",
   "dropAdded": "{n} Link(s) hinzugefügt: zum Starten auf Herunterladen klicken",
   "dropNone": "Im abgelegten Inhalt wurde kein Link gefunden",
   "connPerLink": "Sitzungen pro Verbindung",
@@ -282,5 +282,11 @@
   "limitMaxUp": "max. Upload {n} Mb/s",
   "limitNone": "Unbegrenzt",
   "limitMbps": "{n} Mb/s",
-  "limitMax": "max. {n} Mb/s"
+  "limitMax": "max. {n} Mb/s",
+  "shaOk": "SHA-256 ✓",
+  "shaFail": "SHA-256 ✗ — die Datei stimmt nicht mit der erwarteten Prüfsumme überein (sie bleibt erhalten). Tatsächlich:",
+  "shaChecking": "SHA-256 wird geprüft…",
+  "shaCheck": "SHA-256 prüfen",
+  "shaPrompt": "Erwartetes SHA-256 (64 Hexzeichen, leer = keins)",
+  "shaBad": "Ungültiges SHA-256: 64 Hexzeichen erwartet"
 }

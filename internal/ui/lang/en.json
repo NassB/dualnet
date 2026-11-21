@@ -51,7 +51,7 @@
   "save": "Save",
   "cancel": "Cancel",
   "dlLead": "Downloads files over all links at once: their speeds add up. Paste several links, one per line, to start them together.",
-  "urlPlaceholder": "https://… (files to download, one link per line, or drop links and text files here)",
+  "urlPlaceholder": "https://… (files to download, one link per line, add sha256:<hex> after a link to verify it, or drop links and text files here)",
   "dropAdded": "{n} link(s) added: press Download to start",
   "dropNone": "No link found in what was dropped",
   "connPerLink": "Connections per link",
@@ -282,5 +282,11 @@
   "limitMaxUp": "max upload {n} Mb/s",
   "limitNone": "No limit",
   "limitMbps": "{n} Mb/s",
-  "limitMax": "max {n} Mb/s"
+  "limitMax": "max {n} Mb/s",
+  "shaOk": "SHA-256 ✓",
+  "shaFail": "SHA-256 ✗ — the file does not match the expected checksum (it was kept). Actual:",
+  "shaChecking": "Checking SHA-256…",
+  "shaCheck": "Check SHA-256",
+  "shaPrompt": "Expected SHA-256 (64 hex characters, empty = none)",
+  "shaBad": "Invalid SHA-256: 64 hexadecimal characters expected"
 }

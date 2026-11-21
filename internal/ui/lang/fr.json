@@ -51,7 +51,7 @@
   "save": "Enregistrer",
   "cancel": "Annuler",
   "dlLead": "Télécharge des fichiers par tous les liens à la fois : leurs débits s’additionnent. Collez plusieurs liens, un par ligne, pour les lancer ensemble.",
-  "urlPlaceholder": "https://… (fichiers à télécharger, un lien par ligne, ou déposez ici des liens et fichiers texte)",
+  "urlPlaceholder": "https://… (fichiers à télécharger, un lien par ligne, sha256:<hex> après le lien pour vérifier, ou déposez ici des liens et fichiers texte)",
   "dropAdded": "{n} lien(s) ajouté(s) : cliquez sur Télécharger pour démarrer",
   "dropNone": "Aucun lien trouvé dans ce qui a été déposé",
   "connPerLink": "Connexions par lien",
@@ -282,5 +282,11 @@
   "limitMaxUp": "envoi max {n} Mb/s",
   "limitNone": "Sans limite",
   "limitMbps": "{n} Mb/s",
-  "limitMax": "max {n} Mb/s"
+  "limitMax": "max {n} Mb/s",
+  "shaOk": "SHA-256 ✓",
+  "shaFail": "SHA-256 ✗ — le fichier ne correspond pas à la somme attendue (il est conservé). Réelle :",
+  "shaChecking": "Vérification SHA-256…",
+  "shaCheck": "Vérifier SHA-256",
+  "shaPrompt": "SHA-256 attendu (64 caractères hexadécimaux, vide = aucun)",
+  "shaBad": "SHA-256 invalide : 64 caractères hexadécimaux attendus"
 }

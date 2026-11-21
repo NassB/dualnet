@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,22 +69,25 @@ type Server struct {
 }
 
 type job struct {
-	id      int
-	url     string
-	state   string // queued, running, paused, done, error, cancelled
-	err     string
-	workers int    // connections per link
-	dir     string // folder chosen when the download was added
-	started time.Time
-	ended   time.Time
-	stats   *download.Stats
-	links   []*links.Link // links used, in the order of stats' per-link counters
-	ctx     context.Context
-	cancel  context.CancelFunc
-	dropped bool              // cancelled by the user: the partial file is deleted
-	pausing bool              // paused by the user: the partial file is kept
-	capMbps float64           // speed cap of this download in Mb/s (0 = none)
-	limit   *ratelimit.Bucket // enforces capMbps; changes live
+	id       int
+	url      string
+	state    string // queued, running, paused, done, error, cancelled
+	err      string
+	workers  int    // connections per link
+	dir      string // folder chosen when the download was added
+	started  time.Time
+	ended    time.Time
+	stats    *download.Stats
+	links    []*links.Link // links used, in the order of stats' per-link counters
+	ctx      context.Context
+	cancel   context.CancelFunc
+	dropped  bool              // cancelled by the user: the partial file is deleted
+	pausing  bool              // paused by the user: the partial file is kept
+	capMbps  float64           // speed cap of this download in Mb/s (0 = none)
+	limit    *ratelimit.Bucket // enforces capMbps; changes live
+	sha      string            // expected SHA-256 (lower-case hex), "" = none
+	shaState string            // "", "checking", "ok" or "mismatch"
+	shaGot   string            // actual hash after a mismatch
 }
 
 func (j *job) setCap(mbps float64) {
@@ -103,6 +107,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
 	mux.HandleFunc("POST /api/jobcap", s.jobCap)
+	mux.HandleFunc("POST /api/jobsha", s.jobSha)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/retry", s.retryJob)
 	mux.HandleFunc("POST /api/move", s.moveJob)
@@ -170,17 +175,20 @@ type linkView struct {
 }
 
 type jobView struct {
-	ID      int     `json:"id"`
-	URL     string  `json:"url"`
-	File    string  `json:"file"`
-	Size    int64   `json:"size"`
-	Done    int64   `json:"done"`
-	PerLink []int64 `json:"perLink"`
-	Mbps    float64 `json:"mbps"`
-	State   string  `json:"state"`
-	Err     string  `json:"err,omitempty"`
-	Elapsed float64 `json:"elapsed"`
-	CapMbps float64 `json:"capMbps"`
+	ID       int     `json:"id"`
+	URL      string  `json:"url"`
+	File     string  `json:"file"`
+	Size     int64   `json:"size"`
+	Done     int64   `json:"done"`
+	PerLink  []int64 `json:"perLink"`
+	Mbps     float64 `json:"mbps"`
+	State    string  `json:"state"`
+	Err      string  `json:"err,omitempty"`
+	Elapsed  float64 `json:"elapsed"`
+	CapMbps  float64 `json:"capMbps"`
+	Sha      string  `json:"sha256,omitempty"`
+	ShaState string  `json:"shaState,omitempty"`
+	ShaGot   string  `json:"shaGot,omitempty"`
 }
 
 type snapshot struct {
@@ -326,7 +334,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					name = filepath.Base(file)
 				}
 				v := jobView{ID: j.id, URL: j.url, File: name, Size: size, Done: done,
-					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed, CapMbps: j.capMbps}
+					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed, CapMbps: j.capMbps,
+					Sha: j.sha, ShaState: j.shaState, ShaGot: j.shaGot}
 				if j.state == "running" {
 					if last, seen := prevJob[j.id]; seen { // no speed on a page's first tick
 						v.Mbps = links.Mbps(done-last, dt)
@@ -349,9 +358,15 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL     string `json:"url"`
 		Workers int    `json:"workers"`
+		Sha     string `json:"sha256"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
 		http.Error(w, "missing url", http.StatusBadRequest)
+		return
+	}
+	req.Sha = strings.ToLower(strings.TrimSpace(req.Sha))
+	if req.Sha != "" && !sha256Re.MatchString(req.Sha) {
+		http.Error(w, "invalid sha256 (64 hex characters)", http.StatusBadRequest)
 		return
 	}
 	if u, err := url.Parse(req.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -376,7 +391,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.nextID++
-	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx, limit: &ratelimit.Bucket{}})
+	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx, limit: &ratelimit.Bucket{}, sha: req.Sha})
 	s.pump()
 	s.saveJobs()
 	s.mu.Unlock()
@@ -535,6 +550,9 @@ func (s *Server) run(j *job) {
 		j.state, j.err = "error", err.Error()
 	default:
 		j.state = "done"
+		if j.sha != "" {
+			s.checkSha(j) // releases s.mu while the file is read
+		}
 	}
 	if err != nil {
 		log.Printf("download %d: %v", j.id, err)
@@ -544,7 +562,9 @@ func (s *Server) run(j *job) {
 		if file == "" {
 			file = j.url
 		}
-		if j.state == "done" {
+		if j.state == "done" && j.shaState == "mismatch" {
+			s.Notify.DownloadFailed(file, "SHA-256 check failed")
+		} else if j.state == "done" {
 			s.Notify.DownloadDone(file, total)
 		} else {
 			s.Notify.DownloadFailed(file, j.err)
