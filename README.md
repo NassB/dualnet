@@ -72,7 +72,7 @@ On a first run, the dashboard shows a **Getting started** card with what still n
 The interface has four pages:
 
 - **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live charts of the download speed and of the ping of each link;
-- **Downloads**: download one file over all links at once, and resume it if it was interrupted (start the same address again; the unfinished file is kept as `name.part`);
+- **Downloads**: download files over all links at once, and resume one that was interrupted (start the same address again; the unfinished file is kept as `name.part`). Paste several links, one per line, to start them all together (Ctrl+Enter also starts them); links that do not start stay in the box with the reason. Two files with the same name are saved as `name.ext` and `name (2).ext`;
 - **History**: data per link and per day;
 - **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, application rules (link and speed cap), domain rules, **profiles**, budget warning level, start with Windows, notifications, update check, diagnostics and the installation check.
 
