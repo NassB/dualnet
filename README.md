@@ -96,7 +96,7 @@ The interface has four pages:
 - **Profiles**: save the current speed caps, overflow links, budgets and rules under a name ("Home", "Travel") and switch back in one click in Settings. **Automatic switching**: tie a profile to a Wi‑Fi network ("Home Net" → Home, the hotel's network → Travel) and dualnet applies it by itself when the PC joins that network (checked every 10 seconds). It is applied when the network changes, not continuously, so a manual change stays until the next network.
 - **Notifications**: a Windows notification when a link drops, comes back or appears (and for budget events), even if the window is closed. The toast appears under Windows PowerShell's name. The Settings page has a "send a test" button.
 - **Updates**: once a day dualnet asks GitHub for the latest release and shows a banner (it can be turned off in Settings). Nothing is downloaded or installed until you press **Install**: dualnet then downloads the release, checks it against its published SHA-256, replaces itself and restarts. Started from a console (`dualnet ui`), the button opens the release page instead.
-- **Installation check**: `dualnet doctor`, or Settings → Diagnostics → *Run checks*. It looks at administrator rights, each link and its internet access, Windows' Wi‑Fi policy, the virtual adapter, a Windows proxy left pointing at a stopped dualnet, DNS, WebView2 and where the elevated program lives. Fixable problems get a button; nothing is changed without a click.
+- **Installation check**: `dualnet doctor`, or Settings → Diagnostics → *Run checks*. It looks at administrator rights, each link and its internet access, an iPhone plugged in over USB that Windows cannot use (Apple driver missing, or sharing not turned on), Windows' Wi‑Fi policy, the virtual adapter, a Windows proxy left pointing at a stopped dualnet, DNS, WebView2 and where the elevated program lives. Fixable problems get a button; nothing is changed without a click.
 - **Diagnostics**: Settings can show the log live and copy a bug-report text (version, checks, links, last log lines). Check it before sharing: it lists your network interface names and addresses.
 - **History**: data per link and per day (30 days shown, one year kept). Export CSV or JSON from the History page. Under the table, the **link events** list shows when each link was set aside, came back, was unplugged or went over budget.
 - **Windows settings in one click** (administrator): keep Wi‑Fi on with USB tethering, link preferred by Windows.
@@ -140,6 +140,17 @@ By default Windows disconnects Wi‑Fi as soon as a wired connection (the USB te
 New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Force | Out-Null
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy' -Name fMinimizeConnections -Value 0 -Type DWord
 ```
+
+</details>
+
+## iPhone on USB not showing up as a link?
+
+<details>
+<summary>Show details</summary>
+
+Windows only sees an iPhone as a network connection with Apple's driver, which comes with **Apple Devices** (Microsoft Store) or iTunes. Then unlock the iPhone, tap *Trust* on this computer, turn on *Personal Hotspot ▸ Allow Others to Join*, and unplug and plug it back.
+
+dualnet notices an iPhone plugged in that Windows cannot use and says which of these steps is missing, in the installation check and in `dualnet interfaces`.
 
 </details>
 
