@@ -53,7 +53,9 @@ func TestRenameAndFolder(t *testing.T) {
 		resp.Body.Close()
 		return resp.StatusCode
 	}
-	rename := func(id int, name string) int { return post(fmt.Sprintf("/api/jobname?id=%d&name=%s", id, url.QueryEscape(name)), "") }
+	rename := func(id int, name string) int {
+		return post(fmt.Sprintf("/api/jobname?id=%d&name=%s", id, url.QueryEscape(name)), "")
+	}
 	waitState := func(i int, want string) {
 		t.Helper()
 		var st string

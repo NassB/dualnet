@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"runtime"
+	"strings"
 )
 
 func launch(name string, args ...string) error {
