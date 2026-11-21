@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -159,4 +161,103 @@ func TestDownloadDir(t *testing.T) {
 	}
 	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/b.txt"))
 	waitFile(filepath.Join(def, "b.txt"))
+}
+
+// Pause keeps the .part file, resume finishes with the right content, and
+// cancelling a paused download deletes the partial file.
+func TestPauseResume(t *testing.T) {
+	data := make([]byte, 6<<20)
+	for i := range data {
+		data[i] = byte(i * 7)
+	}
+	gate := make(chan struct{})
+	var blocked atomic.Int32
+	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rg := r.Header.Get("Range"); rg != "" && !strings.HasPrefix(rg, "bytes=0-") {
+			blocked.Add(1)
+			select {
+			case <-gate:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		http.ServeContent(w, r, "f", time.Time{}, bytes.NewReader(data))
+	}))
+	defer files.Close()
+
+	out := t.TempDir()
+	srv := &Server{Store: store.Open(t.TempDir()), OutDir: out, Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path, body string) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(body))
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	state := func() string {
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		return srv.jobs[0].state
+	}
+	waitState := func(want string) {
+		t.Helper()
+		for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			if state() == want {
+				return
+			}
+		}
+		t.Fatalf("state %s, want %s", state(), want)
+	}
+	part := filepath.Join(out, "f.part")
+
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/f"))
+	for end := time.Now().Add(10 * time.Second); blocked.Load() == 0 && time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+	}
+	post("/api/pause?id=1", "")
+	waitState("paused")
+	if _, err := os.Stat(part); err != nil {
+		t.Fatalf("the partial file was not kept: %v", err)
+	}
+	if c := post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/f")); c != http.StatusConflict {
+		t.Errorf("same address while paused: HTTP %d, want 409", c)
+	}
+
+	close(gate)
+	post("/api/resume?id=1", "")
+	waitState("done")
+	got, err := os.ReadFile(filepath.Join(out, "f"))
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("resumed file is wrong (err %v, %d bytes)", err, len(got))
+	}
+
+	// cancel while paused deletes the partial file
+	gate = make(chan struct{})
+	blocked.Store(0)
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/f2"))
+	for end := time.Now().Add(10 * time.Second); blocked.Load() == 0 && time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+	}
+	post("/api/pause?id=2", "")
+	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+		srv.mu.Lock()
+		s := srv.jobs[1].state
+		srv.mu.Unlock()
+		if s == "paused" {
+			break
+		}
+	}
+	post("/api/cancel?id=2", "")
+	srv.mu.Lock()
+	s := srv.jobs[1].state
+	srv.mu.Unlock()
+	if s != "cancelled" {
+		t.Errorf("state %s, want cancelled", s)
+	}
+	if _, err := os.Stat(filepath.Join(out, "f2.part")); err == nil {
+		t.Error("the partial file of a cancelled download was kept")
+	}
 }

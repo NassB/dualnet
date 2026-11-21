@@ -66,7 +66,7 @@ type Server struct {
 type job struct {
 	id      int
 	url     string
-	state   string // queued, running, done, error, cancelled
+	state   string // queued, running, paused, done, error, cancelled
 	err     string
 	workers int    // connections per link
 	dir     string // folder chosen when the download was added
@@ -77,6 +77,7 @@ type job struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	dropped bool // cancelled by the user: the partial file is deleted
+	pausing bool // paused by the user: the partial file is kept
 }
 
 func (s *Server) Handler() http.Handler {
@@ -88,6 +89,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
+	mux.HandleFunc("POST /api/pause", s.pauseJob)
+	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
 	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
 	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
@@ -345,7 +348,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	for _, j := range s.jobs {
-		if (j.state == "running" || j.state == "queued") && j.url == req.URL {
+		if (j.state == "running" || j.state == "queued" || j.state == "paused") && j.url == req.URL {
 			s.mu.Unlock()
 			cancel()
 			http.Error(w, "already downloading", http.StatusConflict)
@@ -407,14 +410,18 @@ func (s *Server) pump() {
 
 // run downloads one job, then lets the next queued one start.
 func (s *Server) run(j *job) {
+	out, _, _ := j.stats.Snapshot() // set when resuming: same file as before the pause
 	err := download.Run(j.ctx, j.links, download.Options{
-		URL: j.url, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
+		URL: j.url, Output: out, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
 		Quiet: true, Stats: j.stats,
 	})
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j.ended = time.Now()
 	switch {
+	case j.ctx.Err() != nil && j.pausing && !j.dropped:
+		j.state = "paused" // the .part stays for the resume
+		j.ended = time.Time{}
 	case j.ctx.Err() != nil:
 		j.state = "cancelled"
 		if file, _, _ := j.stats.Snapshot(); j.dropped {
@@ -447,11 +454,46 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	if j := s.find(r); j != nil {
 		s.mu.Lock()
 		j.dropped = true
-		if j.state == "queued" { // never started: nothing to stop or delete
+		switch j.state {
+		case "queued": // never started: nothing to stop or delete
 			j.state, j.ended = "cancelled", time.Now()
+		case "paused": // no download running: delete the partial file here
+			j.state, j.ended = "cancelled", time.Now()
+			file, _, _ := j.stats.Snapshot()
+			download.RemovePartial(file)
 		}
 		s.mu.Unlock()
 		j.cancel()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// pauseJob stops a download but keeps its partial file; resume continues it.
+func (s *Server) pauseJob(w http.ResponseWriter, r *http.Request) {
+	if j := s.find(r); j != nil {
+		s.mu.Lock()
+		switch j.state {
+		case "queued":
+			j.state = "paused"
+		case "running":
+			j.pausing = true
+			j.cancel() // run() sets the state once the download has stopped
+		}
+		s.mu.Unlock()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// resumeJob puts a paused download back in the queue.
+func (s *Server) resumeJob(w http.ResponseWriter, r *http.Request) {
+	if j := s.find(r); j != nil {
+		s.mu.Lock()
+		if j.state == "paused" {
+			j.ctx, j.cancel = context.WithCancel(context.Background())
+			j.pausing, j.state = false, "queued"
+			s.pump()
+		}
+		s.mu.Unlock()
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

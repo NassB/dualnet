@@ -193,7 +193,7 @@ form.dl select, form.dl .btn { align-self: flex-start; }
 .state.running { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .state.done { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .state.error { color: var(--err); background: color-mix(in srgb, var(--err) 13%, transparent); }
-.state.cancelled, .state.queued { color: var(--muted); background: var(--grid); }
+.state.cancelled, .state.queued, .state.paused { color: var(--muted); background: var(--grid); }
 .empty { color: var(--muted); font-size: 13px; padding: 18px 0 6px; text-align: center; }
 .err { color: var(--err); font-size: 12px; margin-top: 6px; word-break: break-word; }
 
@@ -823,13 +823,15 @@ function renderJobs(snap) {
   if (key !== jobsKey) { // a download started, ended or failed: rebuild the cards
     jobsKey = key;
     box.innerHTML = jobs.map(j => {
-      const st = { queued: t('stQueued'), running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
+      const st = { queued: t('stQueued'), paused: t('stPaused'), running: t('stRunning'), done: t('stDone'), error: t('stError'), cancelled: t('stCancelled') }[j.state];
       return `<div class="job">
         <div class="top">
           <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
           <div class="actions">
             <span class="state ${j.state}">${st}</span>
-            ${j.state === 'running' || j.state === 'queued' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+            ${j.state === 'running' || j.state === 'queued' ? `<button class="btn ghost small" onclick="post('/api/pause?id=${j.id}')">${t('pause')}</button>` : ''}
+            ${j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/resume?id=${j.id}')">${t('resume')}</button>` : ''}
+            ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
           </div>
         </div>
@@ -853,7 +855,7 @@ function renderJobs(snap) {
     if (j.state === 'queued') { setH(el.querySelector('[data-f="meta"]'), `<span>${t('queuedMeta')}</span>`); return; }
     setH(el.querySelector('[data-f="meta"]'), `
       <span>${pct.toFixed(1)} % · ${fmtBytes(j.done)} / ${fmtBytes(j.size)}</span>
-      ${j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>${t('left', { t: fmtDur(eta) })}</span>` : `<span>${t('avgIn', { s: fmtMbps(avg), t: fmtDur(j.elapsed) })}</span>`}
+      ${j.state === 'paused' ? '' : j.state === 'running' ? `<span>${fmtMbps(j.mbps)} Mb/s</span><span>${t('left', { t: fmtDur(eta) })}</span>` : `<span>${t('avgIn', { s: fmtMbps(avg), t: fmtDur(j.elapsed) })}</span>`}
       <span class="legend">${split}</span>`);
   });
 }
