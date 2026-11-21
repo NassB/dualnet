@@ -74,6 +74,7 @@
   "stPaused": "en pause",
   "pause": "Pause",
   "resume": "Reprendre",
+  "retry": "Réessayer",
   "queuedMeta": "Attend qu’un autre téléchargement se termine",
   "stRunning": "en cours",
   "stDone": "terminé",

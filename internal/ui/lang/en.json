@@ -74,6 +74,7 @@
   "stPaused": "paused",
   "pause": "Pause",
   "resume": "Resume",
+  "retry": "Retry",
   "queuedMeta": "Waiting for another download to finish",
   "stRunning": "running",
   "stDone": "done",

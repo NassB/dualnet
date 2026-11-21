@@ -91,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
+	mux.HandleFunc("POST /api/retry", s.retryJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
 	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
 	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
@@ -495,6 +496,32 @@ func (s *Server) resumeJob(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Unlock()
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// retryJob puts a failed download back in the queue; a partial file left by
+// the failed run is continued like on resume.
+func (s *Server) retryJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if j.state != "error" {
+		http.Error(w, "not failed", http.StatusConflict)
+		return
+	}
+	for _, o := range s.jobs {
+		if o != j && (o.state == "running" || o.state == "queued" || o.state == "paused") && o.url == j.url {
+			http.Error(w, "already downloading", http.StatusConflict)
+			return
+		}
+	}
+	j.ctx, j.cancel = context.WithCancel(context.Background())
+	j.pausing, j.dropped, j.err, j.ended, j.state = false, false, "", time.Time{}, "queued"
+	s.pump()
 	w.WriteHeader(http.StatusNoContent)
 }
 

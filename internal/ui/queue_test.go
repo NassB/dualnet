@@ -261,3 +261,63 @@ func TestPauseResume(t *testing.T) {
 		t.Error("the partial file of a cancelled download was kept")
 	}
 }
+
+// A failed download can be retried: it ends done with the right content, and
+// retrying a download that did not fail is refused.
+func TestRetry(t *testing.T) {
+	data := make([]byte, 3<<20)
+	for i := range data {
+		data[i] = byte(i * 5)
+	}
+	var calls atomic.Int32
+	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			http.Error(w, "busy", http.StatusServiceUnavailable)
+			return
+		}
+		http.ServeContent(w, r, "f", time.Time{}, bytes.NewReader(data))
+	}))
+	defer files.Close()
+
+	out := t.TempDir()
+	srv := &Server{Store: store.Open(t.TempDir()), OutDir: out, Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path, body string) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(body))
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	waitState := func(want string) {
+		t.Helper()
+		var st string
+		for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			srv.mu.Lock()
+			st = srv.jobs[0].state
+			srv.mu.Unlock()
+			if st == want {
+				return
+			}
+		}
+		t.Fatalf("state %s, want %s", st, want)
+	}
+
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/f"))
+	waitState("error")
+	if c := post("/api/retry?id=1", ""); c != http.StatusNoContent {
+		t.Fatalf("retry: HTTP %d", c)
+	}
+	waitState("done")
+	if c := post("/api/retry?id=1", ""); c != http.StatusConflict {
+		t.Errorf("retry of a finished download: HTTP %d, want 409", c)
+	}
+	got, err := os.ReadFile(filepath.Join(out, "f"))
+	if err != nil || !bytes.Equal(got, data) {
+		t.Errorf("wrong content after retry (err %v)", err)
+	}
+}
