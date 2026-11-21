@@ -836,6 +836,8 @@ function renderJobs(snap) {
     return;
   }
   const jobs = snap.jobs.slice().reverse();
+  const qd = snap.jobs.filter(j => j.state === 'queued'); // queue order: first starts first
+  jobs.forEach((j, n) => { if (j.state === 'queued') jobs[n] = qd.shift(); }); // queued cards sit in queue order
   const key = LANG + jobs.map(j => [j.id, j.state, j.file, j.err].join(',')).join('|');
   if (key !== jobsKey) { // a download started, ended or failed: rebuild the cards
     jobsKey = key;
@@ -846,6 +848,7 @@ function renderJobs(snap) {
           <div class="name" title="${esc(j.url)}">${esc(j.file || j.url)}</div>
           <div class="actions">
             <span class="state ${j.state}">${st}</span>
+            ${j.state === 'queued' ? `<button class="btn ghost small" title="${t('moveUp')}" onclick="post('/api/move?to=up&id=${j.id}')">↑</button><button class="btn ghost small" title="${t('moveDown')}" onclick="post('/api/move?to=down&id=${j.id}')">↓</button><button class="btn ghost small" onclick="post('/api/startnow?id=${j.id}')">${t('startNow')}</button>` : ''}
             ${j.state === 'running' || j.state === 'queued' ? `<button class="btn ghost small" onclick="post('/api/pause?id=${j.id}')">${t('pause')}</button>` : ''}
             ${j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/resume?id=${j.id}')">${t('resume')}</button>` : ''}
             ${j.state === 'error' ? `<button class="btn ghost small" onclick="post('/api/retry?id=${j.id}')">${t('retry')}</button>` : ''}

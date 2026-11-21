@@ -359,3 +359,82 @@ func TestClearJobs(t *testing.T) {
 		}
 	}
 }
+
+// Move changes which queued download starts next; Start now runs one beyond
+// the limit and the pump does not start another because of it.
+func TestMoveAndStartNow(t *testing.T) {
+	gate := make(chan struct{})
+	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-gate
+		w.Write([]byte("data"))
+	}))
+	defer files.Close()
+	defer close(gate)
+	st := store.Open(t.TempDir())
+	st.SetMaxDownloads(1)
+	srv := &Server{Store: st, OutDir: t.TempDir(), Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path string) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	states := func() string {
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		var s []string
+		for _, j := range srv.jobs {
+			s = append(s, fmt.Sprintf("%d:%s", j.id, j.state))
+		}
+		return strings.Join(s, ",")
+	}
+	wait := func(want string) {
+		t.Helper()
+		for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			if states() == want {
+				return
+			}
+		}
+		t.Fatalf("states %s, want %s", states(), want)
+	}
+	for _, n := range []string{"a", "b", "c", "d"} {
+		req, _ := http.NewRequest("POST", ts.URL+"/api/download", strings.NewReader(fmt.Sprintf(`{"url":%q}`, files.URL+"/"+n)))
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	wait("1:running,2:queued,3:queued,4:queued")
+
+	post("/api/move?id=4&to=top")
+	wait("1:running,4:queued,2:queued,3:queued")
+	post("/api/move?id=4&to=down")
+	post("/api/move?id=3&to=up")
+	wait("1:running,2:queued,3:queued,4:queued")
+	if c := post("/api/move?id=1&to=up"); c != http.StatusConflict {
+		t.Errorf("move running: HTTP %d, want 409", c)
+	}
+	if c := post("/api/move?id=2&to=sideways"); c != http.StatusBadRequest {
+		t.Errorf("bad direction: HTTP %d, want 400", c)
+	}
+
+	if c := post("/api/startnow?id=3"); c != http.StatusNoContent {
+		t.Fatalf("startnow: HTTP %d", c)
+	}
+	wait("1:running,2:queued,3:running,4:queued") // beyond the limit, nothing else started
+	srv.mu.Lock()
+	srv.pump()
+	srv.mu.Unlock()
+	wait("1:running,2:queued,3:running,4:queued")
+	if c := post("/api/startnow?id=1"); c != http.StatusConflict {
+		t.Errorf("startnow running: HTTP %d, want 409", c)
+	}
+}

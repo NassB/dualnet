@@ -93,6 +93,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/retry", s.retryJob)
+	mux.HandleFunc("POST /api/move", s.moveJob)
+	mux.HandleFunc("POST /api/startnow", s.startNow)
 	mux.HandleFunc("POST /api/clear", s.clearJobs)
 	mux.HandleFunc("POST /api/remove", s.removeJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
@@ -402,15 +404,95 @@ func (s *Server) pump() {
 		if j.state != "queued" || (limit > 0 && running >= limit) {
 			continue
 		}
-		up := s.Pool.Up()
-		if len(up) == 0 {
-			j.state, j.err, j.ended = "error", "no connected link", time.Now()
-			continue
+		if s.begin(j) {
+			running++
 		}
-		j.state, j.started, j.links = "running", time.Now(), up
-		running++
-		go s.run(j)
 	}
+}
+
+// begin starts a job now (limit not checked) and reports whether it runs.
+// Called with s.mu held.
+func (s *Server) begin(j *job) bool {
+	up := s.Pool.Up()
+	if len(up) == 0 {
+		j.state, j.err, j.ended = "error", "no connected link", time.Now()
+		return false
+	}
+	j.state, j.started, j.links = "running", time.Now(), up
+	go s.run(j)
+	return true
+}
+
+// moveJob changes the place of a queued download among the queued ones (the
+// queue order is the order of s.jobs): to=up starts it sooner, down later,
+// top first.
+func (s *Server) moveJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	to := r.URL.Query().Get("to")
+	if to != "up" && to != "down" && to != "top" {
+		http.Error(w, "to must be up, down or top", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if j.state != "queued" {
+		http.Error(w, "not queued", http.StatusConflict)
+		return
+	}
+	var q []*job // queued jobs in queue order
+	for _, o := range s.jobs {
+		if o.state == "queued" {
+			q = append(q, o)
+		}
+	}
+	i := 0
+	for q[i] != j {
+		i++
+	}
+	switch {
+	case to == "top":
+		copy(q[1:i+1], q[:i])
+		q[0] = j
+	case to == "up" && i > 0:
+		q[i-1], q[i] = q[i], q[i-1]
+	case to == "down" && i < len(q)-1:
+		q[i+1], q[i] = q[i], q[i+1]
+	}
+	n := 0 // put the queued jobs back in the slots the queued jobs occupied
+	for k, o := range s.jobs {
+		if o.state == "queued" {
+			s.jobs[k] = q[n]
+			n++
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// startNow runs a queued or paused download at once, even above the limit;
+// nothing running is stopped.
+func (s *Server) startNow(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch j.state {
+	case "paused":
+		j.ctx, j.cancel = context.WithCancel(context.Background())
+		j.pausing = false
+	case "queued":
+	default:
+		http.Error(w, "not queued or paused", http.StatusConflict)
+		return
+	}
+	s.begin(j)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // run downloads one job, then lets the next queued one start.

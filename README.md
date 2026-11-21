@@ -76,6 +76,7 @@ The interface has four pages:
   - Paste several links, one per line (Ctrl+Enter also starts them): they run 2 at a time by default and the others wait in a queue (choose 1, 2, 3 or all at once next to the button; a queued download can be cancelled). Links that are refused stay in the box with the reason.
   - A summary line above the list shows how many downloads are running, queued or paused, the total speed and the estimated time left.
   - Each download can be paused and resumed (the unfinished file is kept while it is paused; cancelling it deletes the file); a failed download has a **Retry** button (it continues from the unfinished file when the server allows it).
+  - Waiting downloads start in the order shown (next to start on top): ↑ / ↓ change their place, and **Start now** runs one immediately even if the limit is reached (nothing running is stopped).
   - An **Open** button opens a finished file with its default application (programs such as `.exe` are never opened from the page, use *Show in folder*); **Clear finished** (or the × on a card) removes finished, failed and cancelled downloads from the list without deleting any file.
   - Two files with the same name are saved as `name.ext` and `name (2).ext`. Files go to your Downloads folder; choose another one in Settings → Application → *Download folder* (with *Browse…* on Windows);
 - **History**: data per link and per day;
