@@ -183,11 +183,11 @@ form.dl { display: flex; gap: 8px; flex-wrap: wrap; }
 form.dl textarea { flex: 1 1 280px; min-width: 0; min-height: 42px; resize: vertical; line-height: 1.4; }
 form.dl select, form.dl .btn { align-self: flex-start; }
 .jobs { display: grid; gap: 10px; margin-top: 14px; }
-.job { border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--panel2); }
-.job .top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-.job .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.job { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--panel2); }
+.job .top { display: flex; justify-content: space-between; gap: 8px 10px; align-items: center; flex-wrap: wrap; }
+.job .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 180px; }
 .job .meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 7px; }
-.job .actions { display: flex; gap: 6px; align-items: center; flex: none; }
+.job .actions { display: flex; gap: 6px; align-items: center; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .bar { height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: flex; margin-top: 10px; }
 .bar span { display: block; height: 100%; }
 .state { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
@@ -911,9 +911,13 @@ function renderJobs(snap) {
     const pct = j.size ? 100 * j.done / j.size : 0;
     const avg = j.elapsed ? j.done * 8 / j.elapsed / 1e6 : 0;
     const eta = j.state === 'running' && j.mbps > 0 ? (j.size - j.done) * 8 / (j.mbps * 1e6) : NaN;
+    // A download restored after a restart (or resumed from disk) has bytes that
+    // belong to no link: show them as one neutral segment, without a split.
+    const byLinks = (j.perLink || []).reduce((a, b) => a + b, 0), noLink = Math.max(0, j.done - byLinks);
     const segs = (j.perLink || []).map((b, i) =>
-      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}"></span>`).join('');
-    const split = (j.perLink || []).map((b, i) =>
+      `<span style="width:${j.size ? (100 * b / j.size).toFixed(2) : 0}%;background:${color(i)}"></span>`).join('')
+      + (noLink && j.size ? `<span style="width:${(100 * noLink / j.size).toFixed(2)}%;background:var(--muted)"></span>` : '');
+    const split = byLinks === 0 ? '' : (j.perLink || []).map((b, i) =>
       `<span><span class="swatch" style="background:${color(i)}"></span> ${j.done ? (100 * b / j.done).toFixed(0) : 0} %</span>`).join(' ');
     setH(el.querySelector('[data-f="bar"]'), segs);
     if (j.state === 'queued') { setH(el.querySelector('[data-f="meta"]'), `<span>${t('queuedMeta')}</span>`); return; }
