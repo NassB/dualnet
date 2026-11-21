@@ -287,6 +287,15 @@ func TestDashboardInBrowser(t *testing.T) {
 				t.Errorf("[%s] page %s: %s", lang, page, bad)
 			}
 		}
+		// A synthetic drop of text adds its links to the box, once each, without starting anything.
+		c.eval(`document.querySelector('[data-page="downloads"]').click()`)
+		c.eval(`(() => { const dt = new DataTransfer(); dt.setData('text/plain', 'see https://a.test/x.zip and https://a.test/x.zip and https://b.test/y');
+		  document.getElementById('url').value = 'https://b.test/y';
+		  document.querySelector('#page-downloads .card').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); })()`)
+		if !c.waitFor(`document.getElementById('url').value === 'https://b.test/y\nhttps://a.test/x.zip'`, 3*time.Second) {
+			t.Errorf("[%s] a dropped link was not added to the box: %q", lang, c.eval(`document.getElementById('url').value`))
+		}
+		c.eval(`document.getElementById('url').value = ''`)
 		c.eval(`document.querySelector('[data-page="home"]').click()`)
 		c.eval(`document.getElementById('welcomeGot').click()`)
 		if !c.waitFor(`document.getElementById('welcome').hidden === true`, 3*time.Second) {

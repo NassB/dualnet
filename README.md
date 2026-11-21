@@ -74,6 +74,7 @@ The interface has four pages:
 - **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live charts of the download speed and of the ping of each link;
 - **Downloads**: download files over all links at once, and resume one that was interrupted (start the same address again; the unfinished file is kept as `name.part`).
   - Paste several links, one per line (Ctrl+Enter also starts them): they run 2 at a time by default and the others wait in a queue (choose 1, 2, 3 or all at once next to the button; a queued download can be cancelled). Links that are refused stay in the box with the reason.
+  - You can also **drag and drop** links (from a browser) or text files (`.txt`, `.url`, `.csv`…) onto the Downloads card: the web addresses found are added to the box, without duplicates. Nothing starts until you press Download.
   - A summary line above the list shows how many downloads are running, queued or paused, the total speed and the estimated time left.
   - Each download can be paused and resumed (the unfinished file is kept while it is paused; cancelling it deletes the file); a failed download has a **Retry** button (it continues from the unfinished file when the server allows it).
   - Waiting downloads start in the order shown (next to start on top): ↑ / ↓ change their place, and **Start now** runs one immediately even if the limit is reached (nothing running is stopped).

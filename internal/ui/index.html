@@ -178,6 +178,7 @@ form.rule-add input { flex: 1 1 200px; min-width: 0; background: var(--panel2); 
 .warn-banner svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
 
 /* downloads */
+.card.drop { outline: 2px dashed var(--accent, #4c8dff); outline-offset: -2px; }
 form.dl { display: flex; gap: 8px; flex-wrap: wrap; }
 form.dl textarea { flex: 1 1 280px; min-width: 0; min-height: 42px; resize: vertical; line-height: 1.4; }
 form.dl select, form.dl .btn { align-self: flex-start; }
@@ -896,10 +897,34 @@ $('dl').addEventListener('submit', async e => {
     } catch (err) { return { url, err: String(err) }; }
   }));
   const failed = results.filter(Boolean);
-  $('url').value = failed.map(f => f.url).join('\n');
+  $('url').value = failed.map(f => f.url).join('\1');
   if (failed.length === 1) toast(urls.length > 1 ? `${failed[0].url}: ${failed[0].err}` : failed[0].err);
   else if (failed.length) toast(t('dlFailed', { n: failed.length, total: urls.length, err: failed[0].err }));
 });
+// Drag and drop: links or text files dropped on the Downloads card are added to the box
+// (nothing starts by itself). Elsewhere on the page a drop must not open the file.
+['dragover', 'drop'].forEach(n => window.addEventListener(n, e => e.preventDefault()));
+{
+  const card = $('page-downloads').querySelector('.card');
+  let depth = 0;
+  const URLS = /https?:\/\/[^\s<>"'`]+/gi;
+  card.addEventListener('dragenter', () => { depth++; card.classList.add('drop'); });
+  card.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; card.classList.remove('drop'); } });
+  card.addEventListener('drop', async e => {
+    depth = 0; card.classList.remove('drop');
+    const dt = e.dataTransfer, found = [];
+    const scan = s => found.push(...(s.match(URLS) || []));
+    for (const f of dt.files || []) {
+      if (f.size > 1 << 20) continue;
+      try { const s = await f.text(); if (!/[\x00-\x08]/.test(s)) scan(s); } catch (_) {}
+    }
+    if (!(dt.files && dt.files.length)) { scan(dt.getData('text/uri-list') || ''); scan(dt.getData('text/plain') || ''); }
+    const box = $('url'), have = new Set(box.value.split(/\s+/).filter(Boolean));
+    const add = [...new Set(found)].filter(u => !have.has(u));
+    if (add.length) box.value = (box.value.trim() ? box.value.trim() + '\n' : '') + add.join('\n');
+    if (found.length) toast(t('dropAdded', { n: add.length }), true); else toast(t('dropNone'));
+  });
+}
 // download folder (Settings ▸ Application)
 let dlDirEdited = false; // typed but not saved yet: the live state must not overwrite it
 $('dlDir').addEventListener('input', () => { dlDirEdited = true; });
