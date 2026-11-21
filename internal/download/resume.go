@@ -3,6 +3,7 @@ package download
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -164,6 +165,23 @@ var (
 
 // ErrBusy is returned when the output file is already being downloaded.
 var ErrBusy = errors.New("this file is already being downloaded")
+
+// claimFree claims dir/name, or "name (2).ext", "name (3).ext"… when another
+// download is writing that name.
+func claimFree(dir, name string) (out string, release func(), err error) {
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	for i := 1; i <= 100; i++ {
+		out = filepath.Join(dir, name)
+		if i > 1 {
+			out = filepath.Join(dir, fmt.Sprintf("%s (%d)%s", base, i, ext))
+		}
+		if release, err = claim(out); err == nil {
+			return out, release, nil
+		}
+	}
+	return "", nil, err
+}
 
 func claim(out string) (release func(), err error) {
 	key := out

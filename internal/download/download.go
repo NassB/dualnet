@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -249,10 +248,14 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	if err != nil {
 		return err
 	}
+	var release func()
 	if opts.Output == "" {
-		opts.Output = filepath.Join(opts.OutDir, safeName(name))
+		// Another download (of another link) may be writing the same name:
+		// take "name (2).ext" and so on rather than failing.
+		opts.Output, release, err = claimFree(opts.OutDir, safeName(name))
+	} else {
+		release, err = claim(opts.Output)
 	}
-	release, err := claim(opts.Output)
 	if err != nil {
 		return err
 	}
@@ -261,14 +264,21 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 
 	if !rangesOK || size <= 0 {
 		say("The server does not accept range requests: only one link will be used.\n")
+		perLink := make([]atomic.Int64, len(ls))
+		if opts.Stats != nil {
+			opts.Stats.set(opts.Output, max(size, 0), 0, perLink)
+		}
 		f, err := os.Create(part)
 		if err != nil {
 			return err
 		}
-		err = single(ctx, clients[0], opts.URL, f)
+		err = single(ctx, clients[0], opts.URL, f, &perLink[0])
 		f.Close()
 		if err != nil {
 			return err
+		}
+		if opts.Stats != nil && size <= 0 { // the size is only known now
+			opts.Stats.set(opts.Output, perLink[0].Load(), 0, perLink)
 		}
 		return os.Rename(part, opts.Output)
 	}
@@ -532,15 +542,27 @@ func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *o
 	}
 }
 
-func single(ctx context.Context, c *http.Client, rawURL string, f *os.File) error {
+// single downloads the whole file over one link, counting the bytes in got.
+func single(ctx context.Context, c *http.Client, rawURL string, f *os.File, got *atomic.Int64) error {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	resp, err := c.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(f, resp.Body)
+	_, err = io.Copy(countWriter{f, got}, resp.Body)
 	return err
+}
+
+type countWriter struct {
+	w io.Writer
+	n *atomic.Int64
+}
+
+func (c countWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n.Add(int64(n))
+	return n, err
 }
 
 func progress(ls []*links.Link, perLink []atomic.Int64, done *atomic.Int64, size int64, start time.Time, stop <-chan struct{}) {
