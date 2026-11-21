@@ -199,6 +199,8 @@
   "chk.link.budget": "{name} : budget mensuel atteint, plus de nouvelles connexions envoyées.",
   "chk.wifi.ok": "Windows garde le Wi‑Fi connecté à côté d’un lien filaire.",
   "chk.wifi.warn": "Par défaut, Windows coupe le Wi‑Fi quand le téléphone est branché en USB.",
+  "chk.iphone.noshare": "Un iPhone est branché en USB mais ne partage pas sa connexion : déverrouillez-le, touchez « Se fier » à cet ordinateur et activez Partage de connexion ▸ Autoriser d’autres utilisateurs (puis débranchez et rebranchez-le).",
+  "chk.iphone.nodriver": "Un iPhone est branché en USB mais le pilote d’Apple manque, Windows ne peut donc pas utiliser sa connexion : installez Apple Devices depuis le Microsoft Store (ou iTunes), puis débranchez et rebranchez l’iPhone.",
   "chk.wifi.info": "Windows peut couper le Wi‑Fi quand un lien filaire apparaît ; les deux liens fonctionnent pour l’instant.",
   "chk.tun.ok": "Le mode transparent est actif.",
   "chk.tun.missing": "Le mode transparent devrait être actif mais la carte virtuelle est absente.",
