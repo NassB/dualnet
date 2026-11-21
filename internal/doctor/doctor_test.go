@@ -204,3 +204,31 @@ func TestFormat(t *testing.T) {
 		t.Errorf("Format = %q", out)
 	}
 }
+
+func TestIPhone(t *testing.T) {
+	phone := USBDevice{HardwareIDs: []string{`USB\VID_05AC&PID_12A8&REV_1104`, `USB\VID_05AC&PID_12A8`}, Class: "USB"}
+	keyboard := USBDevice{HardwareIDs: []string{`USB\VID_05AC&PID_024F`}, Class: "HIDClass", Service: "HidUsb"}
+	for _, c := range []struct {
+		name string
+		devs []USBDevice
+		want string // expected Msg, "" = no check
+	}{
+		{"nothing plugged", nil, ""},
+		{"Apple keyboard only", []USBDevice{keyboard}, ""},
+		{"no Apple driver", []USBDevice{{HardwareIDs: phone.HardwareIDs, Class: "WPD", Service: "WUDFWpdMtp"}}, "iphone.nodriver"},
+		{"driver, no sharing", []USBDevice{{HardwareIDs: phone.HardwareIDs, Class: "USB", Service: "usbaapl64"}}, "iphone.noshare"},
+		{"sharing works", []USBDevice{
+			{HardwareIDs: phone.HardwareIDs, Class: "USB", Service: "usbaapl64"},
+			{HardwareIDs: []string{`USB\VID_05AC&PID_12A8&MI_02`}, Class: "Net", Service: "netaapl64"},
+		}, ""},
+	} {
+		s := iPhoneState(c.devs)
+		got := byID(Run(Env{IPhone: func() IPhoneState { return s }}))["iphone"]
+		if got.Msg != c.want {
+			t.Errorf("%s: msg %q, want %q (%+v)", c.name, got.Msg, c.want, s)
+		}
+		if c.want != "" && (got.Level != Warn || !got.Core) {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+	}
+}

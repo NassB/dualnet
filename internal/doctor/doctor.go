@@ -52,6 +52,7 @@ type Env struct {
 	Reach               func() error // DNS + internet through the system route
 	DataWritable        func(dir string) error
 	Autostart           func() bool // nil = not available
+	IPhone              func() IPhoneState
 }
 
 func c(id string, lvl Level, msg, text string, args map[string]string) Check {
@@ -100,6 +101,17 @@ func Run(e Env) []Check {
 				ms := l.LatencyMs()
 				a["ms"] = fmt.Sprint(ms)
 				add(c("link:"+l.Name, OK, "link.ok", fmt.Sprintf("%s: reaches the internet (ping %d ms).", l.Name, ms), a), false, "")
+			}
+		}
+	}
+
+	// an iPhone plugged in over USB that Windows does not use as a network adapter
+	if e.IPhone != nil {
+		if s := e.IPhone(); s.Plugged && !s.Adapter {
+			if s.AppleDriver {
+				add(c("iphone", Warn, "iphone.noshare", "An iPhone is plugged in over USB but is not sharing its connection: unlock it, tap Trust on this computer, and turn on Personal Hotspot ▸ Allow Others to Join (then unplug and plug it back).", nil), true, "")
+			} else {
+				add(c("iphone", Warn, "iphone.nodriver", "An iPhone is plugged in over USB but Apple's driver is missing, so Windows cannot use its connection: install Apple Devices from the Microsoft Store (or iTunes), then unplug and plug the iPhone back.", nil), true, "")
 			}
 		}
 	}

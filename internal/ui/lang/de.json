@@ -199,6 +199,8 @@
   "chk.link.budget": "{name}: Monatsbudget aufgebraucht, es werden keine neuen Sitzungen mehr gesendet.",
   "chk.wifi.ok": "Windows lässt das WLAN neben einer Kabelverbindung verbunden.",
   "chk.wifi.warn": "Standardmäßig trennt Windows das WLAN, wenn das Handy per USB angesteckt wird.",
+  "chk.iphone.noshare": "Ein iPhone ist per USB angeschlossen, teilt aber seine Verbindung nicht: Entsperren, auf diesem Computer „Vertrauen“ tippen und Persönlicher Hotspot ▸ Zugriff für andere erlauben aktivieren (dann ab- und wieder anstecken).",
+  "chk.iphone.nodriver": "Ein iPhone ist per USB angeschlossen, aber Apples Treiber fehlt, daher kann Windows seine Verbindung nicht nutzen: Apple Devices aus dem Microsoft Store (oder iTunes) installieren und das iPhone dann ab- und wieder anstecken.",
   "chk.wifi.info": "Windows kann das WLAN trennen, sobald eine Kabelverbindung erscheint; beide Verbindungen funktionieren derzeit.",
   "chk.tun.ok": "Der transparente Modus ist aktiv.",
   "chk.tun.missing": "Der transparente Modus sollte aktiv sein, aber der virtuelle Adapter fehlt.",

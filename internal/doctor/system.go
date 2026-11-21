@@ -28,6 +28,7 @@ func (e *Env) UseSystem() {
 	}
 	e.Reach = reach
 	e.DataWritable = dataWritable
+	e.IPhone = iPhoneProbe
 	if exe, err := os.Executable(); err == nil {
 		e.ExePath = exe
 	}

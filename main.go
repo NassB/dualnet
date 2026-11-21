@@ -97,6 +97,13 @@ func main() {
 				fmt.Println("  ", l)
 			}
 		}
+		e := doctor.Env{}
+		e.UseSystem()
+		for _, ck := range doctor.Run(doctor.Env{IPhone: e.IPhone}) {
+			if ck.ID == "iphone" {
+				fmt.Println("\n" + ck.Text)
+			}
+		}
 
 	case "get":
 		fs := flag.NewFlagSet("get", flag.ExitOnError)

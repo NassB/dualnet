@@ -199,6 +199,8 @@
   "chk.link.budget": "{name}: presupuesto mensual agotado, no se le envían conexiones nuevas.",
   "chk.wifi.ok": "Windows mantiene el Wi‑Fi conectado junto a un enlace por cable.",
   "chk.wifi.warn": "Por defecto, Windows desconecta el Wi‑Fi cuando el teléfono se conecta por USB.",
+  "chk.iphone.noshare": "Hay un iPhone conectado por USB pero no comparte su conexión: desbloquéalo, toca «Confiar» en este ordenador y activa Compartir Internet ▸ Permitir a otros conectarse (luego desconéctalo y vuelve a conectarlo).",
+  "chk.iphone.nodriver": "Hay un iPhone conectado por USB pero falta el controlador de Apple, así que Windows no puede usar su conexión: instala Apple Devices desde Microsoft Store (o iTunes) y vuelve a conectar el iPhone.",
   "chk.wifi.info": "Windows puede desconectar el Wi‑Fi cuando aparece un enlace por cable; por ahora ambos funcionan.",
   "chk.tun.ok": "El modo transparente está activo.",
   "chk.tun.missing": "El modo transparente debería estar activo pero falta el adaptador virtual.",
