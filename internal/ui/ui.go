@@ -66,12 +66,14 @@ type Server struct {
 type job struct {
 	id      int
 	url     string
-	state   string // running, done, error, cancelled
+	state   string // queued, running, done, error, cancelled
 	err     string
+	workers int // connections per link
 	started time.Time
 	ended   time.Time
 	stats   *download.Stats
 	links   []*links.Link // links used, in the order of stats' per-link counters
+	ctx     context.Context
 	cancel  context.CancelFunc
 	dropped bool // cancelled by the user: the partial file is deleted
 }
@@ -85,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
+	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
@@ -171,6 +174,7 @@ type snapshot struct {
 	Onb        bool       `json:"onboarded"`
 	Welcomed   bool       `json:"welcomed"`
 	BudgetWarn int        `json:"budgetWarn"`
+	MaxDl      int        `json:"maxDownloads"`
 	Apps       []appView  `json:"apps"`
 	Rules      []ruleView `json:"rules"`
 	Auto       *bool      `json:"autostart,omitempty"` // nil = option not available
@@ -248,6 +252,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			if s.Store != nil {
 				snap.BudgetWarn = s.Store.WarnPercent()
 			}
+			snap.MaxDl = s.maxDownloads()
 			all := s.Pool.All()
 			index := map[*links.Link]int{}
 			for i, l := range all {
@@ -285,8 +290,16 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				if end.IsZero() {
 					end = now
 				}
-				v := jobView{ID: j.id, URL: j.url, File: filepath.Base(file), Size: size, Done: done,
-					PerLink: per, State: j.state, Err: j.err, Elapsed: end.Sub(j.started).Seconds()}
+				elapsed := 0.0
+				if !j.started.IsZero() { // a queued download has not started
+					elapsed = end.Sub(j.started).Seconds()
+				}
+				name := "" // not chosen yet (queued): the page shows the address
+				if file != "" {
+					name = filepath.Base(file)
+				}
+				v := jobView{ID: j.id, URL: j.url, File: name, Size: size, Done: done,
+					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed}
 				if j.state == "running" {
 					if last, seen := prevJob[j.id]; seen { // no speed on a page's first tick
 						v.Mbps = links.Mbps(done-last, dt)
@@ -321,15 +334,14 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	if req.Workers <= 0 || req.Workers > 32 {
 		req.Workers = 4
 	}
-	up := s.Pool.Up()
-	if len(up) == 0 {
+	if len(s.Pool.Up()) == 0 {
 		http.Error(w, "no connected link", http.StatusServiceUnavailable)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	for _, j := range s.jobs {
-		if j.state == "running" && j.url == req.URL {
+		if (j.state == "running" || j.state == "queued") && j.url == req.URL {
 			s.mu.Unlock()
 			cancel()
 			http.Error(w, "already downloading", http.StatusConflict)
@@ -337,34 +349,82 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.nextID++
-	j := &job{id: s.nextID, url: req.URL, state: "running", started: time.Now(), stats: &download.Stats{}, links: up, cancel: cancel}
-	s.jobs = append(s.jobs, j)
+	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, stats: &download.Stats{}, cancel: cancel, ctx: ctx})
+	s.pump()
 	s.mu.Unlock()
-
-	go func() {
-		err := download.Run(ctx, up, download.Options{
-			URL: req.URL, OutDir: s.OutDir, ChunkSize: 2 << 20, WorkersPerLnk: req.Workers,
-			Quiet: true, Stats: j.stats,
-		})
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		j.ended = time.Now()
-		switch {
-		case ctx.Err() != nil:
-			j.state = "cancelled"
-			if file, _, _ := j.stats.Snapshot(); j.dropped {
-				download.RemovePartial(file) // cancelled by the user: nothing to resume
-			}
-		case err != nil:
-			j.state, j.err = "error", err.Error()
-		default:
-			j.state = "done"
-		}
-		if err != nil {
-			log.Printf("download %d: %v", j.id, err)
-		}
-	}()
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// maxDownloads is how many downloads run at once (0 = no limit).
+func (s *Server) maxDownloads() int {
+	if s.Store == nil {
+		return store.DefaultMaxDownloads
+	}
+	return s.Store.MaxDownloads()
+}
+
+// setMaxDownloads sets how many downloads run at once: ?n=<0-8> (0 = no limit).
+func (s *Server) setMaxDownloads(w http.ResponseWriter, r *http.Request) {
+	n, err := strconv.Atoi(r.URL.Query().Get("n"))
+	if err != nil || n < 0 || n > 8 || s.Store == nil {
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	s.Store.SetMaxDownloads(n)
+	s.mu.Lock()
+	s.pump() // a higher limit starts waiting downloads at once
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// pump starts queued downloads, oldest first, while fewer than the limit run.
+// A lower limit never stops a running download. Called with s.mu held.
+func (s *Server) pump() {
+	limit, running := s.maxDownloads(), 0
+	for _, j := range s.jobs {
+		if j.state == "running" {
+			running++
+		}
+	}
+	for _, j := range s.jobs {
+		if j.state != "queued" || (limit > 0 && running >= limit) {
+			continue
+		}
+		up := s.Pool.Up()
+		if len(up) == 0 {
+			j.state, j.err, j.ended = "error", "no connected link", time.Now()
+			continue
+		}
+		j.state, j.started, j.links = "running", time.Now(), up
+		running++
+		go s.run(j)
+	}
+}
+
+// run downloads one job, then lets the next queued one start.
+func (s *Server) run(j *job) {
+	err := download.Run(j.ctx, j.links, download.Options{
+		URL: j.url, OutDir: s.OutDir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
+		Quiet: true, Stats: j.stats,
+	})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j.ended = time.Now()
+	switch {
+	case j.ctx.Err() != nil:
+		j.state = "cancelled"
+		if file, _, _ := j.stats.Snapshot(); j.dropped {
+			download.RemovePartial(file) // cancelled by the user: nothing to resume
+		}
+	case err != nil:
+		j.state, j.err = "error", err.Error()
+	default:
+		j.state = "done"
+	}
+	if err != nil {
+		log.Printf("download %d: %v", j.id, err)
+	}
+	s.pump()
 }
 
 func (s *Server) find(r *http.Request) *job {
@@ -383,6 +443,9 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	if j := s.find(r); j != nil {
 		s.mu.Lock()
 		j.dropped = true
+		if j.state == "queued" { // never started: nothing to stop or delete
+			j.state, j.ended = "cancelled", time.Now()
+		}
 		s.mu.Unlock()
 		j.cancel()
 	}
