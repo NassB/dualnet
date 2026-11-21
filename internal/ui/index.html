@@ -335,6 +335,7 @@ td.r, th.r { text-align: right; }
           <button class="btn" type="submit" data-i18n="download"></button>
         </form>
         <div class="howto"><button class="btn ghost small" id="clearJobs" hidden onclick="post('/api/clear')" data-i18n="clearFinished"></button></div>
+        <div class="howto" id="jobsSum" hidden></div>
         <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
         <div class="howto mt"><span id="dir"></span> <a href="#" id="dirChange" data-i18n="dlDirChange"></a></div>
       </div>
@@ -818,6 +819,17 @@ function renderJobs(snap) {
   if (snap.dir && document.activeElement !== $('dlDir') && !dlDirEdited) $('dlDir').value = snap.dir;
   $('dlDirReset').hidden = !snap.dirCustom;
   const box = $('jobs');
+  const by = s => snap.jobs.filter(j => j.state === s), run = by('running');
+  const parts = [['sumRunning', run.length], ['sumQueued', by('queued').length], ['sumPaused', by('paused').length]]
+    .filter(p => p[1]).map(p => t(p[0], { n: p[1] }));
+  const speed = run.reduce((a, j) => a + j.mbps, 0);
+  if (parts.length) {
+    if (speed > 0) parts.push(fmtMbps(speed) + ' Mb/s');
+    const rest = [...run, ...by('queued'), ...by('paused')].reduce((a, j) => a + (j.size > j.done ? j.size - j.done : 0), 0);
+    if (speed > 0 && rest > 0) parts.push(t('left', { t: fmtDur(rest * 8 / (speed * 1e6)) }));
+  }
+  $('jobsSum').textContent = parts.join(' · ');
+  $('jobsSum').hidden = !parts.length;
   $('clearJobs').hidden = !snap.jobs.some(j => ['done', 'error', 'cancelled'].includes(j.state));
   if (!snap.jobs.length) {
     if (jobsKey) { jobsKey = ''; box.innerHTML = `<div class="empty">${esc(t('noDownloads'))}</div>`; }
