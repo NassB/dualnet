@@ -25,7 +25,7 @@
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
   font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 .app { display: grid; grid-template-columns: 228px 1fr; height: 100vh; }
 
 /* ---------- sidebar ---------- */
@@ -119,8 +119,8 @@ canvas { width: 100%; height: 100%; display: block; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
 .btn.chosen { color: var(--accent); border-color: var(--accent); }
 .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
-input[type=url], select { background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
-input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; }
+input[type=url], textarea, select { background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+input:focus, textarea:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; }
 
 .switch { position: relative; width: 42px; height: 24px; flex: none; }
 .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
@@ -179,7 +179,8 @@ form.rule-add input { flex: 1 1 200px; min-width: 0; background: var(--panel2); 
 
 /* downloads */
 form.dl { display: flex; gap: 8px; flex-wrap: wrap; }
-form.dl input { flex: 1 1 280px; min-width: 0; }
+form.dl textarea { flex: 1 1 280px; min-width: 0; min-height: 42px; resize: vertical; line-height: 1.4; }
+form.dl select, form.dl .btn { align-self: flex-start; }
 .jobs { display: grid; gap: 10px; margin-top: 14px; }
 .job { border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; background: var(--panel2); }
 .job .top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
@@ -315,7 +316,7 @@ td.r, th.r { text-align: right; }
       <p class="lead" data-i18n="dlLead"></p>
       <div class="card">
         <form class="dl" id="dl">
-          <input type="url" id="url" data-i18n-ph="urlPlaceholder" required>
+          <textarea id="url" rows="2" data-i18n-ph="urlPlaceholder" required spellcheck="false" autocomplete="off"></textarea>
           <select id="workers" data-i18n-title="connPerLink">
             <option value="2" data-i18n="conn2"></option>
             <option value="4" selected data-i18n="conn4"></option>
@@ -835,11 +836,26 @@ function renderJobs(snap) {
       <span class="legend">${split}</span>`);
   });
 }
+// One link per line; every link starts its own download, all in parallel.
+// Links that fail stay in the box so they can be fixed; the reason is shown in a toast.
 $('dl').addEventListener('submit', async e => {
   e.preventDefault();
-  const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' },
-    body: JSON.stringify({ url: $('url').value.trim(), workers: +$('workers').value }) });
-  if (r.ok) $('url').value = ''; else toast(srv(await r.text()));
+  const urls = [...new Set($('url').value.split(/\s+/).filter(Boolean))];
+  const workers = +$('workers').value;
+  const results = await Promise.all(urls.map(async url => {
+    try {
+      const r = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' },
+        body: JSON.stringify({ url, workers }) });
+      return r.ok ? null : { url, err: srv(await r.text()) };
+    } catch (err) { return { url, err: String(err) }; }
+  }));
+  const failed = results.filter(Boolean);
+  $('url').value = failed.map(f => f.url).join('\n');
+  if (failed.length === 1) toast(urls.length > 1 ? `${failed[0].url}: ${failed[0].err}` : failed[0].err);
+  else if (failed.length) toast(t('dlFailed', { n: failed.length, total: urls.length, err: failed[0].err }));
+});
+$('url').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('dl').requestSubmit(); }
 });
 
 // ---------- settings ----------
