@@ -72,9 +72,9 @@ On a first run, the dashboard shows a **Getting started** card with what still n
 The interface has four pages:
 
 - **Dashboard**: on/off switch, combined speed, one card per link (speed, ping, share, this month's data, speed cap, monthly budget), the **applications** using the network, live charts of the download speed and of the ping of each link;
-- **Downloads**: download files over all links at once, and resume one that was interrupted (start the same address again; the unfinished file is kept as `name.part`). Paste several links, one per line (Ctrl+Enter also starts them): they run 2 at a time by default and the others wait in a queue (choose 1, 2, 3 or all at once next to the button; a queued download can be cancelled); links that are refused stay in the box with the reason. Two files with the same name are saved as `name.ext` and `name (2).ext`;
+- **Downloads**: download files over all links at once, and resume one that was interrupted (start the same address again; the unfinished file is kept as `name.part`). Paste several links, one per line (Ctrl+Enter also starts them): they run 2 at a time by default and the others wait in a queue (choose 1, 2, 3 or all at once next to the button; a queued download can be cancelled); links that are refused stay in the box with the reason. Two files with the same name are saved as `name.ext` and `name (2).ext`. Files go to your Downloads folder; choose another one in Settings → Application → *Download folder* (with *Browse…* on Windows);
 - **History**: data per link and per day;
-- **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, application rules (link and speed cap), domain rules, **profiles**, budget warning level, start with Windows, notifications, update check, diagnostics and the installation check.
+- **Settings**: transparent mode, Windows proxy, **links** (speed test and how each link is used), keep Wi‑Fi with USB tethering, link preferred by Windows, application rules (link and speed cap), domain rules, **profiles**, budget warning level, start with Windows, notifications, update check, download folder, diagnostics and the installation check.
 
 ## What dualnet does
 

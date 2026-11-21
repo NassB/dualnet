@@ -119,7 +119,7 @@ canvas { width: 100%; height: 100%; display: block; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
 .btn.chosen { color: var(--accent); border-color: var(--accent); }
 .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
-input[type=url], textarea, select { background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
+input[type=url], textarea, select, #dlDir { background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; }
 input:focus, textarea:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 0; }
 
 .switch { position: relative; width: 42px; height: 24px; flex: none; }
@@ -205,6 +205,10 @@ td.r, th.r { text-align: right; }
 
 /* toast */
 .windows-only[hidden], .power[hidden] { display: none; }
+#dlDirForm { flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 14px; } /* not the card's first .setting, although its first form */
+#dlDirForm .txt { flex: 1 1 100%; }
+#dlDir { flex: 1 1 260px; min-width: 0; }
+#dlDirForm [hidden] { display: none; }
 .toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
   border-left: 4px solid var(--err); border-radius: 10px; padding: 11px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
   transform: translateY(20px); opacity: 0; transition: .2s; pointer-events: none; font-size: 13px; z-index: 10; }
@@ -331,7 +335,7 @@ td.r, th.r { text-align: right; }
           <button class="btn" type="submit" data-i18n="download"></button>
         </form>
         <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
-        <div class="howto mt" id="dir"></div>
+        <div class="howto mt"><span id="dir"></span> <a href="#" id="dirChange" data-i18n="dlDirChange"></a></div>
       </div>
     </section>
 
@@ -459,6 +463,13 @@ td.r, th.r { text-align: right; }
           <div class="txt"><div class="title" data-i18n="updTitle"></div><div class="sub" data-i18n="updSub"></div></div>
           <label class="switch"><input type="checkbox" id="updSw"><span></span></label>
         </div>
+        <form class="setting" id="dlDirForm">
+          <div class="txt"><div class="title" data-i18n="dlDirTitle"></div><div class="sub" data-i18n="dlDirSub"></div></div>
+          <input type="text" id="dlDir" required spellcheck="false" autocomplete="off" data-i18n-title="dlDirTitle">
+          <button class="btn ghost small windows-only" type="button" id="dlDirBrowse" data-i18n="dlDirBrowse"></button>
+          <button class="btn small" type="submit" data-i18n="save"></button>
+          <button class="btn ghost small" type="button" id="dlDirReset" data-i18n="dlDirReset" hidden></button>
+        </form>
       </div>
 
       <div class="card mt">
@@ -803,6 +814,8 @@ function drawPing() {
 function renderJobs(snap) {
   if (document.activeElement !== $('maxDl') && snap.maxDownloads != null) $('maxDl').value = snap.maxDownloads;
   if (snap.dir) $('dir').textContent = t('destFolder', { d: snap.dir });
+  if (snap.dir && document.activeElement !== $('dlDir') && !dlDirEdited) $('dlDir').value = snap.dir;
+  $('dlDirReset').hidden = !snap.dirCustom;
   if (!snap.jobs.length) return;
   const box = $('jobs');
   const jobs = snap.jobs.slice().reverse();
@@ -861,6 +874,30 @@ $('dl').addEventListener('submit', async e => {
   $('url').value = failed.map(f => f.url).join('\n');
   if (failed.length === 1) toast(urls.length > 1 ? `${failed[0].url}: ${failed[0].err}` : failed[0].err);
   else if (failed.length) toast(t('dlFailed', { n: failed.length, total: urls.length, err: failed[0].err }));
+});
+// download folder (Settings ▸ Application)
+let dlDirEdited = false; // typed but not saved yet: the live state must not overwrite it
+$('dlDir').addEventListener('input', () => { dlDirEdited = true; });
+async function saveDlDir(dir) {
+  try {
+    const r = await fetch('/api/downloaddir', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' }, body: JSON.stringify({ dir }) });
+    if (!r.ok) { toast(srv(await r.text())); return; }
+    dlDirEdited = false; toast(t('saved'), true);
+  } catch (e) { toast(String(e)); }
+}
+$('dlDirForm').addEventListener('submit', e => { e.preventDefault(); saveDlDir($('dlDir').value.trim()); });
+$('dlDirReset').addEventListener('click', () => saveDlDir(''));
+$('dlDirBrowse').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/downloaddir/browse', { method: 'POST', headers: { 'X-Dualnet': '1' } });
+    if (!r.ok) { toast(srv(await r.text())); return; }
+    const { dir } = await r.json();
+    if (dir) { $('dlDir').value = dir; saveDlDir(dir); }
+  } catch (e) { toast(String(e)); }
+});
+$('dirChange').addEventListener('click', e => {
+  e.preventDefault(); show('settings'); loadNamedSettings();
+  $('dlDirForm').scrollIntoView({ block: 'center' }); $('dlDir').focus();
 });
 $('maxDl').addEventListener('change', async () => {
   if (await post('/api/maxdownloads?n=' + $('maxDl').value)) toast(t('saved'), true);
