@@ -62,6 +62,7 @@ type Server struct {
 	mu     sync.Mutex
 	jobs   []*job
 	nextID int
+	loaded sync.Once
 }
 
 type job struct {
@@ -82,6 +83,7 @@ type job struct {
 }
 
 func (s *Server) Handler() http.Handler {
+	s.loaded.Do(s.loadJobs) // the download list of the previous run
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -365,6 +367,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	s.nextID++
 	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx})
 	s.pump()
+	s.saveJobs()
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -416,9 +419,11 @@ func (s *Server) begin(j *job) bool {
 	up := s.Pool.Up()
 	if len(up) == 0 {
 		j.state, j.err, j.ended = "error", "no connected link", time.Now()
+		s.saveJobs()
 		return false
 	}
 	j.state, j.started, j.links = "running", time.Now(), up
+	s.saveJobs()
 	go s.run(j)
 	return true
 }
@@ -469,6 +474,7 @@ func (s *Server) moveJob(w http.ResponseWriter, r *http.Request) {
 			n++
 		}
 	}
+	s.saveJobs()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -534,6 +540,7 @@ func (s *Server) run(j *job) {
 		}
 	}
 	s.pump()
+	s.saveJobs()
 }
 
 func (s *Server) find(r *http.Request) *job {
@@ -560,6 +567,7 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 			file, _, _ := j.stats.Snapshot()
 			download.RemovePartial(file)
 		}
+		s.saveJobs()
 		s.mu.Unlock()
 		j.cancel()
 	}
@@ -577,6 +585,7 @@ func (s *Server) pauseJob(w http.ResponseWriter, r *http.Request) {
 			j.pausing = true
 			j.cancel() // run() sets the state once the download has stopped
 		}
+		s.saveJobs()
 		s.mu.Unlock()
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -590,6 +599,7 @@ func (s *Server) resumeJob(w http.ResponseWriter, r *http.Request) {
 			j.ctx, j.cancel = context.WithCancel(context.Background())
 			j.pausing, j.state = false, "queued"
 			s.pump()
+			s.saveJobs()
 		}
 		s.mu.Unlock()
 	}
@@ -619,6 +629,7 @@ func (s *Server) retryJob(w http.ResponseWriter, r *http.Request) {
 	j.ctx, j.cancel = context.WithCancel(context.Background())
 	j.pausing, j.dropped, j.err, j.ended, j.state = false, false, "", time.Time{}, "queued"
 	s.pump()
+	s.saveJobs()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -636,6 +647,7 @@ func (s *Server) clearJobs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.jobs = keep
+	s.saveJobs()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -658,6 +670,7 @@ func (s *Server) removeJob(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	s.saveJobs()
 	w.WriteHeader(http.StatusNoContent)
 }
 

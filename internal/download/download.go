@@ -588,3 +588,9 @@ func progress(ls []*links.Link, perLink []atomic.Int64, done *atomic.Int64, size
 		}
 	}
 }
+
+// Preset fills the stats of a download restored from an earlier run: its
+// output file, total size and the bytes already on disk.
+func (s *Stats) Preset(file string, size, done int64) {
+	s.set(file, size, done, nil)
+}

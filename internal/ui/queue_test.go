@@ -375,6 +375,7 @@ func TestMoveAndStartNow(t *testing.T) {
 	srv := &Server{Store: st, OutDir: t.TempDir(), Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
+	t.Cleanup(func() { settle(srv) }) // runs after the deferred close(gate)
 	post := func(path string) int {
 		req, _ := http.NewRequest("POST", ts.URL+path, nil)
 		req.Header.Set(CSRFHeader, "1")
@@ -436,5 +437,124 @@ func TestMoveAndStartNow(t *testing.T) {
 	wait("1:running,2:queued,3:running,4:queued")
 	if c := post("/api/startnow?id=1"); c != http.StatusConflict {
 		t.Errorf("startnow running: HTTP %d, want 409", c)
+	}
+}
+
+// The list survives a restart: running and queued downloads come back paused,
+// finished ones as they were, ids continue, and a restored paused download
+// resumes from its .part file.
+func TestRestoreJobs(t *testing.T) {
+	data := make([]byte, 6<<20)
+	for i := range data {
+		data[i] = byte(i * 5)
+	}
+	gate := make(chan struct{})
+	var blocked atomic.Int32
+	files := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rg := r.Header.Get("Range"); rg != "" && !strings.HasPrefix(rg, "bytes=0-") && strings.HasPrefix(r.URL.Path, "/big") {
+			blocked.Add(1)
+			select {
+			case <-gate:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		http.ServeContent(w, r, "f", time.Time{}, bytes.NewReader(data))
+	}))
+	defer files.Close()
+
+	conf, out := t.TempDir(), t.TempDir()
+	pool := links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))
+	st := store.Open(conf)
+	st.SetMaxDownloads(1)
+	srv := &Server{Store: st, OutDir: out, Pool: pool}
+	ts := httptest.NewServer(srv.Handler())
+	post := func(path, body string) {
+		req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(body))
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	wait := func(s *Server, i int, want string) {
+		t.Helper()
+		var got string
+		for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			s.mu.Lock()
+			got = s.jobs[i].state
+			s.mu.Unlock()
+			if got == want {
+				return
+			}
+		}
+		t.Fatalf("job %d state %s, want %s", i, got, want)
+	}
+
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/small")) // 1: done
+	wait(srv, 0, "done")
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/big")) // 2: running
+	for end := time.Now().Add(10 * time.Second); blocked.Load() == 0 && time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+	}
+	post("/api/download", fmt.Sprintf(`{"url":%q}`, files.URL+"/other")) // 3: queued
+	wait(srv, 1, "running")
+
+	// the "restart": a new server reads the file the first one wrote
+	srv2 := &Server{Store: store.Open(conf), OutDir: out, Pool: pool}
+	ts2 := httptest.NewServer(srv2.Handler())
+	defer ts2.Close()
+	if len(srv2.jobs) != 3 {
+		t.Fatalf("%d jobs restored, want 3", len(srv2.jobs))
+	}
+	for i, want := range []string{"done", "paused", "paused"} {
+		if srv2.jobs[i].id != i+1 || srv2.jobs[i].state != want {
+			t.Errorf("job %d: id %d state %s, want id %d %s", i, srv2.jobs[i].id, srv2.jobs[i].state, i+1, want)
+		}
+	}
+	if f, size, _ := srv2.jobs[0].stats.Snapshot(); filepath.Base(f) != "small" || size != int64(len(data)) {
+		t.Errorf("restored file %q size %d", f, size)
+	}
+
+	// the first run goes away, the second resumes the interrupted download
+	close(gate)
+	ts.Close()
+	wait(srv, 1, "done")
+	post2 := func(path string) {
+		req, _ := http.NewRequest("POST", ts2.URL+path, nil)
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	post2("/api/resume?id=2")
+	wait(srv2, 1, "done")
+	got, err := os.ReadFile(filepath.Join(out, "big"))
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("file is wrong (err %v, %d bytes)", err, len(got))
+	}
+	srv2.mu.Lock()
+	next := srv2.nextID
+	srv2.mu.Unlock()
+	if next != 3 {
+		t.Errorf("nextID %d, want 3", next)
+	}
+}
+
+// settle waits until no download is running: they save the list when they end,
+// which must happen before the test's folders are removed.
+func settle(s *Server) {
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+		busy := false
+		s.mu.Lock()
+		for _, j := range s.jobs {
+			busy = busy || j.state == "running"
+		}
+		s.mu.Unlock()
+		if !busy {
+			return
+		}
 	}
 }
