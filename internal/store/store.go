@@ -55,6 +55,24 @@ type Settings struct {
 	// MaxDownloads: downloads of the Downloads page running at once, the others
 	// wait in a queue; nil = 2, 0 = no limit.
 	MaxDownloads *int `json:"maxDownloads,omitempty"`
+	// DownloadDir: folder of the Downloads page; "" = the default (-dir, or
+	// the user's Downloads folder).
+	DownloadDir string `json:"downloadDir,omitempty"`
+}
+
+// DownloadDir returns the chosen download folder ("" = the default).
+func (s *Store) DownloadDir() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.DownloadDir
+}
+
+// SetDownloadDir saves the download folder ("" = back to the default).
+func (s *Store) SetDownloadDir(dir string) {
+	s.mu.Lock()
+	s.settings.DownloadDir = dir
+	s.mu.Unlock()
+	s.Save()
 }
 
 // DefaultMaxDownloads is how many downloads run at once until the user chooses.

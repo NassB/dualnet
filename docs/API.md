@@ -44,6 +44,7 @@ curl.exe -X POST -H "X-Dualnet: 1" "http://127.0.0.1:8090/api/transparent?on=1"
 | `POST /api/update/install` | download the newer release found by the daily check, verify its checksum, replace the program and restart (app mode on Windows only; `501` otherwise) |
 | `POST /api/download` (JSON body `{"url": "...", "workers": 4}`), `/api/cancel?id=<n>`, `/api/reveal?id=<n>` | multi-link downloads |
 | `POST /api/maxdownloads?n=<0-8>` | downloads running at once, the others wait in a queue (0 = no limit, default 2) |
+| `POST /api/downloaddir` (JSON body `{"dir": "D:\\Downloads"}`, `""` = default), `/api/downloaddir/browse` (Windows folder picker, returns `{"dir": "..."}`, saves nothing) | folder of the Downloads page; the folder is created if needed and must be writable |
 | `POST /api/system?do=simultaneous\|prefer&...` | Windows network settings (administrator) |
 
 The authoritative list is the route table in `internal/ui/ui.go`.

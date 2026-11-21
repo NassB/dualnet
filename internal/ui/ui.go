@@ -68,7 +68,8 @@ type job struct {
 	url     string
 	state   string // queued, running, done, error, cancelled
 	err     string
-	workers int // connections per link
+	workers int    // connections per link
+	dir     string // folder chosen when the download was added
 	started time.Time
 	ended   time.Time
 	stats   *download.Stats
@@ -88,6 +89,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
+	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
+	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
@@ -164,6 +167,7 @@ type snapshot struct {
 	Jobs       []jobView  `json:"jobs"`
 	Proxy      string     `json:"proxy"`
 	Dir        string     `json:"dir"`
+	DirCustom  bool       `json:"dirCustom"` // chosen in Settings (not the default)
 	Sys        sysView    `json:"sys"`
 	Tun        tunView    `json:"tun"`
 	Sys2       systemView `json:"system"`
@@ -248,7 +252,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case now := <-tk.C:
 			dt := now.Sub(last)
 			last = now
-			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.OutDir, Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone(), Welcomed: s.Store == nil || s.Store.Welcomed()}
+			snap := snapshot{T: now.UnixMilli(), OS: runtime.GOOS, Proxy: s.ProxyAddr, Dir: s.downloadDir(), DirCustom: s.Store != nil && s.Store.DownloadDir() != "", Links: []linkView{}, Jobs: []jobView{}, Sys: s.sysState(), Tun: s.Tun.view(), Sys2: s.systemState(), Ver: s.Version, Power: s.powerState(), Auto: s.autostartState(), Upd: s.updateState(), Notif: s.Store == nil || s.Store.NotifyEnabled(), Onb: s.Store != nil && s.Store.OnboardingDone(), Welcomed: s.Store == nil || s.Store.Welcomed()}
 			if s.Store != nil {
 				snap.BudgetWarn = s.Store.WarnPercent()
 			}
@@ -349,7 +353,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.nextID++
-	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, stats: &download.Stats{}, cancel: cancel, ctx: ctx})
+	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx})
 	s.pump()
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
@@ -404,7 +408,7 @@ func (s *Server) pump() {
 // run downloads one job, then lets the next queued one start.
 func (s *Server) run(j *job) {
 	err := download.Run(j.ctx, j.links, download.Options{
-		URL: j.url, OutDir: s.OutDir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
+		URL: j.url, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
 		Quiet: true, Stats: j.stats,
 	})
 	s.mu.Lock()
