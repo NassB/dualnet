@@ -4,6 +4,7 @@ package notify
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -89,6 +90,37 @@ func (n *Notifier) LinkEvent(name, event string, up int) {
 	}
 	n.last[name] = now()
 	n.mu.Unlock()
+	n.send("dualnet", body)
+}
+
+func size(b int64) string {
+	switch {
+	case b >= 1<<30:
+		return fmt.Sprintf("%.1f GB", float64(b)/(1<<30))
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(b)/(1<<20))
+	}
+	return fmt.Sprintf("%d KB", (b+1023)>>10)
+}
+
+// DownloadDone notifies that a download finished (size 0 = unknown).
+func (n *Notifier) DownloadDone(file string, bytes int64) {
+	body := fmt.Sprintf(n.tr("%s downloaded", "%s téléchargé"), filepath.Base(file))
+	if bytes > 0 {
+		body += " (" + size(bytes) + ")"
+	}
+	n.downloadEvent(body)
+}
+
+// DownloadFailed notifies that a download stopped with an error.
+func (n *Notifier) DownloadFailed(file, reason string) {
+	n.downloadEvent(fmt.Sprintf(n.tr("%s failed: %s", "%s a échoué : %s"), filepath.Base(file), reason))
+}
+
+func (n *Notifier) downloadEvent(body string) {
+	if n.Enabled != nil && !n.Enabled() {
+		return
+	}
 	n.send("dualnet", body)
 }
 

@@ -153,7 +153,7 @@
   "tagOver": "Budget used",
   "budgetPrompt": "Monthly data budget for {n} in GB (0 = none). Counts the data that goes through dualnet on this link; when it is used up, dualnet stops sending it new connections until next month.",
   "notifTitle": "Notifications",
-  "notifSub": "A Windows notification when a link drops, comes back or appears, even if this window is closed.",
+  "notifSub": "A Windows notification when a link drops, comes back or appears, or when a download finishes or fails, even if this window is closed.",
   "notifTest": "Send a test",
   "notifSent": "Test notification sent",
   "diagTitle": "Diagnostics",

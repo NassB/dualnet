@@ -87,3 +87,24 @@ func TestRateLimitAndSwitch(t *testing.T) {
 		t.Fatalf("Test(): err=%v, notifications=%d, want 4", err, len(s.get()))
 	}
 }
+
+func TestDownloadMessages(t *testing.T) {
+	var s sink
+	on := true
+	n := &Notifier{Send: s.send, Enabled: func() bool { return on }}
+	fr := &Notifier{Send: s.send, French: true}
+	n.DownloadDone(`C:\d\film.mkv`, 5<<20)
+	n.DownloadFailed("a.zip", "timeout")
+	fr.DownloadDone("a.zip", 0)
+	on = false
+	n.DownloadDone("x", 1)
+	got := strings.Join(s.get(), "\n")
+	for _, w := range []string{"dualnet|film.mkv downloaded (5.0 MB)", "a.zip failed: timeout", "a.zip téléchargé"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("missing %q in %q", w, got)
+		}
+	}
+	if strings.Contains(got, "x downloaded") {
+		t.Error("sent while disabled")
+	}
+}

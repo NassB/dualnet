@@ -153,7 +153,7 @@
   "tagOver": "Budget atteint",
   "budgetPrompt": "Budget de données mensuel pour {n} en Go (0 = aucun). Compte les données qui passent par dualnet sur ce lien ; une fois atteint, dualnet ne lui envoie plus de nouvelles connexions jusqu’au mois prochain.",
   "notifTitle": "Notifications",
-  "notifSub": "Une notification Windows quand un lien se coupe, revient ou apparaît, même si cette fenêtre est fermée.",
+  "notifSub": "Une notification Windows quand un lien se coupe, revient ou apparaît, ou quand un téléchargement se termine ou échoue, même si cette fenêtre est fermée.",
   "notifTest": "Envoyer un test",
   "notifSent": "Notification de test envoyée",
   "diagTitle": "Diagnostic",

@@ -153,7 +153,7 @@
   "tagOver": "Budget aufgebraucht",
   "budgetPrompt": "Monatliches Datenbudget für {n} in GB (0 = keins). Zählt die Daten, die über dualnet auf dieser Verbindung laufen; ist es aufgebraucht, schickt dualnet bis zum nächsten Monat keine neuen Sitzungen mehr darüber.",
   "notifTitle": "Benachrichtigungen",
-  "notifSub": "Eine Windows-Benachrichtigung, wenn eine Verbindung ausfällt, zurückkommt oder neu erscheint, auch bei geschlossenem Fenster.",
+  "notifSub": "Eine Windows-Benachrichtigung, wenn eine Verbindung ausfällt, zurückkommt oder neu erscheint oder ein Download endet oder fehlschlägt, auch bei geschlossenem Fenster.",
   "notifTest": "Test senden",
   "notifSent": "Testbenachrichtigung gesendet",
   "diagTitle": "Diagnose",

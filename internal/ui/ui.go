@@ -438,6 +438,17 @@ func (s *Server) run(j *job) {
 	if err != nil {
 		log.Printf("download %d: %v", j.id, err)
 	}
+	if s.Notify != nil && (j.state == "done" || j.state == "error") {
+		file, total, _ := j.stats.Snapshot()
+		if file == "" {
+			file = j.url
+		}
+		if j.state == "done" {
+			s.Notify.DownloadDone(file, total)
+		} else {
+			s.Notify.DownloadFailed(file, j.err)
+		}
+	}
 	s.pump()
 }
 

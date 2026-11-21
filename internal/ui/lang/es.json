@@ -153,7 +153,7 @@
   "tagOver": "Presupuesto agotado",
   "budgetPrompt": "Presupuesto mensual de datos para {n} en GB (0 = ninguno). Cuenta los datos que pasan por dualnet en este enlace; cuando se agota, dualnet deja de enviarle conexiones nuevas hasta el mes siguiente.",
   "notifTitle": "Notificaciones",
-  "notifSub": "Una notificación de Windows cuando un enlace se corta, vuelve o aparece, aunque esta ventana esté cerrada.",
+  "notifSub": "Una notificación de Windows cuando un enlace se corta, vuelve o aparece, o cuando una descarga termina o falla, aunque esta ventana esté cerrada.",
   "notifTest": "Enviar prueba",
   "notifSent": "Notificación de prueba enviada",
   "diagTitle": "Diagnóstico",
