@@ -261,6 +261,13 @@
   "roleHelp": "«Solo si los demás están ocupados» mantiene un enlace en reposo, por ejemplo los datos móviles del teléfono, hasta que los demás enlaces estén casi llenos. Entonces dualnet lo añade y lo suelta cuando baja la carga. Un programa limitado a él por una regla lo sigue usando.",
   "tagStandby": "En espera",
   "_server": {
+    "a file with this name already exists": "ya existe un archivo con este nombre",
+    "pause the download first": "pausa primero la descarga",
+    "cannot move to another drive": "no se puede mover a otra unidad",
+    "cannot move the file": "no se puede mover el archivo",
+    "the file is gone": "el archivo ya no está",
+    "the download was cancelled": "la descarga fue cancelada",
+    "invalid name": "nombre no válido",
     "the folder must be a full path": "la carpeta debe ser una ruta completa (por ejemplo D:\\Descargas)",
     "cannot create the folder": "no se puede crear la carpeta",
     "cannot write to the folder": "no se puede escribir en la carpeta",
@@ -287,6 +294,10 @@
   "shaFail": "SHA-256 ✗ — el archivo no coincide con la suma esperada (se conserva). Real:",
   "shaChecking": "Comprobando SHA-256…",
   "shaCheck": "Comprobar SHA-256",
+  "rename": "Renombrar",
+  "folderMove": "Carpeta…",
+  "renamePrompt": "Nuevo nombre",
+  "folderPrompt": "Mover a esta carpeta (ruta completa)",
   "shaPrompt": "SHA-256 esperado (64 caracteres hexadecimales, vacío = ninguno)",
   "shaBad": "SHA-256 no válido: se esperan 64 caracteres hexadecimales"
 }

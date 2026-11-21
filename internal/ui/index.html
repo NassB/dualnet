@@ -822,8 +822,30 @@ async function askSha(id) {
   const r = await fetch(`/api/jobsha?id=${id}&sha256=${encodeURIComponent(v.trim())}`, { method: 'POST', headers: { 'X-Dualnet': '1' } });
   if (!r.ok) toast(srv(await r.text()));
 }
+async function askRename(id) {
+  const cur = (jobFiles[id] || '').split(/[\/]/).pop();
+  const v = prompt(t('renamePrompt'), cur);
+  if (v === null || !v.trim() || v.trim() === cur) return;
+  const r = await fetch(`/api/jobname?id=${id}&name=${encodeURIComponent(v.trim())}`, { method: 'POST', headers: { 'X-Dualnet': '1' } });
+  if (!r.ok) toast(srv(await r.text()));
+}
+async function askFolder(id) {
+  let dir = '';
+  if (SNAP_OS === 'windows') { // the folder picker; ignored (typed instead) if it fails
+    try {
+      const r = await fetch('/api/downloaddir/browse', { method: 'POST', headers: { 'X-Dualnet': '1' } });
+      if (r.ok) { dir = (await r.json()).dir; if (!dir) return; }
+    } catch (e) {}
+  }
+  if (!dir) { dir = prompt(t('folderPrompt'), jobFiles[id] ? jobFiles[id].replace(/[\/][^\/]*$/, '') : ''); if (!dir || !dir.trim()) return; }
+  const r = await fetch(`/api/jobdir?id=${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Dualnet': '1' }, body: JSON.stringify({ dir: dir.trim() }) });
+  if (!r.ok) toast(srv(await r.text()));
+}
+const jobFiles = {}; // output file per download id, for the prompts
+let SNAP_OS = '';
 const jobCaps = {}; // current cap per download id, for the prompt
 function renderJobs(snap) {
+  SNAP_OS = snap.os || SNAP_OS;
   if (document.activeElement !== $('maxDl') && snap.maxDownloads != null) $('maxDl').value = snap.maxDownloads;
   if (snap.dir) $('dir').textContent = t('destFolder', { d: snap.dir });
   if (snap.dir && document.activeElement !== $('dlDir') && !dlDirEdited) $('dlDir').value = snap.dir;
@@ -864,6 +886,7 @@ function renderJobs(snap) {
             ${j.state === 'error' ? `<button class="btn ghost small" onclick="post('/api/retry?id=${j.id}')">${t('retry')}</button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" data-f="cap" onclick="askJobCap(${j.id}, jobCaps[${j.id}])"></button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
+            ${j.state !== 'running' && j.state !== 'cancelled' ? `<button class="btn ghost small" onclick="askRename(${j.id})">${t('rename')}</button><button class="btn ghost small" onclick="askFolder(${j.id})">${t('folderMove')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="askSha(${j.id})">${t('shaCheck')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/openfile?id=${j.id}')">${t('openFile')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
@@ -882,7 +905,7 @@ function renderJobs(snap) {
   jobs.forEach((j, n) => {
     const el = box.children[n];
     if (!el) return;
-    jobCaps[j.id] = j.capMbps; jobShas[j.id] = j.sha256 || '';
+    jobCaps[j.id] = j.capMbps; jobShas[j.id] = j.sha256 || ''; jobFiles[j.id] = j.file || '';
     const cb = el.querySelector('[data-f="cap"]');
     if (cb) cb.textContent = j.capMbps ? t('jobCapSet', { n: j.capMbps }) : t('jobCap');
     const pct = j.size ? 100 * j.done / j.size : 0;

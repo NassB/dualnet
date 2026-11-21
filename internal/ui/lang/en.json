@@ -261,6 +261,13 @@
   "roleHelp": "“Only when the others are busy” keeps a link idle, for example your phone’s mobile data, until the other links are nearly full. Then dualnet adds it, and lets it go again when the load falls. A program restricted to it by a rule still uses it.",
   "tagStandby": "Standby",
   "_server": {
+    "a file with this name already exists": "a file with this name already exists",
+    "pause the download first": "pause the download first",
+    "cannot move to another drive": "cannot move to another drive",
+    "cannot move the file": "cannot move the file",
+    "the file is gone": "the file is gone",
+    "the download was cancelled": "the download was cancelled",
+    "invalid name": "invalid name",
     "the folder must be a full path": "the folder must be a full path",
     "cannot create the folder": "cannot create the folder",
     "cannot write to the folder": "cannot write to the folder",
@@ -287,6 +294,10 @@
   "shaFail": "SHA-256 ✗ — the file does not match the expected checksum (it was kept). Actual:",
   "shaChecking": "Checking SHA-256…",
   "shaCheck": "Check SHA-256",
+  "rename": "Rename",
+  "folderMove": "Folder…",
+  "renamePrompt": "New name",
+  "folderPrompt": "Move to this folder (full path)",
   "shaPrompt": "Expected SHA-256 (64 hex characters, empty = none)",
   "shaBad": "Invalid SHA-256: 64 hexadecimal characters expected"
 }

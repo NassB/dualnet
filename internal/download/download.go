@@ -28,6 +28,7 @@ type Options struct {
 	ChunkSize     int64
 	WorkersPerLnk int
 	OutDir        string            // used when Output is empty
+	Name          string            // file name to use instead of the server's, when Output is empty
 	Quiet         bool              // no console output (UI mode)
 	Stats         *Stats            // optional live progress for the UI
 	Limit         *ratelimit.Bucket // optional cap shared by all workers of this download (nil = none)
@@ -254,6 +255,9 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	if opts.Output == "" {
 		// Another download (of another link) may be writing the same name:
 		// take "name (2).ext" and so on rather than failing.
+		if opts.Name != "" {
+			name = opts.Name
+		}
 		opts.Output, release, err = claimFree(opts.OutDir, safeName(name))
 	} else {
 		release, err = claim(opts.Output)
@@ -613,3 +617,13 @@ func progress(ls []*links.Link, perLink []atomic.Int64, done *atomic.Int64, size
 func (s *Stats) Preset(file string, size, done int64) {
 	s.set(file, size, done, nil)
 }
+
+// SetFile changes the output file of a download that is not running (it was renamed).
+func (s *Stats) SetFile(file string) {
+	s.mu.Lock()
+	s.file = file
+	s.mu.Unlock()
+}
+
+// SafeName turns a user- or server-chosen name into a plain file name.
+func SafeName(name string) string { return safeName(name) }

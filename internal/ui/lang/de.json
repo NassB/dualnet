@@ -261,6 +261,13 @@
   "roleHelp": "„Nur wenn die anderen ausgelastet sind“ hält eine Verbindung im Ruhezustand, zum Beispiel die mobilen Daten deines Handys, bis die anderen Verbindungen fast voll sind. Dann schaltet dualnet sie zu und gibt sie wieder frei, wenn die Last sinkt. Ein per Regel darauf beschränktes Programm nutzt sie trotzdem.",
   "tagStandby": "Bereit",
   "_server": {
+    "a file with this name already exists": "eine Datei mit diesem Namen existiert bereits",
+    "pause the download first": "pausieren Sie den Download zuerst",
+    "cannot move to another drive": "Verschieben auf ein anderes Laufwerk nicht möglich",
+    "cannot move the file": "Datei kann nicht verschoben werden",
+    "the file is gone": "die Datei ist nicht mehr da",
+    "the download was cancelled": "der Download wurde abgebrochen",
+    "invalid name": "ungültiger Name",
     "the folder must be a full path": "der Ordner muss ein vollständiger Pfad sein (zum Beispiel D:\\Downloads)",
     "cannot create the folder": "der Ordner kann nicht angelegt werden",
     "cannot write to the folder": "in den Ordner kann nicht geschrieben werden",
@@ -287,6 +294,10 @@
   "shaFail": "SHA-256 ✗ — die Datei stimmt nicht mit der erwarteten Prüfsumme überein (sie bleibt erhalten). Tatsächlich:",
   "shaChecking": "SHA-256 wird geprüft…",
   "shaCheck": "SHA-256 prüfen",
+  "rename": "Umbenennen",
+  "folderMove": "Ordner…",
+  "renamePrompt": "Neuer Name",
+  "folderPrompt": "In diesen Ordner verschieben (vollständiger Pfad)",
   "shaPrompt": "Erwartetes SHA-256 (64 Hexzeichen, leer = keins)",
   "shaBad": "Ungültiges SHA-256: 64 Hexzeichen erwartet"
 }

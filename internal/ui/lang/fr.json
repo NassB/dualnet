@@ -261,6 +261,13 @@
   "roleHelp": "« Seulement si les autres sont chargés » garde un lien au repos, par exemple les données mobiles de votre téléphone, jusqu’à ce que les autres liens soient presque pleins. dualnet l’ajoute alors, et le libère quand la charge retombe. Un programme limité à ce lien par une règle l’utilise quand même.",
   "tagStandby": "En veille",
   "_server": {
+    "a file with this name already exists": "un fichier de ce nom existe déjà",
+    "pause the download first": "mettez d'abord le téléchargement en pause",
+    "cannot move to another drive": "impossible de déplacer vers un autre lecteur",
+    "cannot move the file": "impossible de déplacer le fichier",
+    "the file is gone": "le fichier a disparu",
+    "the download was cancelled": "le téléchargement a été annulé",
+    "invalid name": "nom invalide",
     "the folder must be a full path": "le dossier doit être un chemin complet (par exemple D:\\Téléchargements)",
     "cannot create the folder": "impossible de créer le dossier",
     "cannot write to the folder": "impossible d’écrire dans le dossier",
@@ -287,6 +294,10 @@
   "shaFail": "SHA-256 ✗ — le fichier ne correspond pas à la somme attendue (il est conservé). Réelle :",
   "shaChecking": "Vérification SHA-256…",
   "shaCheck": "Vérifier SHA-256",
+  "rename": "Renommer",
+  "folderMove": "Dossier…",
+  "renamePrompt": "Nouveau nom",
+  "folderPrompt": "Déplacer dans ce dossier (chemin complet)",
   "shaPrompt": "SHA-256 attendu (64 caractères hexadécimaux, vide = aucun)",
   "shaBad": "SHA-256 invalide : 64 caractères hexadécimaux attendus"
 }

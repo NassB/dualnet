@@ -88,6 +88,7 @@ type job struct {
 	sha      string            // expected SHA-256 (lower-case hex), "" = none
 	shaState string            // "", "checking", "ok" or "mismatch"
 	shaGot   string            // actual hash after a mismatch
+	name     string            // name wanted by the user before the download started ("" = the server's)
 }
 
 func (j *job) setCap(mbps float64) {
@@ -108,6 +109,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
 	mux.HandleFunc("POST /api/jobcap", s.jobCap)
 	mux.HandleFunc("POST /api/jobsha", s.jobSha)
+	mux.HandleFunc("POST /api/jobname", s.jobName)
+	mux.HandleFunc("POST /api/jobdir", s.jobDir)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/retry", s.retryJob)
 	mux.HandleFunc("POST /api/move", s.moveJob)
@@ -531,7 +534,7 @@ func (s *Server) startNow(w http.ResponseWriter, r *http.Request) {
 func (s *Server) run(j *job) {
 	out, _, _ := j.stats.Snapshot() // set when resuming: same file as before the pause
 	err := download.Run(j.ctx, j.links, download.Options{
-		URL: j.url, Output: out, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
+		URL: j.url, Output: out, OutDir: j.dir, Name: j.name, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
 		Quiet: true, Stats: j.stats, Limit: j.limit,
 	})
 	s.mu.Lock()
