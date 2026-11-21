@@ -8,11 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +24,7 @@ import (
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/notify"
+	"github.com/NassB/dualnet/internal/ratelimit"
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/update"
@@ -61,25 +65,39 @@ type Server struct {
 	mu     sync.Mutex
 	jobs   []*job
 	nextID int
+	loaded sync.Once
 }
 
 type job struct {
-	id      int
-	url     string
-	state   string // queued, running, done, error, cancelled
-	err     string
-	workers int    // connections per link
-	dir     string // folder chosen when the download was added
-	started time.Time
-	ended   time.Time
-	stats   *download.Stats
-	links   []*links.Link // links used, in the order of stats' per-link counters
-	ctx     context.Context
-	cancel  context.CancelFunc
-	dropped bool // cancelled by the user: the partial file is deleted
+	id       int
+	url      string
+	state    string // queued, running, paused, done, error, cancelled
+	err      string
+	workers  int    // connections per link
+	dir      string // folder chosen when the download was added
+	started  time.Time
+	ended    time.Time
+	stats    *download.Stats
+	links    []*links.Link // links used, in the order of stats' per-link counters
+	ctx      context.Context
+	cancel   context.CancelFunc
+	dropped  bool              // cancelled by the user: the partial file is deleted
+	pausing  bool              // paused by the user: the partial file is kept
+	capMbps  float64           // speed cap of this download in Mb/s (0 = none)
+	limit    *ratelimit.Bucket // enforces capMbps; changes live
+	sha      string            // expected SHA-256 (lower-case hex), "" = none
+	shaState string            // "", "checking", "ok" or "mismatch"
+	shaGot   string            // actual hash after a mismatch
+	name     string            // name wanted by the user before the download started ("" = the server's)
+}
+
+func (j *job) setCap(mbps float64) {
+	j.capMbps = mbps
+	j.limit.Set(mbps * 1e6 / 8)
 }
 
 func (s *Server) Handler() http.Handler {
+	s.loaded.Do(s.loadJobs) // the download list of the previous run
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -88,10 +106,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
+	mux.HandleFunc("POST /api/pause", s.pauseJob)
+	mux.HandleFunc("POST /api/jobcap", s.jobCap)
+	mux.HandleFunc("POST /api/jobsha", s.jobSha)
+	mux.HandleFunc("POST /api/jobname", s.jobName)
+	mux.HandleFunc("POST /api/jobdir", s.jobDir)
+	mux.HandleFunc("POST /api/resume", s.resumeJob)
+	mux.HandleFunc("POST /api/retry", s.retryJob)
+	mux.HandleFunc("POST /api/move", s.moveJob)
+	mux.HandleFunc("POST /api/startnow", s.startNow)
+	mux.HandleFunc("POST /api/clear", s.clearJobs)
+	mux.HandleFunc("POST /api/remove", s.removeJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
 	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
 	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
 	mux.HandleFunc("POST /api/reveal", s.reveal)
+	mux.HandleFunc("POST /api/openfile", s.openFile)
 	mux.HandleFunc("POST /api/sysproxy", s.setSysProxy)
 	mux.HandleFunc("POST /api/transparent", s.setTun)
 	mux.HandleFunc("POST /api/limit", s.setLimit)
@@ -148,16 +178,20 @@ type linkView struct {
 }
 
 type jobView struct {
-	ID      int     `json:"id"`
-	URL     string  `json:"url"`
-	File    string  `json:"file"`
-	Size    int64   `json:"size"`
-	Done    int64   `json:"done"`
-	PerLink []int64 `json:"perLink"`
-	Mbps    float64 `json:"mbps"`
-	State   string  `json:"state"`
-	Err     string  `json:"err,omitempty"`
-	Elapsed float64 `json:"elapsed"`
+	ID       int     `json:"id"`
+	URL      string  `json:"url"`
+	File     string  `json:"file"`
+	Size     int64   `json:"size"`
+	Done     int64   `json:"done"`
+	PerLink  []int64 `json:"perLink"`
+	Mbps     float64 `json:"mbps"`
+	State    string  `json:"state"`
+	Err      string  `json:"err,omitempty"`
+	Elapsed  float64 `json:"elapsed"`
+	CapMbps  float64 `json:"capMbps"`
+	Sha      string  `json:"sha256,omitempty"`
+	ShaState string  `json:"shaState,omitempty"`
+	ShaGot   string  `json:"shaGot,omitempty"`
 }
 
 type snapshot struct {
@@ -303,7 +337,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					name = filepath.Base(file)
 				}
 				v := jobView{ID: j.id, URL: j.url, File: name, Size: size, Done: done,
-					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed}
+					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed, CapMbps: j.capMbps,
+					Sha: j.sha, ShaState: j.shaState, ShaGot: j.shaGot}
 				if j.state == "running" {
 					if last, seen := prevJob[j.id]; seen { // no speed on a page's first tick
 						v.Mbps = links.Mbps(done-last, dt)
@@ -326,9 +361,15 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL     string `json:"url"`
 		Workers int    `json:"workers"`
+		Sha     string `json:"sha256"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
 		http.Error(w, "missing url", http.StatusBadRequest)
+		return
+	}
+	req.Sha = strings.ToLower(strings.TrimSpace(req.Sha))
+	if req.Sha != "" && !sha256Re.MatchString(req.Sha) {
+		http.Error(w, "invalid sha256 (64 hex characters)", http.StatusBadRequest)
 		return
 	}
 	if u, err := url.Parse(req.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -345,7 +386,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	for _, j := range s.jobs {
-		if (j.state == "running" || j.state == "queued") && j.url == req.URL {
+		if (j.state == "running" || j.state == "queued" || j.state == "paused") && j.url == req.URL {
 			s.mu.Unlock()
 			cancel()
 			http.Error(w, "already downloading", http.StatusConflict)
@@ -353,8 +394,9 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.nextID++
-	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx})
+	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx, limit: &ratelimit.Bucket{}, sha: req.Sha})
 	s.pump()
+	s.saveJobs()
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -394,27 +436,114 @@ func (s *Server) pump() {
 		if j.state != "queued" || (limit > 0 && running >= limit) {
 			continue
 		}
-		up := s.Pool.Up()
-		if len(up) == 0 {
-			j.state, j.err, j.ended = "error", "no connected link", time.Now()
-			continue
+		if s.begin(j) {
+			running++
 		}
-		j.state, j.started, j.links = "running", time.Now(), up
-		running++
-		go s.run(j)
 	}
+}
+
+// begin starts a job now (limit not checked) and reports whether it runs.
+// Called with s.mu held.
+func (s *Server) begin(j *job) bool {
+	up := s.Pool.Up()
+	if len(up) == 0 {
+		j.state, j.err, j.ended = "error", "no connected link", time.Now()
+		s.saveJobs()
+		return false
+	}
+	j.state, j.started, j.links = "running", time.Now(), up
+	s.saveJobs()
+	go s.run(j)
+	return true
+}
+
+// moveJob changes the place of a queued download among the queued ones (the
+// queue order is the order of s.jobs): to=up starts it sooner, down later,
+// top first.
+func (s *Server) moveJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	to := r.URL.Query().Get("to")
+	if to != "up" && to != "down" && to != "top" {
+		http.Error(w, "to must be up, down or top", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if j.state != "queued" {
+		http.Error(w, "not queued", http.StatusConflict)
+		return
+	}
+	var q []*job // queued jobs in queue order
+	for _, o := range s.jobs {
+		if o.state == "queued" {
+			q = append(q, o)
+		}
+	}
+	i := 0
+	for q[i] != j {
+		i++
+	}
+	switch {
+	case to == "top":
+		copy(q[1:i+1], q[:i])
+		q[0] = j
+	case to == "up" && i > 0:
+		q[i-1], q[i] = q[i], q[i-1]
+	case to == "down" && i < len(q)-1:
+		q[i+1], q[i] = q[i], q[i+1]
+	}
+	n := 0 // put the queued jobs back in the slots the queued jobs occupied
+	for k, o := range s.jobs {
+		if o.state == "queued" {
+			s.jobs[k] = q[n]
+			n++
+		}
+	}
+	s.saveJobs()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// startNow runs a queued or paused download at once, even above the limit;
+// nothing running is stopped.
+func (s *Server) startNow(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch j.state {
+	case "paused":
+		j.ctx, j.cancel = context.WithCancel(context.Background())
+		j.pausing = false
+	case "queued":
+	default:
+		http.Error(w, "not queued or paused", http.StatusConflict)
+		return
+	}
+	s.begin(j)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // run downloads one job, then lets the next queued one start.
 func (s *Server) run(j *job) {
+	out, _, _ := j.stats.Snapshot() // set when resuming: same file as before the pause
 	err := download.Run(j.ctx, j.links, download.Options{
-		URL: j.url, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
-		Quiet: true, Stats: j.stats,
+		URL: j.url, Output: out, OutDir: j.dir, Name: j.name, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
+		Quiet: true, Stats: j.stats, Limit: j.limit,
 	})
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j.ended = time.Now()
 	switch {
+	case j.ctx.Err() != nil && j.pausing && !j.dropped:
+		j.state = "paused" // the .part stays for the resume
+		j.ended = time.Time{}
 	case j.ctx.Err() != nil:
 		j.state = "cancelled"
 		if file, _, _ := j.stats.Snapshot(); j.dropped {
@@ -424,11 +553,28 @@ func (s *Server) run(j *job) {
 		j.state, j.err = "error", err.Error()
 	default:
 		j.state = "done"
+		if j.sha != "" {
+			s.checkSha(j) // releases s.mu while the file is read
+		}
 	}
 	if err != nil {
 		log.Printf("download %d: %v", j.id, err)
 	}
+	if s.Notify != nil && (j.state == "done" || j.state == "error") {
+		file, total, _ := j.stats.Snapshot()
+		if file == "" {
+			file = j.url
+		}
+		if j.state == "done" && j.shaState == "mismatch" {
+			s.Notify.DownloadFailed(file, "SHA-256 check failed")
+		} else if j.state == "done" {
+			s.Notify.DownloadDone(file, total)
+		} else {
+			s.Notify.DownloadFailed(file, j.err)
+		}
+	}
 	s.pump()
+	s.saveJobs()
 }
 
 func (s *Server) find(r *http.Request) *job {
@@ -447,12 +593,137 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	if j := s.find(r); j != nil {
 		s.mu.Lock()
 		j.dropped = true
-		if j.state == "queued" { // never started: nothing to stop or delete
+		switch j.state {
+		case "queued": // never started: nothing to stop or delete
 			j.state, j.ended = "cancelled", time.Now()
+		case "paused": // no download running: delete the partial file here
+			j.state, j.ended = "cancelled", time.Now()
+			file, _, _ := j.stats.Snapshot()
+			download.RemovePartial(file)
 		}
+		s.saveJobs()
 		s.mu.Unlock()
 		j.cancel()
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// pauseJob stops a download but keeps its partial file; resume continues it.
+func (s *Server) pauseJob(w http.ResponseWriter, r *http.Request) {
+	if j := s.find(r); j != nil {
+		s.mu.Lock()
+		switch j.state {
+		case "queued":
+			j.state = "paused"
+		case "running":
+			j.pausing = true
+			j.cancel() // run() sets the state once the download has stopped
+		}
+		s.saveJobs()
+		s.mu.Unlock()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// jobCap sets the speed cap of a download in Mb/s (0 = none), live if it runs.
+func (s *Server) jobCap(w http.ResponseWriter, r *http.Request) {
+	mbps, err := strconv.ParseFloat(r.URL.Query().Get("mbps"), 64)
+	if err != nil || math.IsNaN(mbps) || mbps < 0 || mbps > 10000 {
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	j.setCap(mbps)
+	s.saveJobs()
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// resumeJob puts a paused download back in the queue.
+func (s *Server) resumeJob(w http.ResponseWriter, r *http.Request) {
+	if j := s.find(r); j != nil {
+		s.mu.Lock()
+		if j.state == "paused" {
+			j.ctx, j.cancel = context.WithCancel(context.Background())
+			j.pausing, j.state = false, "queued"
+			s.pump()
+			s.saveJobs()
+		}
+		s.mu.Unlock()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// retryJob puts a failed download back in the queue; a partial file left by
+// the failed run is continued like on resume.
+func (s *Server) retryJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if j.state != "error" {
+		http.Error(w, "not failed", http.StatusConflict)
+		return
+	}
+	for _, o := range s.jobs {
+		if o != j && (o.state == "running" || o.state == "queued" || o.state == "paused") && o.url == j.url {
+			http.Error(w, "already downloading", http.StatusConflict)
+			return
+		}
+	}
+	j.ctx, j.cancel = context.WithCancel(context.Background())
+	j.pausing, j.dropped, j.err, j.ended, j.state = false, false, "", time.Time{}, "queued"
+	s.pump()
+	s.saveJobs()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// finished reports whether a job has ended (done, error or cancelled).
+func finished(j *job) bool { return j.state == "done" || j.state == "error" || j.state == "cancelled" }
+
+// clearJobs removes every finished job from the list; files stay on disk.
+func (s *Server) clearJobs(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keep := s.jobs[:0]
+	for _, j := range s.jobs {
+		if !finished(j) {
+			keep = append(keep, j)
+		}
+	}
+	s.jobs = keep
+	s.saveJobs()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// removeJob removes one finished job from the list (409 while it is active).
+func (s *Server) removeJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !finished(j) {
+		http.Error(w, "still active", http.StatusConflict)
+		return
+	}
+	for i, o := range s.jobs {
+		if o == j {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			break
+		}
+	}
+	s.saveJobs()
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -470,6 +741,43 @@ func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := revealFile(abs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// openFile opens a finished download with its default application. Only the
+// job's own output file is ever opened, and programs are refused: opening
+// them would run them.
+func (s *Server) openFile(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	state := j.state
+	s.mu.Unlock()
+	if state != "done" {
+		http.Error(w, "the download is not finished", http.StatusConflict)
+		return
+	}
+	file, _, _ := j.stats.Snapshot()
+	abs, err := filepath.Abs(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if fi, err := os.Stat(abs); err != nil || fi.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	if isProgram(abs) {
+		http.Error(w, "programs are not opened from here; use Show in folder", http.StatusForbidden)
+		return
+	}
+	if err := openPath(abs); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

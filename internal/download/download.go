@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/ratelimit"
 )
 
 type Options struct {
@@ -26,9 +27,11 @@ type Options struct {
 	Output        string
 	ChunkSize     int64
 	WorkersPerLnk int
-	OutDir        string // used when Output is empty
-	Quiet         bool   // no console output (UI mode)
-	Stats         *Stats // optional live progress for the UI
+	OutDir        string            // used when Output is empty
+	Name          string            // file name to use instead of the server's, when Output is empty
+	Quiet         bool              // no console output (UI mode)
+	Stats         *Stats            // optional live progress for the UI
+	Limit         *ratelimit.Bucket // optional cap shared by all workers of this download (nil = none)
 }
 
 // Stats exposes a running download's progress to another goroutine (the UI).
@@ -252,6 +255,9 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 	if opts.Output == "" {
 		// Another download (of another link) may be writing the same name:
 		// take "name (2).ext" and so on rather than failing.
+		if opts.Name != "" {
+			name = opts.Name
+		}
 		opts.Output, release, err = claimFree(opts.OutDir, safeName(name))
 	} else {
 		release, err = claim(opts.Output)
@@ -272,7 +278,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 		if err != nil {
 			return err
 		}
-		err = single(ctx, clients[0], opts.URL, f, &perLink[0])
+		err = single(ctx, clients[0], opts.URL, f, &perLink[0], opts.Limit)
 		f.Close()
 		if err != nil {
 			return err
@@ -374,7 +380,7 @@ func Run(ctx context.Context, ls []*links.Link, opts Options) error {
 					if t == nil {
 						return
 					}
-					_, err := fetchTask(ctx, clients[li], opts.URL, t, f, func(n int64) {
+					_, err := fetchTask(ctx, clients[li], opts.URL, t, f, opts.Limit, func(n int64) {
 						done.Add(n)
 						perLink[li].Add(n)
 					})
@@ -484,7 +490,7 @@ func fileName(resp *http.Response, rawURL string) string {
 
 // fetchTask downloads t from t.pos until t.end (which a stealer may lower meanwhile).
 // It returns the number of bytes written.
-func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *os.File, count func(int64)) (int64, error) {
+func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *os.File, lim *ratelimit.Bucket, count func(int64)) (int64, error) {
 	// A stalled range is abandoned and requeued instead of blocking forever.
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
@@ -509,6 +515,9 @@ func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *o
 	var written int64
 	for {
 		n, rerr := resp.Body.Read(buf)
+		if lim != nil {
+			lim.Wait(n) // the download's own cap, on top of the link caps
+		}
 		t.mu.Lock()
 		if left := t.end - t.pos + 1; int64(n) > left {
 			n = int(left)
@@ -543,15 +552,29 @@ func fetchTask(ctx context.Context, c *http.Client, rawURL string, t *task, f *o
 }
 
 // single downloads the whole file over one link, counting the bytes in got.
-func single(ctx context.Context, c *http.Client, rawURL string, f *os.File, got *atomic.Int64) error {
+func single(ctx context.Context, c *http.Client, rawURL string, f *os.File, got *atomic.Int64, lim *ratelimit.Bucket) error {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	resp, err := c.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(countWriter{f, got}, resp.Body)
+	_, err = io.Copy(countWriter{f, got}, limitReader{resp.Body, lim})
 	return err
+}
+
+// limitReader waits for the download's cap (if any) after each read.
+type limitReader struct {
+	r   io.Reader
+	lim *ratelimit.Bucket
+}
+
+func (l limitReader) Read(p []byte) (int, error) {
+	n, err := l.r.Read(p)
+	if l.lim != nil {
+		l.lim.Wait(n)
+	}
+	return n, err
 }
 
 type countWriter struct {
@@ -588,3 +611,19 @@ func progress(ls []*links.Link, perLink []atomic.Int64, done *atomic.Int64, size
 		}
 	}
 }
+
+// Preset fills the stats of a download restored from an earlier run: its
+// output file, total size and the bytes already on disk.
+func (s *Stats) Preset(file string, size, done int64) {
+	s.set(file, size, done, nil)
+}
+
+// SetFile changes the output file of a download that is not running (it was renamed).
+func (s *Stats) SetFile(file string) {
+	s.mu.Lock()
+	s.file = file
+	s.mu.Unlock()
+}
+
+// SafeName turns a user- or server-chosen name into a plain file name.
+func SafeName(name string) string { return safeName(name) }

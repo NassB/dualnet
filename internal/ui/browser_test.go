@@ -287,6 +287,23 @@ func TestDashboardInBrowser(t *testing.T) {
 				t.Errorf("[%s] page %s: %s", lang, page, bad)
 			}
 		}
+		// A synthetic drop of text adds its links to the box, once each, without starting anything.
+		c.eval(`document.querySelector('[data-page="downloads"]').click()`)
+		c.eval(`(() => { const dt = new DataTransfer(); dt.setData('text/plain', 'see https://a.test/x.zip and https://a.test/x.zip and https://b.test/y');
+		  document.getElementById('url').value = 'https://b.test/y';
+		  document.querySelector('#page-downloads .card').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); })()`)
+		if !c.waitFor(`document.getElementById('url').value === 'https://b.test/y\nhttps://a.test/x.zip'`, 3*time.Second) {
+			t.Errorf("[%s] a dropped link was not added to the box: %q", lang, c.eval(`document.getElementById('url').value`))
+		}
+		// The line parser: url alone, sha256: prefix, bare hex, bad hex refused (line kept).
+		h := strings.Repeat("Ab", 32)
+		in := strings.Join([]string{"http://a/x", "http://b/y sha256:" + h, "http://c/z " + h, "http://d/w sha256:12", "http://a/x"}, "\n")
+		js, _ := json.Marshal(in)
+		if got := c.eval(`JSON.stringify(parseDlLines(` + string(js) + `).map(d => [d.url, d.sha, !!d.err, d.text]))`); got !=
+			`[["http://a/x","",false,"http://a/x"],["http://b/y","`+strings.ToLower(h)+`",false,"http://b/y sha256:`+h+`"],["http://c/z","`+strings.ToLower(h)+`",false,"http://c/z `+h+`"],["http://d/w","",true,"http://d/w sha256:12"]]` {
+			t.Errorf("[%s] line parser: %s", lang, got)
+		}
+		c.eval(`document.getElementById('url').value = ''`)
 		c.eval(`document.querySelector('[data-page="home"]').click()`)
 		c.eval(`document.getElementById('welcomeGot').click()`)
 		if !c.waitFor(`document.getElementById('welcome').hidden === true`, 3*time.Second) {
