@@ -78,6 +78,7 @@ The interface has four pages:
   - A summary line above the list shows how many downloads are running, queued or paused, the total speed and the estimated time left.
   - Each download can be paused and resumed (the unfinished file is kept while it is paused; cancelling it deletes the file); a failed download has a **Retry** button (it continues from the unfinished file when the server allows it).
   - Waiting downloads start in the order shown (next to start on top): ↑ / ↓ change their place, and **Start now** runs one immediately even if the limit is reached (nothing running is stopped).
+  - **Max speed** on a download's card caps its speed in Mb/s (0 = none), also while it runs; the cap is kept in the list and comes on top of the per-link caps.
   - An **Open** button opens a finished file with its default application (programs such as `.exe` are never opened from the page, use *Show in folder*); **Clear finished** (or the × on a card) removes finished, failed and cancelled downloads from the list without deleting any file.
   - The list is kept when dualnet restarts (`downloads.json` in dualnet's data folder, the last 200 finished downloads): downloads that were running or waiting come back **paused** (nothing starts by itself) and **Resume** continues them from the unfinished file.
   - Two files with the same name are saved as `name.ext` and `name (2).ext`. Files go to your Downloads folder; choose another one in Settings → Application → *Download folder* (with *Browse…* on Windows);

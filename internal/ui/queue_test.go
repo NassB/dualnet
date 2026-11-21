@@ -16,6 +16,7 @@ import (
 
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/ratelimit"
 	"github.com/NassB/dualnet/internal/store"
 )
 
@@ -556,5 +557,48 @@ func settle(s *Server) {
 		if !busy {
 			return
 		}
+	}
+}
+
+// /api/jobcap validates the value and the cap is kept in downloads.json.
+func TestJobCap(t *testing.T) {
+	conf := t.TempDir()
+	srv := &Server{Store: store.Open(conf), OutDir: t.TempDir(), Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	srv.Handler()
+	srv.jobs = []*job{{id: 1, url: "http://x/a", state: "paused", stats: &download.Stats{}, limit: &ratelimit.Bucket{}}}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(q string) int {
+		req, _ := http.NewRequest("POST", ts.URL+"/api/jobcap?"+q, nil)
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, bad := range []string{"id=1&mbps=-1", "id=1&mbps=abc", "id=1&mbps=NaN", "id=1&mbps=10001"} {
+		if c := post(bad); c != http.StatusBadRequest {
+			t.Fatalf("%s: status %d", bad, c)
+		}
+	}
+	if c := post("id=9&mbps=5"); c != http.StatusNotFound {
+		t.Fatalf("unknown id: %d", c)
+	}
+	if c := post("id=1&mbps=12.5"); c != http.StatusNoContent {
+		t.Fatalf("status %d", c)
+	}
+	if srv.jobs[0].capMbps != 12.5 || srv.jobs[0].limit.Rate() != 12.5e6/8 {
+		t.Fatal("cap not applied")
+	}
+	b, _ := os.ReadFile(filepath.Join(conf, "downloads.json"))
+	if !strings.Contains(string(b), `"capMbps": 12.5`) && !strings.Contains(string(b), `"capMbps":12.5`) {
+		t.Fatalf("not saved: %s", b)
+	}
+	srv2 := &Server{Store: store.Open(conf), OutDir: t.TempDir(), Pool: srv.Pool}
+	srv2.Handler()
+	if len(srv2.jobs) != 1 || srv2.jobs[0].capMbps != 12.5 || srv2.jobs[0].limit.Rate() != 12.5e6/8 {
+		t.Fatal("cap not restored")
 	}
 }

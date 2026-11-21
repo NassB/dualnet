@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/NassB/dualnet/internal/links"
+	"github.com/NassB/dualnet/internal/ratelimit"
 )
 
 // slowWriter throttles responses so the two simulated links have different speeds.
@@ -122,5 +123,30 @@ func TestClaimFree(t *testing.T) {
 	}
 	if outs[0] != "a.tar.gz" || outs[1] != "a.tar (2).gz" || outs[2] != "a.tar (3).gz" {
 		t.Errorf("names: %v", outs)
+	}
+}
+
+// A capped download of 2 MB at 8 Mb/s (1 MB/s) takes about 2 s; the cap can
+// also be changed while it runs.
+func TestRunLimit(t *testing.T) {
+	data := make([]byte, 2<<20)
+	rand.Read(data)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "f", time.Time{}, bytes.NewReader(data))
+	}))
+	defer srv.Close()
+	ls := []*links.Link{links.New("lo", net.IPv4(127, 0, 0, 1))}
+	lim := &ratelimit.Bucket{}
+	lim.Set(8e6 / 8)
+	out := filepath.Join(t.TempDir(), "out")
+	start := time.Now()
+	if err := Run(context.Background(), ls, Options{URL: srv.URL, Output: out, ChunkSize: 1 << 20, WorkersPerLnk: 2, Limit: lim}); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d < 1200*time.Millisecond || d > 6*time.Second {
+		t.Fatalf("capped download took %v, expected about 2 s", d)
+	}
+	if got, _ := os.ReadFile(out); !bytes.Equal(got, data) {
+		t.Fatal("content differs")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/NassB/dualnet/internal/download"
+	"github.com/NassB/dualnet/internal/ratelimit"
 )
 
 // maxKeptFinished is how many finished downloads are kept between runs.
@@ -21,6 +22,7 @@ type savedJob struct {
 	Err     string    `json:"err,omitempty"`
 	Workers int       `json:"workers"`
 	Dir     string    `json:"dir"`
+	CapMbps float64   `json:"capMbps,omitempty"`
 	File    string    `json:"file,omitempty"`
 	Size    int64     `json:"size"`
 	Done    int64     `json:"done"`
@@ -49,7 +51,7 @@ func (s *Server) saveJobs() {
 		for _, b := range used {
 			done += b
 		}
-		out = append(out, savedJob{ID: j.id, URL: j.url, State: j.state, Err: j.err, Workers: j.workers, Dir: j.dir,
+		out = append(out, savedJob{ID: j.id, URL: j.url, State: j.state, Err: j.err, Workers: j.workers, Dir: j.dir, CapMbps: j.capMbps,
 			File: file, Size: size, Done: done, Started: j.started, Ended: j.ended})
 	}
 	// keep only the most recent finished jobs
@@ -111,8 +113,10 @@ func (s *Server) loadJobs() {
 		st := &download.Stats{}
 		st.Preset(v.File, v.Size, v.Done)
 		ctx, cancel := context.WithCancel(context.Background())
-		s.jobs = append(s.jobs, &job{id: v.ID, url: v.URL, state: v.State, err: v.Err, workers: v.Workers, dir: v.Dir,
-			started: v.Started, ended: v.Ended, stats: st, ctx: ctx, cancel: cancel})
+		j := &job{id: v.ID, url: v.URL, state: v.State, err: v.Err, workers: v.Workers, dir: v.Dir,
+			started: v.Started, ended: v.Ended, stats: st, ctx: ctx, cancel: cancel, limit: &ratelimit.Bucket{}}
+		j.setCap(v.CapMbps)
+		s.jobs = append(s.jobs, j)
 		if v.ID > s.nextID {
 			s.nextID = v.ID
 		}

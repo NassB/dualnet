@@ -8,9 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
-	"os"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/notify"
+	"github.com/NassB/dualnet/internal/ratelimit"
 	"github.com/NassB/dualnet/internal/store"
 	"github.com/NassB/dualnet/internal/sysproxy"
 	"github.com/NassB/dualnet/internal/update"
@@ -78,8 +80,15 @@ type job struct {
 	links   []*links.Link // links used, in the order of stats' per-link counters
 	ctx     context.Context
 	cancel  context.CancelFunc
-	dropped bool // cancelled by the user: the partial file is deleted
-	pausing bool // paused by the user: the partial file is kept
+	dropped bool              // cancelled by the user: the partial file is deleted
+	pausing bool              // paused by the user: the partial file is kept
+	capMbps float64           // speed cap of this download in Mb/s (0 = none)
+	limit   *ratelimit.Bucket // enforces capMbps; changes live
+}
+
+func (j *job) setCap(mbps float64) {
+	j.capMbps = mbps
+	j.limit.Set(mbps * 1e6 / 8)
 }
 
 func (s *Server) Handler() http.Handler {
@@ -93,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/download", s.startDownload)
 	mux.HandleFunc("POST /api/cancel", s.cancelJob)
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
+	mux.HandleFunc("POST /api/jobcap", s.jobCap)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/retry", s.retryJob)
 	mux.HandleFunc("POST /api/move", s.moveJob)
@@ -170,6 +180,7 @@ type jobView struct {
 	State   string  `json:"state"`
 	Err     string  `json:"err,omitempty"`
 	Elapsed float64 `json:"elapsed"`
+	CapMbps float64 `json:"capMbps"`
 }
 
 type snapshot struct {
@@ -315,7 +326,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 					name = filepath.Base(file)
 				}
 				v := jobView{ID: j.id, URL: j.url, File: name, Size: size, Done: done,
-					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed}
+					PerLink: per, State: j.state, Err: j.err, Elapsed: elapsed, CapMbps: j.capMbps}
 				if j.state == "running" {
 					if last, seen := prevJob[j.id]; seen { // no speed on a page's first tick
 						v.Mbps = links.Mbps(done-last, dt)
@@ -365,7 +376,7 @@ func (s *Server) startDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.nextID++
-	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx})
+	s.jobs = append(s.jobs, &job{id: s.nextID, url: req.URL, state: "queued", workers: req.Workers, dir: s.downloadDir(), stats: &download.Stats{}, cancel: cancel, ctx: ctx, limit: &ratelimit.Bucket{}})
 	s.pump()
 	s.saveJobs()
 	s.mu.Unlock()
@@ -506,7 +517,7 @@ func (s *Server) run(j *job) {
 	out, _, _ := j.stats.Snapshot() // set when resuming: same file as before the pause
 	err := download.Run(j.ctx, j.links, download.Options{
 		URL: j.url, Output: out, OutDir: j.dir, ChunkSize: 2 << 20, WorkersPerLnk: j.workers,
-		Quiet: true, Stats: j.stats,
+		Quiet: true, Stats: j.stats, Limit: j.limit,
 	})
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -588,6 +599,25 @@ func (s *Server) pauseJob(w http.ResponseWriter, r *http.Request) {
 		s.saveJobs()
 		s.mu.Unlock()
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// jobCap sets the speed cap of a download in Mb/s (0 = none), live if it runs.
+func (s *Server) jobCap(w http.ResponseWriter, r *http.Request) {
+	mbps, err := strconv.ParseFloat(r.URL.Query().Get("mbps"), 64)
+	if err != nil || math.IsNaN(mbps) || mbps < 0 || mbps > 10000 {
+		http.Error(w, "invalid value", http.StatusBadRequest)
+		return
+	}
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	j.setCap(mbps)
+	s.saveJobs()
+	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
 
