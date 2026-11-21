@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -93,7 +94,7 @@ func TestDownloadMessages(t *testing.T) {
 	on := true
 	n := &Notifier{Send: s.send, Enabled: func() bool { return on }}
 	fr := &Notifier{Send: s.send, French: true}
-	n.DownloadDone(`C:\d\film.mkv`, 5<<20)
+	n.DownloadDone(filepath.Join("d", "film.mkv"), 5<<20) // a path of this system (CI runs Linux and macOS too)
 	n.DownloadFailed("a.zip", "timeout")
 	fr.DownloadDone("a.zip", 0)
 	on = false
