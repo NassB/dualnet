@@ -75,6 +75,8 @@
   "pause": "Pause",
   "resume": "Fortsetzen",
   "retry": "Erneut versuchen",
+  "clearFinished": "Beendete entfernen",
+  "remove": "Aus der Liste entfernen",
   "queuedMeta": "Wartet, bis ein anderer Download fertig ist",
   "stRunning": "läuft",
   "stDone": "fertig",

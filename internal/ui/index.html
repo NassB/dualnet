@@ -334,6 +334,7 @@ td.r, th.r { text-align: right; }
           </select>
           <button class="btn" type="submit" data-i18n="download"></button>
         </form>
+        <div class="howto"><button class="btn ghost small" id="clearJobs" hidden onclick="post('/api/clear')" data-i18n="clearFinished"></button></div>
         <div class="jobs" id="jobs"><div class="empty" data-i18n="noDownloads"></div></div>
         <div class="howto mt"><span id="dir"></span> <a href="#" id="dirChange" data-i18n="dlDirChange"></a></div>
       </div>
@@ -816,8 +817,12 @@ function renderJobs(snap) {
   if (snap.dir) $('dir').textContent = t('destFolder', { d: snap.dir });
   if (snap.dir && document.activeElement !== $('dlDir') && !dlDirEdited) $('dlDir').value = snap.dir;
   $('dlDirReset').hidden = !snap.dirCustom;
-  if (!snap.jobs.length) return;
   const box = $('jobs');
+  $('clearJobs').hidden = !snap.jobs.some(j => ['done', 'error', 'cancelled'].includes(j.state));
+  if (!snap.jobs.length) {
+    if (jobsKey) { jobsKey = ''; box.innerHTML = `<div class="empty">${esc(t('noDownloads'))}</div>`; }
+    return;
+  }
   const jobs = snap.jobs.slice().reverse();
   const key = LANG + jobs.map(j => [j.id, j.state, j.file, j.err].join(',')).join('|');
   if (key !== jobsKey) { // a download started, ended or failed: rebuild the cards
@@ -834,6 +839,7 @@ function renderJobs(snap) {
             ${j.state === 'error' ? `<button class="btn ghost small" onclick="post('/api/retry?id=${j.id}')">${t('retry')}</button>` : ''}
             ${j.state === 'running' || j.state === 'queued' || j.state === 'paused' ? `<button class="btn ghost small" onclick="post('/api/cancel?id=${j.id}')">${t('cancel')}</button>` : ''}
             ${j.state === 'done' ? `<button class="btn ghost small" onclick="post('/api/reveal?id=${j.id}')">${t('openFolder')}</button>` : ''}
+            ${j.state === 'done' || j.state === 'error' || j.state === 'cancelled' ? `<button class="btn ghost small" title="${t('remove')}" onclick="post('/api/remove?id=${j.id}')">×</button>` : ''}
           </div>
         </div>
         <div class="bar" data-f="bar"></div>

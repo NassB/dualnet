@@ -92,6 +92,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/pause", s.pauseJob)
 	mux.HandleFunc("POST /api/resume", s.resumeJob)
 	mux.HandleFunc("POST /api/retry", s.retryJob)
+	mux.HandleFunc("POST /api/clear", s.clearJobs)
+	mux.HandleFunc("POST /api/remove", s.removeJob)
 	mux.HandleFunc("POST /api/maxdownloads", s.setMaxDownloads)
 	mux.HandleFunc("POST /api/downloaddir", s.setDownloadDir)
 	mux.HandleFunc("POST /api/downloaddir/browse", s.browseDownloadDir)
@@ -522,6 +524,45 @@ func (s *Server) retryJob(w http.ResponseWriter, r *http.Request) {
 	j.ctx, j.cancel = context.WithCancel(context.Background())
 	j.pausing, j.dropped, j.err, j.ended, j.state = false, false, "", time.Time{}, "queued"
 	s.pump()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// finished reports whether a job has ended (done, error or cancelled).
+func finished(j *job) bool { return j.state == "done" || j.state == "error" || j.state == "cancelled" }
+
+// clearJobs removes every finished job from the list; files stay on disk.
+func (s *Server) clearJobs(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keep := s.jobs[:0]
+	for _, j := range s.jobs {
+		if !finished(j) {
+			keep = append(keep, j)
+		}
+	}
+	s.jobs = keep
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// removeJob removes one finished job from the list (409 while it is active).
+func (s *Server) removeJob(w http.ResponseWriter, r *http.Request) {
+	j := s.find(r)
+	if j == nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !finished(j) {
+		http.Error(w, "still active", http.StatusConflict)
+		return
+	}
+	for i, o := range s.jobs {
+		if o == j {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			break
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

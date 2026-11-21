@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NassB/dualnet/internal/download"
 	"github.com/NassB/dualnet/internal/links"
 	"github.com/NassB/dualnet/internal/store"
 )
@@ -319,5 +320,42 @@ func TestRetry(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(out, "f"))
 	if err != nil || !bytes.Equal(got, data) {
 		t.Errorf("wrong content after retry (err %v)", err)
+	}
+}
+
+// Clearing drops finished jobs only; removing an active job is refused.
+func TestClearJobs(t *testing.T) {
+	srv := &Server{Store: store.Open(t.TempDir()), Pool: links.PoolOf(links.New("lo", net.IPv4(127, 0, 0, 1)))}
+	for i, st := range []string{"queued", "running", "paused", "done", "error", "cancelled"} {
+		srv.jobs = append(srv.jobs, &job{id: i + 1, state: st, stats: &download.Stats{}})
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	post := func(path string) int {
+		req, _ := http.NewRequest("POST", ts.URL+path, nil)
+		req.Header.Set(CSRFHeader, "1")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if c := post("/api/remove?id=2"); c != http.StatusConflict {
+		t.Errorf("remove of a running job: HTTP %d, want 409", c)
+	}
+	if c := post("/api/remove?id=4"); c != http.StatusNoContent {
+		t.Errorf("remove of a done job: HTTP %d", c)
+	}
+	if c := post("/api/clear"); c != http.StatusNoContent {
+		t.Fatalf("clear: HTTP %d", c)
+	}
+	if len(srv.jobs) != 3 {
+		t.Fatalf("%d jobs left, want 3", len(srv.jobs))
+	}
+	for _, j := range srv.jobs {
+		if finished(j) {
+			t.Errorf("job in state %s kept", j.state)
+		}
 	}
 }

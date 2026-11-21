@@ -75,6 +75,8 @@
   "pause": "Pausar",
   "resume": "Reanudar",
   "retry": "Reintentar",
+  "clearFinished": "Borrar finalizadas",
+  "remove": "Quitar de la lista",
   "queuedMeta": "Esperando a que termine otra descarga",
   "stRunning": "en curso",
   "stDone": "terminada",
